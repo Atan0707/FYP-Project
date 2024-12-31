@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useRouter } from 'next/navigation';
 import {
   Form,
   FormControl,
@@ -29,6 +30,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function LoginForm() {
   const [error, setError] = useState<string>('');
+  const router = useRouter();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -47,6 +49,8 @@ export default function LoginForm() {
       const result = await login(formData);
       if (result.error) {
         setError(result.error);
+      } else if (result.success) {
+        router.push('/pages/dashboard');
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');

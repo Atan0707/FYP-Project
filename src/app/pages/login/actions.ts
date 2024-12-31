@@ -2,9 +2,21 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { createSession } from '../_lib/session';
+import { cookies } from 'next/headers';
+import { encrypt } from '../_lib/session';
 
 const prisma = new PrismaClient();
+
+const cookie = {
+  name: 'session',
+  option: {
+      httpOnly: true, 
+      secure: true, 
+      sameSite: 'lax' as const, 
+      path: '/'
+  },
+  duration: 2 * 60 * 60 * 1000,
+};
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
@@ -31,7 +43,9 @@ export async function login(formData: FormData) {
     }
 
     // Create session
-    await createSession(user.id);
+    const expires = new Date(Date.now() + cookie.duration);
+    const session = await encrypt({ userId: user.id, expires });
+    (await cookies()).set(cookie.name, session, { ...cookie.option, expires });
 
     return { 
       success: true,
