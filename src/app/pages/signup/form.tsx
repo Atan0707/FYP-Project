@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { signUp } from './actions';
+import { Button } from "@/components/ui/button"
 
 export default function SignUpForm() {
   const [error, setError] = useState<string>('');
@@ -96,12 +97,8 @@ export default function SignUpForm() {
         <div className="text-red-500 text-sm">{error}</div>
       )}
 
-      <button
-        type="submit"
-        className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
-      >
-        Sign Up
-      </button>
+      
+      <Button type='submit'>Sign Up</Button>
     </form>
   );
 }
