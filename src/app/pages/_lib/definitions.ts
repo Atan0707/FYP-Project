@@ -4,8 +4,6 @@ export type User = {
   fullName: string;
   ic: string;
   phone: string;
-  createdAt: Date;
-  updatedAt: Date;
 };
 
 export type SignupFormData = {
