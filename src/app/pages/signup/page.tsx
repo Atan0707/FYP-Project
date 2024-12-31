@@ -1,6 +1,14 @@
+import { redirect } from 'next/navigation';
+import { getSession } from '../_lib/auth';
 import SignUpForm from './form';
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  const session = await getSession();
+  
+  if (session) {
+    redirect('/pages/dashboard');
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">

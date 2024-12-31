@@ -1,6 +1,14 @@
+import { redirect } from 'next/navigation';
+import { getSession } from '../_lib/auth';
 import LoginForm from './form';
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await getSession();
+  
+  if (session) {
+    redirect('/pages/dashboard');
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-center mb-6">Log In</h1>
