@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signUp } from './actions';
+import { login } from './actions';
 import { Button } from "@/components/ui/button"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,28 +17,18 @@ import {
 import { Input } from "@/components/ui/input"
 
 const formSchema = z.object({
-  fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Invalid email address"),
-  ic: z.string().min(1, "IC number is required"),
-  phone: z.string().min(1, "Phone number is required"),
-  password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number")
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
-export default function SignUpForm() {
+export default function LoginForm() {
   const [error, setError] = useState<string>('');
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      fullName: "",
       email: "",
-      ic: "",
-      phone: "",
       password: "",
     },
   });
@@ -50,35 +40,21 @@ export default function SignUpForm() {
         formData.append(key, value);
       });
 
-      const result = await signUp(formData);
+      const result = await login(formData);
       if (result.error) {
         setError(result.error);
       } else {
-        window.location.href = '/login';
+        window.location.href = '/dashboard';
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
-      console.error('Signup error:', error);
+      console.error('Login error:', error);
     }
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-w-md mx-auto mt-8">
-        <FormField
-          control={form.control}
-          name="fullName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Full Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter your full name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <FormField
           control={form.control}
           name="email"
@@ -95,40 +71,12 @@ export default function SignUpForm() {
 
         <FormField
           control={form.control}
-          name="ic"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>IC Number</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter your IC number" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone Number</FormLabel>
-              <FormControl>
-                <Input type="tel" placeholder="Enter your phone number" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
           name="password"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="Create a strong password" {...field} />
+                <Input type="password" placeholder="Enter your password" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -140,9 +88,9 @@ export default function SignUpForm() {
         )}
 
         <div className="flex justify-center">
-          <Button type="submit">Sign Up</Button>
+          <Button type="submit">Log In</Button>
         </div>
       </form>
     </Form>
   );
-}
+} 
