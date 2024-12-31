@@ -6,12 +6,17 @@ import { decrypt } from '../pages/_lib/session';
 
 const prisma = new PrismaClient();
 
-export async function getCurrentUser() {
+export async function checkSession() {
   const sessionCookie = (await cookies()).get('session')?.value;
   if (!sessionCookie) return null;
   
   const session = await decrypt(sessionCookie);
-  if (!session?.userId) return null;
+  return session?.userId ? session : null;
+}
+
+export async function getCurrentUser() {
+  const session = await checkSession();
+  if (!session) return null;
 
   try {
     const user = await prisma.user.findUnique({

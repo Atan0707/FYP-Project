@@ -2,17 +2,24 @@
 
 import { Button } from "@/components/ui/button";
 import { logout } from "../_lib/auth-actions";
-import { getCurrentUser } from "@/app/server/actions";
+import { getCurrentUser, checkSession } from "@/app/server/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { useEffect, useState } from "react";
 import { User } from "../_lib/definitions";
+import { redirect } from "next/navigation";
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUser = async () => {
+    async function initializeData() {
+      const session = await checkSession();
+      if (!session) {
+        alert('You are not logged in');
+        redirect('/pages/login');
+      }
+      
       try {
         const userData = await getCurrentUser();
         setUser(userData);
@@ -21,9 +28,9 @@ export default function DashboardPage() {
       } finally {
         setLoading(false);
       }
-    };
+    }
 
-    fetchUser();
+    initializeData();
   }, []);
 
   if (loading) {
