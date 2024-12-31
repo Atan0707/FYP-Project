@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { useRouter } from 'next/navigation';
 
 const formSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
@@ -32,6 +33,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function SignUpForm() {
   const [error, setError] = useState<string>('');
+  const router = useRouter();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -54,7 +56,7 @@ export default function SignUpForm() {
       if (result.error) {
         setError(result.error);
       } else {
-        window.location.href = '/login';
+        router.push('/login');
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
