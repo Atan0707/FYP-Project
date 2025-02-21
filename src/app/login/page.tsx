@@ -43,7 +43,7 @@ export default function LoginPage() {
             <CardHeader>
               <CardTitle className="text-2xl text-center">Log in to your account</CardTitle>
               <p className="text-sm text-center text-muted-foreground">
-                Don't have an account?{" "}
+                Don&apos;t have an account?{" "}
                 <Link href="/signup" className="text-primary hover:underline">
                   Sign up
                 </Link>
