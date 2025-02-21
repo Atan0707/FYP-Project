@@ -1,17 +1,19 @@
-import React from 'react'
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/app-sidebar"
+import { AppLayout } from "@/components/layouts/app-layout"
 
-const Dashboard = () => {
+export default function Page() {
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <div>
-        <SidebarTrigger />
-        Dashboard
+    <AppLayout
+      breadcrumbs={[
+        { label: "Building Your Application", href: "#" },
+        { label: "Data Fetching", isCurrentPage: true }
+      ]}
+    >
+      <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+        <div className="aspect-video rounded-xl bg-muted/50" />
+        <div className="aspect-video rounded-xl bg-muted/50" />
+        <div className="aspect-video rounded-xl bg-muted/50" />
       </div>
-    </SidebarProvider>
+      <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
+    </AppLayout>
   )
 }
-
-export default Dashboard
