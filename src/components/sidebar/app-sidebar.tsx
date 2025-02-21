@@ -27,7 +27,30 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 // import Image from "next/image"
-// This is sample data.
+import { useState, useEffect } from "react"
+
+// The user object should have this shape
+type User = {
+  name: string;
+  email: string;
+  avatar: string;
+}
+
+// Make sure your API returns data in this format
+const getUser = async () => {
+  try {
+    const response = await fetch('/api/user');
+    if (!response.ok) {
+      throw new Error('Failed to fetch user');
+    }
+    // The response should match the User type
+    return await response.json() as User;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+
 const data = {
   user: {
     name: "shadcn",
@@ -148,6 +171,20 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = useState(data.user);
+
+  useEffect(() => {
+  const fetchUser = async () => {
+    const userData = await getUser();
+    if (userData) {
+      setUser(userData);
+    }
+    console.log(userData);
+  };
+  
+  fetchUser();
+  }, []);
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -162,7 +199,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* <NavProjects projects={data.projects} /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
