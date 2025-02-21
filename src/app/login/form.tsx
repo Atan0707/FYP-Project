@@ -15,20 +15,18 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { useRouter } from 'next/navigation';
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    // .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    // .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    // .regex(/[0-9]/, "Password must contain at least one number")
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export default function LoginForm() {
   const [error, setError] = useState<string>('');
+  const router = useRouter();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -47,9 +45,8 @@ export default function LoginForm() {
       const result = await login(formData);
       if (result.error) {
         setError(result.error);
-      } else if (result.success) {
-        // Force a full page reload to ensure cookie is properly set
-        window.location.href = '/dashboard';
+      } else {
+        router.push('/dashboard');
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
@@ -93,7 +90,7 @@ export default function LoginForm() {
         )}
 
         <Button type="submit" className="w-full">
-          Sign In
+          Log In
         </Button>
       </form>
     </Form>

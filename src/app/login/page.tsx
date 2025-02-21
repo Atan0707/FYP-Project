@@ -41,9 +41,9 @@ export default function LoginPage() {
         <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle className="text-2xl text-center">Sign in to your account</CardTitle>
+              <CardTitle className="text-2xl text-center">Log in to your account</CardTitle>
               <p className="text-sm text-center text-muted-foreground">
-                Don&apos;t have an account?{" "}
+                Don't have an account?{" "}
                 <Link href="/signup" className="text-primary hover:underline">
                   Sign up
                 </Link>

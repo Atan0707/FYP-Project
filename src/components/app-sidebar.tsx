@@ -7,6 +7,7 @@ import {
   Bot,
   // Command,
   Frame,
+  GalleryVerticalEnd,
   // GalleryVerticalEnd,
   Map,
   PieChart,
@@ -17,7 +18,7 @@ import {
 import { NavMain } from "@/components/nav-main"
 // import { NavProjects } from "@/components/nav-projects"
 import { NavUser } from "@/components/nav-user"
-// import { TeamSwitcher } from "@/components/team-switcher"
+import { TeamSwitcher } from "@/components/team-switcher"
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +26,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import Image from "next/image"
+// import Image from "next/image"
 // This is sample data.
 const data = {
   user: {
@@ -33,6 +34,13 @@ const data = {
     email: "m@example.com",
     avatar: "/avatars/shadcn.jpg",
   },
+  teams: [
+    {
+      name: "i-FAMS",
+      logo: GalleryVerticalEnd,
+      plan: "Enterprise",
+    },
+  ],
   navMain: [
     {
       title: "Dashboard",
@@ -143,7 +151,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        {/* <TeamSwitcher teams={data.teams} /> */}
+        <TeamSwitcher teams={data.teams} />
         {/* <div className="logo flex items-center gap-2">
           <Image src="/vercel.svg" alt="logo" width={32} height={32} />
           <h1 className="text-2xl font-bold">i-FAMS</h1>
