@@ -14,7 +14,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
-export default function Page() {
+const Agreements = () => {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -26,8 +26,8 @@ export default function Page() {
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/dashboard">
-                    Dashboard
+                  <BreadcrumbLink href="/agreements">
+                    Agreements
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {/* <BreadcrumbSeparator className="hidden md:block" />
@@ -49,6 +49,7 @@ export default function Page() {
         </div>
       </SidebarInset>
     </SidebarProvider>
-
   )
 }
+
+export default Agreements
