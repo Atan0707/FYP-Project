@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 // import Link from 'next/link';
-
+import { useRouter } from 'next/navigation';
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const router = useRouter();
 
   const scrollToSection = (elementId: string) => {
     setIsMenuOpen(false); // Close mobile menu if open
@@ -74,7 +75,7 @@ const Navbar = () => {
             Contact Us
           </button>
           <button 
-            onClick={() => scrollToSection('login')} 
+            onClick={() => router.push('/login')}
             className="bg-white text-black px-4 py-1 rounded-full hover:bg-gray-200 transition-colors font-medium"
           >
             Login
@@ -109,7 +110,7 @@ const Navbar = () => {
               Contact Us
             </button>
             <button 
-              onClick={() => scrollToSection('login')} 
+              onClick={() => router.push('/login')} 
               className="bg-white text-black px-4 py-1 rounded-full hover:bg-gray-200 transition-colors font-medium text-center"
             >
               Login
