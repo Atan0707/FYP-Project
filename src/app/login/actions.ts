@@ -32,7 +32,8 @@ export async function login(formData: FormData) {
     }
 
     // Set session cookie
-    cookies().set('userId', user.id, {
+    const cookieStore = await cookies();
+    cookieStore.set('userId', user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
