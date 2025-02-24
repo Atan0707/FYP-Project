@@ -24,7 +24,7 @@ const AdminLogin = () => {
       if (result.error) {
         setError(result.error)
       } else {
-        router.push('/admin/dashboard')
+        router.push('/admin/pages/dashboard')
         router.refresh()
       }
     } catch (error) {

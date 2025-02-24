@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 
 export async function adminLogout() {
   // Remove the adminId cookie
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   cookieStore.delete('adminId', { path: '/' })
   
   // Redirect to login page

@@ -3,6 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 const prisma = new PrismaClient();
 
@@ -32,11 +33,12 @@ export async function adminLogin(formData: FormData) {
     }
 
     // Set session cookie
-    const cookieStore = await cookies();
+    const cookieStore = await cookies()
     cookieStore.set('adminId', admin.id, {
-      httpOnly: true,
+      httpOnly: false, // Allow JavaScript access
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
+      path: '/',
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 

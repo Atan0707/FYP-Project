@@ -18,7 +18,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (adminId && isAdminAuthPage) {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    return NextResponse.redirect(new URL('/admin/pages/dashboard', request.url));
   }
 
   // Handle user routes
