@@ -29,6 +29,7 @@ export default function LoginPage() {
             alt="Background"
             fill
             className="object-cover"
+            priority = {true}
           />
           <div className="absolute inset-0 flex items-center justify-center">
             <h1 className="text-4xl font-bold text-white">

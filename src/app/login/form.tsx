@@ -46,7 +46,7 @@ export default function LoginForm() {
       if (result.error) {
         setError(result.error);
       } else {
-        router.push('/dashboard');
+        router.push('/pages/dashboard');
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
