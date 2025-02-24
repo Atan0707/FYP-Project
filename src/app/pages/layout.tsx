@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, LogOut } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { userLogout } from "./actions";
