@@ -67,7 +67,7 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/dashboard",
+      url: "/pages/dashboard",
       icon: SquareTerminal,
       isActive: true,
       // items: [
@@ -87,7 +87,7 @@ const data = {
     },
     {
       title: "Family",
-      url: "/family",
+      url: "/pages/family",
       icon: Bot,
       // items: [
       //   {
@@ -106,7 +106,7 @@ const data = {
     },
     {
       title: "Assets",
-      url: "/assets",
+      url: "/pages/assets",
       icon: BookOpen,
       // items: [
       //   {
@@ -129,7 +129,7 @@ const data = {
     },
     {
       title: "Agreements",
-      url: "/agreements",
+      url: "/pages/agreements",
       icon: Settings2,
       // items: [
       //   {

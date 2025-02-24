@@ -1,3 +1,4 @@
+import * as React from "react"
 import { AppSidebar } from "@/components/sidebar/app-sidebar"
 import {
   Breadcrumb,
@@ -33,8 +34,8 @@ export function SidebarLayout({ children, breadcrumbItems = [],  }: SidebarLayou
             <Breadcrumb>
               <BreadcrumbList>
                 {breadcrumbItems.map((item, index) => (
-                  <>
-                    <BreadcrumbItem key={index} className="hidden md:block">
+                  <React.Fragment key={item.href || item.label + index}>
+                    <BreadcrumbItem className="hidden md:block">
                       {item.href ? (
                         <BreadcrumbLink href={item.href}>
                           {item.label}
@@ -44,9 +45,9 @@ export function SidebarLayout({ children, breadcrumbItems = [],  }: SidebarLayou
                       )}
                     </BreadcrumbItem>
                     {index < breadcrumbItems.length - 1 && (
-                      <BreadcrumbSeparator className="hidden md:block" />
+                      <BreadcrumbSeparator key={`sep-${index}`} className="hidden md:block" />
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
               </BreadcrumbList>
             </Breadcrumb>
