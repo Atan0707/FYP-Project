@@ -27,7 +27,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 // import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useQuery } from "@tanstack/react-query"
 
 // The user object should have this shape
 type User = {
@@ -47,7 +47,7 @@ const getUser = async () => {
     return await response.json() as User;
   } catch (error) {
     console.error('Error fetching user:', error);
-    return null;
+    throw error; // We throw the error so Tanstack Query can handle it
   }
 }
 
@@ -171,19 +171,21 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [user, setUser] = useState(data.user);
+  const { data: userData, isLoading, error } = useQuery({
+    queryKey: ['user'],
+    queryFn: getUser,
+    initialData: data.user, // Use the static data as initial data
+  });
 
-  useEffect(() => {
-  const fetchUser = async () => {
-    const userData = await getUser();
-    if (userData) {
-      setUser(userData);
-    }
-    console.log(userData);
-  };
-  
-  fetchUser();
-  }, []);
+  // Show loading state if needed
+  if (isLoading) {
+    console.log('Loading user data...');
+  }
+
+  // Handle error state if needed
+  if (error) {
+    console.error('Error fetching user data:', error);
+  }
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -199,7 +201,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* <NavProjects projects={data.projects} /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser user={userData} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
