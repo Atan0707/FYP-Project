@@ -24,17 +24,17 @@ function generateBreadcrumbs(pathname: string) {
   // Remove trailing slash and split path into segments
   const segments = pathname.replace(/\/$/, "").split("/").filter(Boolean);
   
-  // Filter out the 'pages' segment and map the remaining segments
-  return segments
-    .filter(segment => segment !== 'pages')
-    .map((segment, index, filteredSegments) => {
-      // Build the URL for this breadcrumb
-      const href = "/" + filteredSegments.slice(0, index + 1).join("/");
-      // Capitalize first letter and replace hyphens with spaces
-      const label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
-      
-      return { href, label };
-    });
+  // Filter out the 'pages' segment for display but keep track of filtered segments
+  const displaySegments = segments.filter(segment => segment !== 'pages');
+  
+  return displaySegments.map((segment, index) => {
+    // Build the URL for this breadcrumb, including 'pages' in the path
+    const href = "/pages/" + displaySegments.slice(0, index + 1).join("/");
+    // Capitalize first letter and replace hyphens with spaces
+    const label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
+    
+    return { href, label };
+  });
 }
 
 export default function RootLayout({
