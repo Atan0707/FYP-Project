@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
     
-    if (!session?.user) {
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
     if (user) {
       // Don't allow adding yourself as a family member
-      if (user.id === session.user.id) {
+      if (user.id === userId) {
         return NextResponse.json(
           { success: false, error: 'Cannot add yourself as a family member' },
           { status: 400 }
@@ -48,8 +48,8 @@ export async function POST(req: Request) {
       const existingRelation = await prisma.familyMember.findFirst({
         where: {
           OR: [
-            { userId: user.id, addedById: session.user.id },
-            { userId: session.user.id, addedById: user.id },
+            { userId: user.id, addedById: userId },
+            { userId: userId, addedById: user.id },
           ],
         },
       });

@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
     
-    if (!session?.user) {
+    if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -46,8 +46,8 @@ export async function POST(req: Request) {
     // Create the family member record
     const familyMember = await prisma.familyMember.create({
       data: {
-        userId: targetUserId || session.user.id, // If not registered, use current user's ID
-        addedById: session.user.id,
+        userId: targetUserId || userId, // If not registered, use current user's ID
+        addedById: userId,
         relationship,
         isRegistered,
         pendingIc: isRegistered ? null : ic,
