@@ -7,6 +7,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { userLogout } from "./actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ErrorBoundary } from "react-error-boundary";
 
 // User type definition
 type UserData = {
@@ -19,16 +20,44 @@ type UserData = {
 const UserProfile = ({ open }: { open: boolean }) => {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
+    // Check if we have cached user data
+    const cachedUser = sessionStorage.getItem('user_data');
+    
+    if (cachedUser) {
+      try {
+        setUser(JSON.parse(cachedUser));
+        setLoading(false);
+        return;
+      } catch (e) {
+        // If parsing fails, continue to fetch
+        console.error('Error parsing cached user data:', e);
+      }
+    }
+
     const fetchUser = async () => {
       try {
+        setLoading(true);
+        setError(false);
         const response = await fetch('/api/user');
+        
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
+          // Cache the user data
+          sessionStorage.setItem('user_data', JSON.stringify(userData));
+        } else if (response.status === 401) {
+          // Handle unauthorized - user not logged in
+          setError(true);
+          console.log('User not authenticated');
+        } else {
+          setError(true);
+          console.error('Error fetching user:', response.statusText);
         }
       } catch (error) {
+        setError(true);
         console.error('Error fetching user:', error);
       } finally {
         setLoading(false);
@@ -51,7 +80,20 @@ const UserProfile = ({ open }: { open: boolean }) => {
     );
   }
 
-  if (!user) return null;
+  if (error || !user) {
+    return (
+      <div className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800">
+        <div className="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
+          <UserCircle className="h-6 w-6 text-neutral-400" />
+        </div>
+        {open && (
+          <div className="ml-2 flex-1">
+            <p className="text-sm text-neutral-500">Guest User</p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Link href="/pages/profile" className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors">
@@ -72,6 +114,22 @@ const UserProfile = ({ open }: { open: boolean }) => {
         </motion.div>
       )}
     </Link>
+  );
+};
+
+// Fallback component for error boundary
+const UserProfileFallback = ({ open }: { open: boolean }) => {
+  return (
+    <div className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800">
+      <div className="h-8 w-8 rounded-full bg-neutral-200 flex items-center justify-center">
+        <UserCircle className="h-6 w-6 text-neutral-400" />
+      </div>
+      {open && (
+        <div className="ml-2 flex-1">
+          <p className="text-sm text-neutral-500">User Profile</p>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -178,7 +236,9 @@ export default function AdminLayout({
                 ))}
               </div>
             </div>
-            <UserProfile open={open} />
+            <ErrorBoundary FallbackComponent={() => <UserProfileFallback open={open} />}>
+              <UserProfile open={open} />
+            </ErrorBoundary>
           </SidebarBody>
         </Sidebar>
       </div>
@@ -256,7 +316,9 @@ export default function AdminLayout({
                     </Link>
                   ))}
                 </nav>
-                <UserProfile open={true} />
+                <ErrorBoundary FallbackComponent={() => <UserProfileFallback open={true} />}>
+                  <UserProfile open={true} />
+                </ErrorBoundary>
               </div>
             </motion.div>
           </>
