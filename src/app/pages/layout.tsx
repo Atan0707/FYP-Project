@@ -1,11 +1,79 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { LayoutDashboard, Users, LogOut } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { userLogout } from "./actions";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+// User type definition
+type UserData = {
+  name: string;
+  email: string;
+  avatar: string;
+};
+
+// UserProfile component to display user information in the sidebar
+const UserProfile = ({ open }: { open: boolean }) => {
+  const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await fetch('/api/user');
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800">
+        <div className="h-8 w-8 rounded-full bg-neutral-200 dark:bg-neutral-800 animate-pulse"></div>
+        {open && (
+          <div className="ml-2 flex-1">
+            <div className="h-4 w-24 bg-neutral-200 dark:bg-neutral-800 rounded animate-pulse"></div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return (
+    <div className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800">
+      <Avatar className="h-8 w-8 rounded-full">
+        <AvatarImage src={user.avatar} alt={user.name} />
+        <AvatarFallback className="bg-primary text-primary-foreground">
+          {user.name.substring(0, 2).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="ml-2 flex-1 overflow-hidden"
+        >
+          <p className="font-medium text-sm truncate">{user.name}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{user.email}</p>
+        </motion.div>
+      )}
+    </div>
+  );
+};
 
 const Logo = () => {
   return (
@@ -19,7 +87,7 @@ const Logo = () => {
         animate={{ opacity: 1 }}
         className="font-medium text-black dark:text-white whitespace-pre"
       >
-        Admin Panel
+        i-FAMS
       </motion.span>
     </Link>
   );
@@ -94,7 +162,7 @@ export default function AdminLayout({
       {/* Desktop Sidebar */}
       <div className="hidden md:block">
         <Sidebar open={open} setOpen={setOpen}>
-          <SidebarBody className="justify-between gap-10">
+          <SidebarBody className="flex flex-col h-full justify-between">
             <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
               {open ? <Logo /> : <LogoIcon />}
               <div className="mt-8 flex flex-col gap-2">
@@ -103,17 +171,7 @@ export default function AdminLayout({
                 ))}
               </div>
             </div>
-            <div>
-              <SidebarLink
-                link={{
-                  label: "Admin",
-                  href: "/admin/profile",
-                  icon: (
-                    <div className="h-7 w-7 rounded-full bg-neutral-800 dark:bg-neutral-200" />
-                  ),
-                }}
-              />
-            </div>
+            <UserProfile open={open} />
           </SidebarBody>
         </Sidebar>
       </div>
@@ -170,9 +228,9 @@ export default function AdminLayout({
               transition={{ type: "spring", bounce: 0, duration: 0.3 }}
               className="md:hidden fixed inset-y-0 left-0 w-64 bg-background border-r z-50 overflow-y-auto"
             >
-              <div className="p-4">
+              <div className="p-4 flex flex-col h-full">
                 <Logo />
-                <nav className="mt-8 flex flex-col gap-2">
+                <nav className="mt-8 flex flex-col gap-2 flex-1">
                   {links.map((link, idx) => (
                     <Link
                       key={idx}
@@ -191,6 +249,7 @@ export default function AdminLayout({
                     </Link>
                   ))}
                 </nav>
+                <UserProfile open={true} />
               </div>
             </motion.div>
           </>
