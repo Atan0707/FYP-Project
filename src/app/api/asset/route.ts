@@ -15,6 +15,9 @@ export async function GET() {
       where: {
         userId: userId,
       },
+      include: {
+        distribution: true,
+      },
       orderBy: {
         createdAt: 'desc',
       },

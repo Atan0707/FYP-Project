@@ -7,8 +7,8 @@ import QueryProvider from "@/providers/query-provider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "i-FAMS",
-  description: "Islamic Family Asset Management System",
+  title: "WEMSP",
+  description: "Will & Estate Management Solution Provider",
 };
 
 export default function RootLayout({

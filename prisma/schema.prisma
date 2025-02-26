@@ -67,6 +67,8 @@ model Asset {
   userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  // Add relation to AssetDistribution
+  distribution AssetDistribution?
 }
 
 model PendingAsset {
@@ -79,6 +81,23 @@ model PendingAsset {
   status      String   @default("pending") // pending, approved, rejected
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// New model for asset distribution
+model AssetDistribution {
+  id          String   @id @default(cuid())
+  type        String   // waqf, faraid, hibah, will
+  notes       String?
+  status      String   @default("pending") // pending, approved, completed
+  // For hibah and will, we need to specify beneficiaries
+  beneficiaries Json?  // Array of beneficiary objects with family member IDs and percentages
+  // For waqf, we need to specify the organization
+  organization String?
+  // Reference to the asset being distributed
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId     String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

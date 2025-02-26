@@ -41,6 +41,11 @@ interface Asset {
   value: number;
   description?: string;
   pdfFile?: string;
+  distribution?: {
+    id: string;
+    type: string;
+    status: string;
+  } | null;
 }
 
 interface PendingAsset {
@@ -406,13 +411,14 @@ export default function AssetsPage() {
                   <TableHead>Value (RM)</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Document</TableHead>
+                  <TableHead>Distribution</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {assets.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                       No assets found. Add your first asset using the button above.
                     </TableCell>
                   </TableRow>
@@ -436,6 +442,15 @@ export default function AssetsPage() {
                           </a>
                         ) : (
                           <span className="text-gray-400">No document</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {asset.distribution ? (
+                          <Badge variant="outline" className="capitalize">
+                            {asset.distribution.type}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Not yet</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
