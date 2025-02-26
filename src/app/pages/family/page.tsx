@@ -20,8 +20,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Search } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Badge } from "@/components/ui/badge";
 
 interface Family {
   id: string;
@@ -31,6 +32,14 @@ interface Family {
   phone: string;
   occupation: string;
   income: number;
+  isRegistered: boolean;
+}
+
+interface User {
+  id: string;
+  fullName: string;
+  ic: string;
+  phone: string;
 }
 
 // API functions
@@ -39,6 +48,24 @@ const fetchFamilies = async () => {
   if (!response.ok) {
     throw new Error('Network response was not ok');
   }
+  return response.json();
+};
+
+const searchUser = async (ic: string): Promise<User | null> => {
+  const response = await fetch('/api/user/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ic }),
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+
   return response.json();
 };
 
@@ -79,6 +106,10 @@ const deleteFamily = async (id: string) => {
 export default function FamilyPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState<Family | null>(null);
+  const [searchIC, setSearchIC] = useState('');
+  const [foundUser, setFoundUser] = useState<User | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const queryClient = useQueryClient();
 
   // Queries
@@ -94,6 +125,9 @@ export default function FamilyPage() {
       queryClient.invalidateQueries({ queryKey: ['families'] });
       toast.success('Family member added successfully');
       setIsOpen(false);
+      setFoundUser(null);
+      setSearchIC('');
+      setShowForm(false);
     },
     onError: (error) => {
       toast.error('Failed to add family member: ' + error.message);
@@ -123,6 +157,44 @@ export default function FamilyPage() {
     },
   });
 
+  const handleSearch = async () => {
+    if (!searchIC.trim()) {
+      toast.error('Please enter an IC number');
+      return;
+    }
+
+    try {
+      const user = await searchUser(searchIC);
+      if (user) {
+        setFoundUser(user);
+        setShowConfirmation(true);
+        toast.success('User found! Please review the details.');
+      } else {
+        setFoundUser(null);
+        setShowForm(true);
+        toast.info('User not registered. Please fill in the details.');
+      }
+    } catch (error) {
+      toast.error('Error searching for user');
+      setFoundUser(null);
+    }
+  };
+
+  const handleConfirmRegistered = () => {
+    if (!foundUser) return;
+
+    const familyData = {
+      fullName: foundUser.fullName,
+      ic: foundUser.ic,
+      phone: foundUser.phone,
+      relationship: '',
+      occupation: '',
+      income: 0,
+      isRegistered: true,
+    };
+    createMutation.mutate(familyData);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -133,6 +205,7 @@ export default function FamilyPage() {
       phone: formData.get('phone') as string,
       occupation: formData.get('occupation') as string,
       income: parseFloat(formData.get('income') as string),
+      isRegistered: false,
     };
 
     if (editingFamily) {
@@ -154,9 +227,23 @@ export default function FamilyPage() {
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Family Members</h1>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setShowForm(false);
+            setFoundUser(null);
+            setSearchIC('');
+            setShowConfirmation(false);
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingFamily(null)}>
+            <Button onClick={() => {
+              setEditingFamily(null);
+              setFoundUser(null);
+              setSearchIC('');
+              setShowForm(false);
+              setShowConfirmation(false);
+            }}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Add Family Member
             </Button>
@@ -165,68 +252,138 @@ export default function FamilyPage() {
             <DialogHeader>
               <DialogTitle>{editingFamily ? 'Edit' : 'Add'} Family Member</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input
-                    id="fullName"
-                    name="fullName"
-                    defaultValue={editingFamily?.fullName}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="ic">IC Number</Label>
-                  <Input
-                    id="ic"
-                    name="ic"
-                    defaultValue={editingFamily?.ic}
-                    required
-                  />
+            {!editingFamily && !showForm && !showConfirmation && (
+              <div className="flex gap-2 mb-4">
+                <Input
+                  placeholder="Enter IC number"
+                  value={searchIC}
+                  onChange={(e) => setSearchIC(e.target.value)}
+                />
+                <Button type="button" onClick={handleSearch}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            {showConfirmation && foundUser && (
+              <div className="space-y-4">
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <Label>Full Name</Label>
+                    <div className="font-medium">{foundUser.fullName}</div>
+                  </div>
+                  <div>
+                    <Label>IC Number</Label>
+                    <div className="font-medium">{foundUser.ic}</div>
+                  </div>
+                  <div>
+                    <Label>Phone</Label>
+                    <div className="font-medium">{foundUser.phone}</div>
+                  </div>
+                  <div className="pt-2">
+                    <Badge variant="success">Registered User</Badge>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="relationship">Relationship</Label>
                   <Input
                     id="relationship"
                     name="relationship"
-                    defaultValue={editingFamily?.relationship}
+                    placeholder="Enter relationship"
+                    onChange={(e) => {
+                      if (foundUser) {
+                        const familyData = {
+                          fullName: foundUser.fullName,
+                          ic: foundUser.ic,
+                          phone: foundUser.phone,
+                          relationship: e.target.value,
+                          occupation: '',
+                          income: 0,
+                          isRegistered: true,
+                        };
+                        createMutation.mutate(familyData);
+                      }
+                    }}
                     required
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    defaultValue={editingFamily?.phone}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="occupation">Occupation</Label>
-                  <Input
-                    id="occupation"
-                    name="occupation"
-                    defaultValue={editingFamily?.occupation}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="income">Monthly Income</Label>
-                  <Input
-                    id="income"
-                    name="income"
-                    type="number"
-                    defaultValue={editingFamily?.income}
-                    required
-                  />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => {
+                    setShowConfirmation(false);
+                    setFoundUser(null);
+                    setSearchIC('');
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleConfirmRegistered}>
+                    Add as Family Member
+                  </Button>
                 </div>
               </div>
-              <Button type="submit" className="w-full">
-                {editingFamily ? 'Update' : 'Add'} Family Member
-              </Button>
-            </form>
+            )}
+            {(showForm || editingFamily) && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      name="fullName"
+                      defaultValue={editingFamily?.fullName}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="ic">IC Number</Label>
+                    <Input
+                      id="ic"
+                      name="ic"
+                      defaultValue={editingFamily?.ic || searchIC}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="relationship">Relationship</Label>
+                    <Input
+                      id="relationship"
+                      name="relationship"
+                      defaultValue={editingFamily?.relationship}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      defaultValue={editingFamily?.phone}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="occupation">Occupation</Label>
+                    <Input
+                      id="occupation"
+                      name="occupation"
+                      defaultValue={editingFamily?.occupation}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="income">Monthly Income</Label>
+                    <Input
+                      id="income"
+                      name="income"
+                      type="number"
+                      defaultValue={editingFamily?.income}
+                      required
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full">
+                  {editingFamily ? 'Update' : 'Add'} Family Member
+                </Button>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -241,11 +398,12 @@ export default function FamilyPage() {
               <TableHead>Phone</TableHead>
               <TableHead>Occupation</TableHead>
               <TableHead>Monthly Income</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {families.map((family) => (
+            {families.map((family: Family) => (
               <TableRow key={family.id}>
                 <TableCell>{family.fullName}</TableCell>
                 <TableCell>{family.ic}</TableCell>
@@ -253,6 +411,11 @@ export default function FamilyPage() {
                 <TableCell>{family.phone}</TableCell>
                 <TableCell>{family.occupation}</TableCell>
                 <TableCell>RM {family.income.toFixed(2)}</TableCell>
+                <TableCell>
+                  <Badge variant={family.isRegistered ? "success" : "secondary"}>
+                    {family.isRegistered ? 'Registered' : 'Not Registered'}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button
                     variant="outline"

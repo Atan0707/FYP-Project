@@ -37,9 +37,28 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+
+    // Check if a family member with this IC already exists
+    const existingFamily = await prisma.family.findUnique({
+      where: { ic: body.ic },
+    });
+
+    if (existingFamily) {
+      return NextResponse.json(
+        { error: 'Family member with this IC already exists' },
+        { status: 400 }
+      );
+    }
+
+    // Check if the IC belongs to a registered user
+    const registeredUser = await prisma.user.findUnique({
+      where: { ic: body.ic },
+    });
+
     const family = await prisma.family.create({
       data: {
         ...body,
+        isRegistered: !!registeredUser, // Set isRegistered based on whether user exists
         userId: userId,
       },
     });
@@ -63,12 +82,20 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, ...data } = body;
 
+    // Check if the IC belongs to a registered user
+    const registeredUser = await prisma.user.findUnique({
+      where: { ic: data.ic },
+    });
+
     const family = await prisma.family.update({
       where: {
         id,
         userId: userId,
       },
-      data,
+      data: {
+        ...data,
+        isRegistered: !!registeredUser, // Update isRegistered status
+      },
     });
 
     return NextResponse.json(family);

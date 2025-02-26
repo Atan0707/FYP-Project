@@ -43,6 +43,7 @@ model Family {
   phone       String
   occupation  String
   income      Float
+  isRegistered Boolean @default(false)
   user        User     @relation("UserFamilies", fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   createdAt   DateTime @default(now())

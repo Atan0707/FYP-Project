@@ -257,7 +257,7 @@ export default function AssetsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assets.map((asset) => (
+            {assets.map((asset: Asset) => (
               <TableRow key={asset.id}>
                 <TableCell>{asset.name}</TableCell>
                 <TableCell>{asset.type}</TableCell>
