@@ -23,24 +23,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   // Family relationships
-  familyMembers    FamilyMember[] @relation("UserFamilyMembers")
-  addedByMembers   FamilyMember[] @relation("AddedByUser")
-}
-
-model FamilyMember {
-  id          String   @id @default(cuid())
-  userId      String   // The user who is the family member
-  addedById   String   // The user who added this family member
-  relationship String  // e.g., "spouse", "child", "parent", "sibling"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  isRegistered Boolean @default(false)
-  pendingIc    String? // Store IC for unregistered members
-  
-  user        User     @relation("UserFamilyMembers", fields: [userId], references: [id])
-  addedBy     User     @relation("AddedByUser", fields: [addedById], references: [id])
-
-  @@unique([userId, addedById])
+  families  Family[] @relation("UserFamilies")
+  assets    Asset[]
 }
 
 model Admin {
@@ -49,6 +33,33 @@ model Admin {
   password  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Family {
+  id          String   @id @default(cuid())
+  fullName    String
+  ic          String   @unique
+  relationship String
+  phone       String
+  occupation  String
+  income      Float
+  user        User     @relation("UserFamilies", fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // e.g., Property, Vehicle, Investment
+  value       Float
+  description String?
+  purchaseDate DateTime
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 
