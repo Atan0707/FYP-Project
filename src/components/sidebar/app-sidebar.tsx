@@ -19,13 +19,8 @@ import { NavMain } from "@/components/sidebar/nav-main"
 // import { NavProjects } from "@/components/nav-projects"
 import { NavUser } from "@/components/sidebar/nav-user"
 import { TeamSwitcher } from "@/components/sidebar/team-switcher"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarRail,
-} from "@/components/ui/sidebar"
+// Fix the import to only include what's exported
+import { Sidebar, SidebarBody } from "@/components/ui/sidebar"
 // import Image from "next/image"
 import { useQuery } from "@tanstack/react-query"
 
@@ -39,7 +34,9 @@ type User = {
 // Make sure your API returns data in this format
 const getUser = async () => {
   try {
-    const response = await fetch('/api/user');
+    // Add a timestamp to prevent browser caching
+    const timestamp = new Date().getTime();
+    const response = await fetch(`/api/user?t=${timestamp}`);
     if (!response.ok) {
       throw new Error('Failed to fetch user');
     }
@@ -70,85 +67,21 @@ const data = {
       url: "/pages/dashboard",
       icon: SquareTerminal,
       isActive: true,
-      // items: [
-      //   {
-      //     title: "History",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Starred",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Settings",
-      //     url: "#",
-      //   },
-      // ],
     },
     {
       title: "Family",
       url: "/pages/family",
       icon: Bot,
-      // items: [
-      //   {
-      //     title: "Genesis",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Explorer",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Quantum",
-      //     url: "#",
-      //   },
-      // ],
     },
     {
       title: "Assets",
       url: "/pages/assets",
       icon: BookOpen,
-      // items: [
-      //   {
-      //     title: "Introduction",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Get Started",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Tutorials",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Changelog",
-      //     url: "#",
-      //   },
-      // ],
     },
     {
       title: "Agreements",
       url: "/pages/agreements",
       icon: Settings2,
-      // items: [
-      //   {
-      //     title: "General",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Team",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Billing",
-      //     url: "#",
-      //   },
-      //   {
-      //     title: "Limits",
-      //     url: "#",
-      //   },
-      // ],
     },
   ],
   projects: [
@@ -171,11 +104,29 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  // Add a key to force refetch when component mounts
+  const [refreshKey, setRefreshKey] = React.useState(0);
+
   const { data: userData, isLoading, error } = useQuery({
-    queryKey: ['user'],
+    queryKey: ['user', refreshKey], // Add refreshKey to queryKey to force refetch
     queryFn: getUser,
     initialData: data.user, // Use the static data as initial data
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window gets focus
+    staleTime: 0, // Consider data stale immediately
   });
+
+  // Force refetch when component mounts
+  React.useEffect(() => {
+    setRefreshKey(prev => prev + 1);
+    
+    // Set up an interval to refresh the data periodically
+    const intervalId = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Show loading state if needed
   if (isLoading) {
@@ -188,22 +139,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
-        {/* <div className="logo flex items-center gap-2">
-          <Image src="/vercel.svg" alt="logo" width={32} height={32} />
-          <h1 className="text-2xl font-bold">i-FAMS</h1>
-        </div> */}
-      </SidebarHeader>
-      <SidebarContent>
-        <NavMain items={data.navMain} />
-        {/* <NavProjects projects={data.projects} /> */}
-      </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={userData} />
-      </SidebarFooter>
-      <SidebarRail />
+    <Sidebar {...props}>
+      <SidebarBody className="flex flex-col h-full justify-between">
+        <div className="flex flex-col flex-1">
+          <TeamSwitcher teams={data.teams} />
+          <div className="mt-8">
+            <NavMain items={data.navMain} />
+          </div>
+        </div>
+        <div className="mt-auto">
+          <NavUser user={userData} />
+        </div>
+      </SidebarBody>
     </Sidebar>
   )
 }

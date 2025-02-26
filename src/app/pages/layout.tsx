@@ -23,31 +23,19 @@ const UserProfile = ({ open }: { open: boolean }) => {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // Check if we have cached user data
-    const cachedUser = sessionStorage.getItem('user_data');
-    
-    if (cachedUser) {
-      try {
-        setUser(JSON.parse(cachedUser));
-        setLoading(false);
-        return;
-      } catch (e) {
-        // If parsing fails, continue to fetch
-        console.error('Error parsing cached user data:', e);
-      }
-    }
-
+    // Remove the sessionStorage caching mechanism
     const fetchUser = async () => {
       try {
         setLoading(true);
         setError(false);
-        const response = await fetch('/api/user');
+        // Add a cache-busting timestamp to prevent browser caching
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/user?t=${timestamp}`);
         
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
-          // Cache the user data
-          sessionStorage.setItem('user_data', JSON.stringify(userData));
+          // Remove sessionStorage caching
         } else if (response.status === 401) {
           // Handle unauthorized - user not logged in
           setError(true);
@@ -65,6 +53,12 @@ const UserProfile = ({ open }: { open: boolean }) => {
     };
 
     fetchUser();
+    
+    // Add an interval to periodically refresh the user data
+    const intervalId = setInterval(fetchUser, 30000); // Refresh every 30 seconds
+    
+    // Clean up the interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   if (loading) {
