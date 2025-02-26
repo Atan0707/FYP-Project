@@ -12,9 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Download, User, AlertCircle, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Download, User, AlertCircle, Clock, ListFilter } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -76,6 +77,7 @@ const approveOrRejectAsset = async ({ id, action }: { id: string; action: 'appro
 };
 
 export default function AssetsApprovalPage() {
+  const router = useRouter();
   const [selectedAsset, setSelectedAsset] = useState<PendingAsset | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
@@ -175,11 +177,19 @@ export default function AssetsApprovalPage() {
 
   return (
     <div className="container mx-auto py-10">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Assets Approval</h1>
+        <Button onClick={() => router.push('/admin/pages/pending-assets')}>
+          <ListFilter className="mr-2 h-4 w-4" />
+          View Pending Assets
+        </Button>
+      </div>
+
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Assets Approval</CardTitle>
+          <CardTitle>Assets Overview</CardTitle>
           <CardDescription>
-            Review and approve or reject user-submitted assets
+            Summary of all asset submissions
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -265,9 +275,9 @@ export default function AssetsApprovalPage() {
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <CardTitle>Asset Submissions</CardTitle>
+              <CardTitle>All Asset Submissions</CardTitle>
               <CardDescription>
-                Manage user-submitted assets
+                View and manage all asset submissions
               </CardDescription>
             </div>
             <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'pending' | 'approved' | 'rejected')}>
