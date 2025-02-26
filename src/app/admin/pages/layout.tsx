@@ -66,6 +66,13 @@ export default function AdminLayout({
       ),
     },
     {
+      label: "Assets Approval",
+      href: "/admin/pages/assets-approval",
+      icon: (
+        <FileText className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
       label: "Settings",
       href: "/admin/pages/settings",
       icon: (
