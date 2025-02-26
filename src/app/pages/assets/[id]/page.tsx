@@ -7,9 +7,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+
+interface Beneficiary {
+  id: string;
+  percentage: number;
+}
+
+interface Distribution {
+  id: string;
+  type: string;
+  status: string;
+  notes?: string;
+  beneficiaries?: Beneficiary[];
+  organization?: string;
+}
 
 interface Asset {
   id: string;
@@ -19,11 +35,13 @@ interface Asset {
   description?: string;
   pdfFile?: string;
   createdAt: string;
-  distribution?: {
-    id: string;
-    type: string;
-    status: string;
-  } | null;
+  distribution?: Distribution | null;
+}
+
+interface FamilyMember {
+  id: string;
+  fullName: string;
+  relationship: string;
 }
 
 const distributionTypes = [
@@ -38,6 +56,9 @@ export default function AssetDetailsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+  const [organization, setOrganization] = useState<string>('');
+  const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>('');
 
   // Fetch asset details
   const { data: asset, isLoading } = useQuery<Asset>({
@@ -49,15 +70,26 @@ export default function AssetDetailsPage() {
     },
   });
 
+  // Fetch family members for hibah
+  const { data: familyMembers = [] } = useQuery<FamilyMember[]>({
+    queryKey: ['familyMembers'],
+    queryFn: async () => {
+      const response = await fetch('/api/family');
+      if (!response.ok) throw new Error('Failed to fetch family members');
+      return response.json();
+    },
+    enabled: selectedType === 'hibah',
+  });
+
   // Create distribution mutation
   const createDistribution = useMutation({
-    mutationFn: async (type: string) => {
+    mutationFn: async (data: Distribution) => {
       const response = await fetch('/api/asset-distribution', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           assetId: params.id,
-          type: type,
+          ...data,
         }),
       });
       if (!response.ok) throw new Error('Failed to create distribution');
@@ -66,6 +98,10 @@ export default function AssetDetailsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['asset', params.id] });
       toast.success('Distribution type set successfully');
+      // Reset form
+      setNotes('');
+      setOrganization('');
+      setSelectedBeneficiaryId('');
     },
     onError: (error) => {
       toast.error('Failed to set distribution type: ' + error.message);
@@ -74,7 +110,54 @@ export default function AssetDetailsPage() {
 
   const handleDistributionSelect = (type: string) => {
     setSelectedType(type);
-    createDistribution.mutate(type);
+    // Reset form when changing type
+    setNotes('');
+    setOrganization('');
+    setSelectedBeneficiaryId('');
+  };
+
+  const handleSubmit = () => {
+    if (!selectedType) {
+      toast.error('Please select a distribution type');
+      return;
+    }
+
+    // Validate based on type
+    if (selectedType === 'will' && !notes) {
+      toast.error('Please describe the will');
+      return;
+    }
+
+    if (selectedType === 'hibah' && !selectedBeneficiaryId) {
+      toast.error('Please select a beneficiary');
+      return;
+    }
+
+    const data: Distribution = { 
+      type: selectedType,
+      status: 'pending',
+      id: '' // This will be set by the server
+    };
+
+    // Add type-specific data
+    switch (selectedType) {
+      case 'waqf':
+        if (organization) data.organization = organization;
+        if (notes) data.notes = notes;
+        break;
+      case 'faraid':
+        if (notes) data.notes = notes;
+        break;
+      case 'hibah':
+        data.beneficiaries = [{ id: selectedBeneficiaryId, percentage: 100 }];
+        if (notes) data.notes = notes;
+        break;
+      case 'will':
+        data.notes = notes;
+        break;
+    }
+
+    createDistribution.mutate(data);
   };
 
   if (isLoading) {
@@ -166,35 +249,154 @@ export default function AssetDetailsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="flex-grow">
-                  <Select
-                    value={asset.distribution?.type || selectedType}
-                    onValueChange={handleDistributionSelect}
-                    disabled={!!asset.distribution}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select distribution type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {distributionTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <div className="space-y-6">
+              {asset.distribution ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Badge variant="outline" className="capitalize">
+                      {asset.distribution.type}
+                    </Badge>
+                    <Badge variant="outline">
+                      Status: {asset.distribution.status}
+                    </Badge>
+                  </div>
+                  {asset.distribution.notes && (
+                    <div>
+                      <div className="text-sm text-muted-foreground">Notes</div>
+                      <div className="mt-1">{asset.distribution.notes}</div>
+                    </div>
+                  )}
+                  {asset.distribution.organization && (
+                    <div>
+                      <div className="text-sm text-muted-foreground">Organization</div>
+                      <div className="mt-1">{asset.distribution.organization}</div>
+                    </div>
+                  )}
+                  {asset.distribution.beneficiaries && (
+                    <div>
+                      <div className="text-sm text-muted-foreground">Beneficiaries</div>
+                      <div className="mt-1">
+                        {asset.distribution.beneficiaries.map((beneficiary: Beneficiary) => (
+                          <div key={beneficiary.id}>
+                            {beneficiary.id} ({beneficiary.percentage}%)
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-sm text-muted-foreground">
+                    Distribution type cannot be changed once set. Please contact admin for any changes.
+                  </div>
                 </div>
-                {asset.distribution && (
-                  <Badge variant="outline">
-                    Status: {asset.distribution.status}
-                  </Badge>
-                )}
-              </div>
-              {asset.distribution && (
-                <div className="text-sm text-muted-foreground">
-                  Distribution type cannot be changed once set. Please contact admin for any changes.
+              ) : (
+                <div className="space-y-6">
+                  <div className="flex-grow">
+                    <Select
+                      value={selectedType}
+                      onValueChange={handleDistributionSelect}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select distribution type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {distributionTypes.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedType === 'waqf' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium">Organization (Optional)</label>
+                        <Input
+                          value={organization}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrganization(e.target.value)}
+                          placeholder="Enter organization name"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Additional Notes (Optional)</label>
+                        <Textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Add any additional notes about the waqf"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedType === 'faraid' && (
+                    <div>
+                      <label className="text-sm font-medium">Additional Notes (Optional)</label>
+                      <Textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Add any additional notes about the faraid distribution"
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+
+                  {selectedType === 'hibah' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium">Select Beneficiary</label>
+                        <Select
+                          value={selectedBeneficiaryId}
+                          onValueChange={setSelectedBeneficiaryId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a family member" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {familyMembers.map((member) => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.fullName} ({member.relationship})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Additional Notes (Optional)</label>
+                        <Textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Add any additional notes about the hibah"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedType === 'will' && (
+                    <div>
+                      <label className="text-sm font-medium">Will Description (Required)</label>
+                      <Textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Describe the details of your will"
+                        className="mt-1"
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {selectedType && (
+                    <Button
+                      onClick={handleSubmit}
+                      className="w-full"
+                      disabled={createDistribution.isPending}
+                    >
+                      {createDistribution.isPending ? 'Submitting...' : 'Submit Distribution'}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
