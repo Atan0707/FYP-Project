@@ -437,7 +437,14 @@ export default function AssetsPage() {
                 ) : (
                   assets.map((asset: Asset) => (
                     <TableRow key={asset.id}>
-                      <TableCell>{asset.name}</TableCell>
+                      <TableCell>
+                        <a 
+                          href={`/pages/assets/${asset.id}`}
+                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                        >
+                          {asset.name}
+                        </a>
+                      </TableCell>
                       <TableCell>{asset.type}</TableCell>
                       <TableCell>{asset.value.toFixed(2)}</TableCell>
                       <TableCell>{asset.description}</TableCell>
@@ -626,7 +633,14 @@ export default function AssetsPage() {
                           ) : (
                             familyAssetGroup.assets.map((asset) => (
                               <TableRow key={asset.id}>
-                                <TableCell>{asset.name}</TableCell>
+                                <TableCell>
+                                  <a 
+                                    href={`/pages/assets/${asset.id}`}
+                                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                  >
+                                    {asset.name}
+                                  </a>
+                                </TableCell>
                                 <TableCell>{asset.type}</TableCell>
                                 <TableCell>{asset.value.toFixed(2)}</TableCell>
                                 <TableCell>{asset.description}</TableCell>
