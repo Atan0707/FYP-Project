@@ -71,8 +71,6 @@ export async function GET() {
                 ic: currentUser.ic,
                 phone: currentUser.phone,
                 relationship: getInverseRelationship(family.relationship),
-                occupation: '',
-                income: 0,
                 isRegistered: true,
                 userId: registeredUser.id,
                 relatedUserId: currentUser.id,

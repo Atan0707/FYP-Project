@@ -41,8 +41,6 @@ interface Family {
   ic: string;
   relationship: string;
   phone: string;
-  occupation: string;
-  income: number;
   isRegistered: boolean;
 }
 
@@ -257,8 +255,6 @@ export default function FamilyPage() {
       ic: foundUser.ic,
       phone: foundUser.phone,
       relationship: selectedRelationship,
-      occupation: '',
-      income: 0,
       isRegistered: true,
     };
     
@@ -282,18 +278,10 @@ export default function FamilyPage() {
     const fullName = formData.get('fullName') as string;
     const ic = formData.get('ic') as string;
     const phone = formData.get('phone') as string;
-    const occupation = formData.get('occupation') as string;
-    const incomeStr = formData.get('income') as string;
     
     // Validate required fields
-    if (!fullName || !ic || !phone || !occupation || !incomeStr) {
+    if (!fullName || !ic || !phone) {
       toast.error('Please fill in all required fields');
-      return;
-    }
-    
-    const income = parseFloat(incomeStr);
-    if (isNaN(income)) {
-      toast.error('Income must be a valid number');
       return;
     }
     
@@ -302,8 +290,6 @@ export default function FamilyPage() {
       ic,
       relationship,
       phone,
-      occupation,
-      income,
       isRegistered: false,
     };
 
@@ -495,25 +481,6 @@ export default function FamilyPage() {
                             required
                           />
                         </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="occupation">Occupation</Label>
-                          <Input
-                            id="occupation"
-                            name="occupation"
-                            defaultValue={editingFamily?.occupation}
-                            required
-                          />
-                        </div>
-                        <div className="grid gap-2">
-                          <Label htmlFor="income">Monthly Income</Label>
-                          <Input
-                            id="income"
-                            name="income"
-                            type="number"
-                            defaultValue={editingFamily?.income}
-                            required
-                          />
-                        </div>
                       </div>
                       <Button type="submit" className="w-full">
                         {editingFamily ? 'Update' : 'Add'} Family Member
@@ -535,8 +502,6 @@ export default function FamilyPage() {
               <TableHead>IC Number</TableHead>
               <TableHead>Relationship</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Occupation</TableHead>
-              <TableHead>Monthly Income</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -548,8 +513,6 @@ export default function FamilyPage() {
                 <TableCell>{family.ic}</TableCell>
                 <TableCell>{family.relationship}</TableCell>
                 <TableCell>{family.phone}</TableCell>
-                <TableCell>{family.occupation}</TableCell>
-                <TableCell>RM {family.income.toFixed(2)}</TableCell>
                 <TableCell>
                   <Badge variant={family.isRegistered ? "success" : "secondary"}>
                     {family.isRegistered ? 'Registered' : 'Not Registered'}

@@ -94,8 +94,6 @@ export async function signUp(formData: FormData) {
                 ic: family.user.ic,
                 phone: family.user.phone,
                 relationship: getInverseRelationship(family.relationship),
-                occupation: '',
-                income: 0,
                 isRegistered: true,
                 userId: newUser.id,
                 relatedUserId: family.user.id,
