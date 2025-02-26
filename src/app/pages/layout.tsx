@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, UserCircle, Briefcase, FileText } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { userLogout } from "./actions";
@@ -54,7 +54,7 @@ const UserProfile = ({ open }: { open: boolean }) => {
   if (!user) return null;
 
   return (
-    <div className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800">
+    <Link href="/pages/profile" className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors">
       <Avatar className="h-8 w-8 rounded-full">
         <AvatarImage src={user.avatar} alt={user.name} />
         <AvatarFallback className="bg-primary text-primary-foreground">
@@ -71,7 +71,7 @@ const UserProfile = ({ open }: { open: boolean }) => {
           <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{user.email}</p>
         </motion.div>
       )}
-    </div>
+    </Link>
   );
 };
 
@@ -130,14 +130,21 @@ export default function AdminLayout({
       label: "Assets",
       href: "/pages/assets",
       icon: (
-        <Users className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <Briefcase className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Agreements",
       href: "/pages/agreements",
       icon: (
-        <Users className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <FileText className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
+      label: "Profile",
+      href: "/pages/profile",
+      icon: (
+        <UserCircle className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
     // {
