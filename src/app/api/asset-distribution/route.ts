@@ -69,6 +69,20 @@ export async function POST(request: Request) {
       return new NextResponse('Asset already has a distribution', { status: 400 });
     }
 
+    // Get all family members (both direct and related)
+    const allFamilyMembers = await prisma.family.findMany({
+      where: {
+        OR: [
+          { userId }, // Direct family members
+          { relatedUserId: userId }, // Related family members
+        ],
+      },
+    });
+
+    if (allFamilyMembers.length === 0) {
+      return new NextResponse('No family members found', { status: 400 });
+    }
+
     // Start a transaction to create distribution and agreements
     const result = await prisma.$transaction(async (tx) => {
       // Create the asset distribution
@@ -83,23 +97,18 @@ export async function POST(request: Request) {
         },
       });
 
-      // If there are beneficiaries, create agreements for each
-      if (body.beneficiaries && Array.isArray(body.beneficiaries)) {
-        const beneficiaryIds = body.beneficiaries.map((b: Beneficiary) => b.familyId);
-        
-        // Create agreements for each beneficiary
-        await Promise.all(
-          beneficiaryIds.map((familyId: string) =>
-            tx.agreement.create({
-              data: {
-                familyId,
-                status: 'pending',
-                distributionId: distribution.id,
-              },
-            })
-          )
-        );
-      }
+      // Create agreements for all family members
+      await Promise.all(
+        allFamilyMembers.map((familyMember) =>
+          tx.agreement.create({
+            data: {
+              familyId: familyMember.id,
+              status: 'pending',
+              distributionId: distribution.id,
+            },
+          })
+        )
+      );
 
       return distribution;
     });

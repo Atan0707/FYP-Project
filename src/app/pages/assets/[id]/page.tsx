@@ -8,10 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Users, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 
 interface FamilyMember {
   id: string;
@@ -32,6 +38,7 @@ interface Distribution {
   notes?: string;
   beneficiaries?: Beneficiary[];
   organization?: string;
+  agreements?: Agreement[];
 }
 
 interface Asset {
@@ -45,12 +52,58 @@ interface Asset {
   distribution?: Distribution | null;
 }
 
+interface Agreement {
+  id: string;
+  status: string;
+}
+
 const distributionTypes = [
   { value: 'waqf', label: 'Waqf' },
   { value: 'faraid', label: 'Faraid' },
   { value: 'hibah', label: 'Hibah' },
   { value: 'will', label: 'Will' },
 ];
+
+const getSigningProgress = (distribution: Distribution) => {
+  if (!distribution.agreements) return null;
+  
+  const totalAgreements = distribution.agreements.length;
+  const signedAgreements = distribution.agreements.filter(a => a.status === 'signed').length;
+  const rejectedAgreements = distribution.agreements.filter(a => a.status === 'rejected').length;
+  const progress = (signedAgreements / totalAgreements) * 100;
+
+  return {
+    total: totalAgreements,
+    signed: signedAgreements,
+    rejected: rejectedAgreements,
+    progress,
+  };
+};
+
+const getDistributionStatus = (distribution: Distribution) => {
+  const progress = getSigningProgress(distribution);
+  if (!progress) return distribution.status;
+  
+  if (progress.rejected > 0) return 'rejected';
+  if (progress.signed === progress.total) return 'completed';
+  if (progress.signed > 0) return 'in_progress';
+  return 'pending';
+};
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case 'pending':
+      return <Badge variant="secondary">Pending Signatures</Badge>;
+    case 'in_progress':
+      return <Badge variant="default">Signing in Progress</Badge>;
+    case 'completed':
+      return <Badge variant="success">All Signed</Badge>;
+    case 'rejected':
+      return <Badge variant="destructive">Rejected</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+};
 
 export default function AssetDetailsPage() {
   const params = useParams();
@@ -274,9 +327,7 @@ export default function AssetDetailsPage() {
                     <Badge variant="outline" className="capitalize">
                       {assetDetails.distribution.type}
                     </Badge>
-                    <Badge variant="outline">
-                      Status: {assetDetails.distribution.status}
-                    </Badge>
+                    {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
                   </div>
                   {assetDetails.distribution.notes && (
                     <div>
@@ -305,7 +356,51 @@ export default function AssetDetailsPage() {
                       </div>
                     </div>
                   )}
-                  <div className="text-sm text-muted-foreground">
+                  {assetDetails.distribution.agreements && (
+                    <div className="space-y-2 mt-6">
+                      <div className="flex items-center justify-between">
+                        <HoverCard>
+                          <HoverCardTrigger asChild>
+                            <div className="flex items-center gap-2 cursor-help">
+                              <Users className="h-4 w-4" />
+                              <span className="text-sm">Agreement Status</span>
+                            </div>
+                          </HoverCardTrigger>
+                          <HoverCardContent className="w-80">
+                            {(() => {
+                              const progress = assetDetails.distribution && getSigningProgress(assetDetails.distribution);
+                              if (!progress) return null;
+                              
+                              return (
+                                <div className="space-y-2">
+                                  <h4 className="text-sm font-semibold">Signing Progress</h4>
+                                  <div className="text-sm">
+                                    {progress.signed} of {progress.total} family members have signed
+                                  </div>
+                                  {progress.rejected > 0 && (
+                                    <div className="text-sm text-destructive flex items-center gap-1">
+                                      <AlertCircle className="h-4 w-4" />
+                                      {progress.rejected} rejection(s)
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </HoverCardContent>
+                        </HoverCard>
+                      </div>
+                      {(() => {
+                        const progress = assetDetails.distribution && getSigningProgress(assetDetails.distribution);
+                        return (
+                          <Progress 
+                            value={progress?.progress || 0} 
+                            className="h-2"
+                          />
+                        );
+                      })()}
+                    </div>
+                  )}
+                  <div className="text-sm text-muted-foreground mt-4">
                     Distribution type cannot be changed once set. Please contact admin for any changes.
                   </div>
                 </div>

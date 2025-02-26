@@ -9,14 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -31,7 +23,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Users, AlertCircle, UserCircle2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface Agreement {
   id: string;
@@ -42,6 +45,7 @@ interface Agreement {
   distributionId: string;
   createdAt: string;
   updatedAt: string;
+  distribution: AssetDistribution;
 }
 
 interface AssetDistribution {
@@ -59,6 +63,7 @@ interface AssetDistribution {
     name: string;
     type: string;
     value: number;
+    userId: string;
   };
   agreements: Agreement[];
 }
@@ -161,6 +166,40 @@ export default function AgreementsPage() {
     });
   };
 
+  const getSigningProgress = (distribution: AssetDistribution) => {
+    if (!distribution || !distribution.agreements) {
+      return {
+        total: 0,
+        signed: 0,
+        rejected: 0,
+        progress: 0,
+      };
+    }
+    
+    const totalAgreements = distribution.agreements.length;
+    const signedAgreements = distribution.agreements.filter(a => a.status === 'signed').length;
+    const rejectedAgreements = distribution.agreements.filter(a => a.status === 'rejected').length;
+    const progress = (signedAgreements / totalAgreements) * 100;
+
+    return {
+      total: totalAgreements,
+      signed: signedAgreements,
+      rejected: rejectedAgreements,
+      progress,
+    };
+  };
+
+  const getDistributionStatus = (distribution: AssetDistribution) => {
+    if (!distribution || !distribution.agreements) return 'pending';
+    
+    const { total, signed, rejected } = getSigningProgress(distribution);
+    
+    if (rejected > 0) return 'rejected';
+    if (signed === total) return 'completed';
+    if (signed > 0) return 'in_progress';
+    return 'pending';
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -169,9 +208,52 @@ export default function AgreementsPage() {
         return <Badge variant="success">Signed</Badge>;
       case 'rejected':
         return <Badge variant="destructive">Rejected</Badge>;
+      case 'in_progress':
+        return <Badge variant="default">In Progress</Badge>;
+      case 'completed':
+        return <Badge variant="success">Completed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const getDistributionDetails = (distribution: AssetDistribution) => {
+    switch (distribution.type) {
+      case 'waqf':
+        return (
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium">Organization:</span> {distribution.organization}
+          </div>
+        );
+      case 'hibah':
+      case 'will':
+        if (distribution.beneficiaries && distribution.beneficiaries.length > 0) {
+          return (
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium">Beneficiaries:</span>{' '}
+              {distribution.beneficiaries.length} assigned
+            </div>
+          );
+        }
+        return null;
+      case 'faraid':
+        return (
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium">Type:</span> Islamic Inheritance
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getAgreementRole = (agreement: Agreement) => {
+    const isOwner = agreement.distribution.asset.userId === agreement.familyId;
+    return (
+      <Badge variant={isOwner ? "default" : "outline"} className="ml-2">
+        {isOwner ? "Owner" : "Beneficiary"}
+      </Badge>
+    );
   };
 
   if (isPendingLoading || isMyLoading) {
@@ -189,8 +271,15 @@ export default function AgreementsPage() {
       <h1 className="text-3xl font-bold mb-6">Agreements</h1>
 
       <Tabs defaultValue="pending" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="pending">Pending Agreements</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="pending">
+            Pending Agreements
+            {pendingAgreements.length > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {pendingAgreements.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="my">My Agreements</TabsTrigger>
         </TabsList>
 
@@ -208,39 +297,22 @@ export default function AgreementsPage() {
                   No pending agreements found
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Asset</TableHead>
-                      <TableHead>Distribution Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Created On</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingAgreements.map((agreement: Agreement & { distribution: AssetDistribution }) => (
-                      <TableRow key={agreement.id}>
-                        <TableCell>
+                <div className="space-y-4">
+                  {pendingAgreements.map((agreement: Agreement) => (
+                    <Card key={agreement.id}>
+                      <CardHeader className="pb-4">
+                        <div className="flex justify-between items-start">
                           <div>
-                            <div className="font-medium">
+                            <CardTitle className="text-lg flex items-center">
                               {agreement.distribution.asset.name}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
+                              {getAgreementRole(agreement)}
+                            </CardTitle>
+                            <CardDescription>
                               {agreement.distribution.asset.type} • RM{' '}
                               {agreement.distribution.asset.value.toFixed(2)}
-                            </div>
+                            </CardDescription>
                           </div>
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {agreement.distribution.type}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(agreement.status)}</TableCell>
-                        <TableCell>
-                          {format(new Date(agreement.createdAt), 'PPP')}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -266,11 +338,79 @@ export default function AgreementsPage() {
                               Reject
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center text-sm">
+                            <div>
+                              <span className="font-medium">Distribution Type:</span>{' '}
+                              <span className="capitalize">{agreement.distribution.type}</span>
+                              {getDistributionDetails(agreement.distribution)}
+                            </div>
+                            <div className="text-muted-foreground">
+                              Created on {format(new Date(agreement.createdAt), 'PPP')}
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <HoverCard>
+                                <HoverCardTrigger asChild>
+                                  <div className="flex items-center gap-2 cursor-help">
+                                    <Users className="h-4 w-4" />
+                                    <span className="text-sm">Signing Progress</span>
+                                  </div>
+                                </HoverCardTrigger>
+                                <HoverCardContent className="w-80">
+                                  <div className="space-y-2">
+                                    <h4 className="text-sm font-semibold">Agreement Status</h4>
+                                    <div className="text-sm">
+                                      {getSigningProgress(agreement.distribution).signed} of{' '}
+                                      {getSigningProgress(agreement.distribution).total} family members have signed
+                                    </div>
+                                    {getSigningProgress(agreement.distribution).rejected > 0 && (
+                                      <div className="text-sm text-destructive flex items-center gap-1">
+                                        <AlertCircle className="h-4 w-4" />
+                                        {getSigningProgress(agreement.distribution).rejected} rejection(s)
+                                      </div>
+                                    )}
+                                  </div>
+                                </HoverCardContent>
+                              </HoverCard>
+                              {getStatusBadge(getDistributionStatus(agreement.distribution))}
+                            </div>
+                            <Progress 
+                              value={getSigningProgress(agreement.distribution).progress} 
+                              className="h-2"
+                            />
+                          </div>
+                          <Collapsible className="mt-4">
+                            <CollapsibleTrigger asChild>
+                              <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start">
+                                <UserCircle2 className="h-4 w-4" />
+                                <span>View All Signers</span>
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="mt-2">
+                              <div className="space-y-2">
+                                {agreement.distribution?.agreements?.map((a) => (
+                                  <div key={a.id} className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <UserCircle2 className="h-4 w-4" />
+                                      <span>{a.familyId === agreement.distribution?.asset?.userId ? 'Asset Owner' : 'Family Member'}</span>
+                                    </div>
+                                    {getStatusBadge(a.status)}
+                                  </div>
+                                ))}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -281,7 +421,7 @@ export default function AgreementsPage() {
             <CardHeader>
               <CardTitle>My Agreements</CardTitle>
               <CardDescription>
-                View all your agreements and their status
+                View all your agreements and their current status
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -290,44 +430,48 @@ export default function AgreementsPage() {
                   No agreements found
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Asset</TableHead>
-                      <TableHead>Distribution Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Signed On</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {myAgreements.map((agreement: Agreement & { distribution: AssetDistribution }) => (
-                      <TableRow key={agreement.id}>
-                        <TableCell>
+                <div className="space-y-4">
+                  {myAgreements.map((agreement: Agreement) => (
+                    <Card key={agreement.id}>
+                      <CardHeader className="pb-4">
+                        <div className="flex justify-between items-start">
                           <div>
-                            <div className="font-medium">
+                            <CardTitle className="text-lg flex items-center">
                               {agreement.distribution.asset.name}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
+                              {getAgreementRole(agreement)}
+                            </CardTitle>
+                            <CardDescription>
                               {agreement.distribution.asset.type} • RM{' '}
                               {agreement.distribution.asset.value.toFixed(2)}
+                            </CardDescription>
+                          </div>
+                          {getStatusBadge(agreement.status)}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center text-sm">
+                            <div>
+                              <span className="font-medium">Distribution Type:</span>{' '}
+                              <span className="capitalize">{agreement.distribution.type}</span>
+                              {getDistributionDetails(agreement.distribution)}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {agreement.signedAt
+                                ? `Signed on ${format(new Date(agreement.signedAt), 'PPP')}`
+                                : `Created on ${format(new Date(agreement.createdAt), 'PPP')}`}
                             </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {agreement.distribution.type}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(agreement.status)}</TableCell>
-                        <TableCell>
-                          {agreement.signedAt
-                            ? format(new Date(agreement.signedAt), 'PPP')
-                            : '-'}
-                        </TableCell>
-                        <TableCell>{agreement.notes || '-'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          {agreement.notes && (
+                            <div className="text-sm">
+                              <span className="font-medium">Notes:</span> {agreement.notes}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -339,16 +483,16 @@ export default function AgreementsPage() {
           <DialogHeader>
             <DialogTitle>Sign Agreement</DialogTitle>
             <DialogDescription>
-              Please review the agreement details before signing.
+              Are you sure you want to sign this agreement? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Additional Notes (Optional)</label>
+              <label className="text-sm font-medium">Notes (Optional)</label>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes or comments about your signature"
+                placeholder="Add any notes about signing this agreement"
                 className="mt-1"
               />
             </div>
@@ -357,8 +501,8 @@ export default function AgreementsPage() {
             <Button variant="outline" onClick={() => setIsSignDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSign} disabled={signMutation.isPending}>
-              {signMutation.isPending ? 'Signing...' : 'Sign Agreement'}
+            <Button onClick={handleSign} className="bg-green-600 hover:bg-green-700">
+              Sign Agreement
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -369,7 +513,7 @@ export default function AgreementsPage() {
           <DialogHeader>
             <DialogTitle>Reject Agreement</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting this agreement.
+              Please provide a reason for rejecting this agreement. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -388,12 +532,8 @@ export default function AgreementsPage() {
             <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={rejectMutation.isPending || !notes}
-            >
-              {rejectMutation.isPending ? 'Rejecting...' : 'Reject Agreement'}
+            <Button onClick={handleReject} variant="destructive">
+              Reject Agreement
             </Button>
           </DialogFooter>
         </DialogContent>
