@@ -98,4 +98,42 @@ export async function DELETE(
     console.error('Error deleting family:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const familyMember = await prisma.family.findFirst({
+      where: {
+        id: params.id,
+        userId: userId,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        relationship: true,
+      },
+    });
+
+    if (!familyMember) {
+      return NextResponse.json({ error: 'Family member not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(familyMember);
+  } catch (error) {
+    console.error('Error fetching family member:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 } 

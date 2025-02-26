@@ -13,9 +13,16 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 
+interface FamilyMember {
+  id: string;
+  fullName: string;
+  relationship: string;
+}
+
 interface Beneficiary {
   id: string;
   percentage: number;
+  familyMember?: FamilyMember;
 }
 
 interface Distribution {
@@ -38,12 +45,6 @@ interface Asset {
   distribution?: Distribution | null;
 }
 
-interface FamilyMember {
-  id: string;
-  fullName: string;
-  relationship: string;
-}
-
 const distributionTypes = [
   { value: 'waqf', label: 'Waqf' },
   { value: 'faraid', label: 'Faraid' },
@@ -56,17 +57,34 @@ export default function AssetDetailsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedType, setSelectedType] = useState<string>('');
-  const [notes, setNotes] = useState<string>('');
   const [organization, setOrganization] = useState<string>('');
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
 
   // Fetch asset details
-  const { data: asset, isLoading } = useQuery<Asset>({
+  const { data: assetDetails, isLoading } = useQuery<Asset>({
     queryKey: ['asset', params.id],
     queryFn: async () => {
       const response = await fetch(`/api/asset/${params.id}`);
       if (!response.ok) throw new Error('Failed to fetch asset');
-      return response.json();
+      const data = await response.json();
+      
+      if (data.distribution?.beneficiaries) {
+        // Fetch family member details for each beneficiary
+        const beneficiariesWithDetails = await Promise.all(
+          data.distribution.beneficiaries.map(async (beneficiary: Beneficiary) => {
+            const familyResponse = await fetch(`/api/family/${beneficiary.id}`);
+            const familyData = await familyResponse.json();
+            return {
+              ...beneficiary,
+              familyMember: familyData,
+            };
+          })
+        );
+        data.distribution.beneficiaries = beneficiariesWithDetails;
+      }
+      
+      return data;
     },
   });
 
@@ -170,7 +188,7 @@ export default function AssetDetailsPage() {
     );
   }
 
-  if (!asset) {
+  if (!assetDetails) {
     return (
       <div className="container mx-auto py-10">
         <div className="text-center">Asset not found</div>
@@ -195,14 +213,14 @@ export default function AssetDetailsPage() {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>{asset.name}</CardTitle>
+            <CardTitle>{assetDetails.name}</CardTitle>
             <CardDescription>Asset Information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-muted-foreground">Type</div>
-                <div className="font-medium">{asset.type}</div>
+                <div className="font-medium">{assetDetails.type}</div>
               </div>
               <div>
                 <div className="text-sm text-muted-foreground">Value</div>
@@ -210,20 +228,20 @@ export default function AssetDetailsPage() {
                   {new Intl.NumberFormat('en-MY', {
                     style: 'currency',
                     currency: 'MYR',
-                  }).format(asset.value)}
+                  }).format(assetDetails.value)}
                 </div>
               </div>
-              {asset.description && (
+              {assetDetails.description && (
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground">Description</div>
-                  <div className="font-medium">{asset.description}</div>
+                  <div className="font-medium">{assetDetails.description}</div>
                 </div>
               )}
-              {asset.pdfFile && (
+              {assetDetails.pdfFile && (
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground">Document</div>
                   <a
-                    href={asset.pdfFile}
+                    href={assetDetails.pdfFile}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-blue-600 hover:text-blue-800"
@@ -235,7 +253,7 @@ export default function AssetDetailsPage() {
               )}
               <div className="col-span-2">
                 <div className="text-sm text-muted-foreground">Created On</div>
-                <div className="font-medium">{format(new Date(asset.createdAt), 'PPP')}</div>
+                <div className="font-medium">{format(new Date(assetDetails.createdAt), 'PPP')}</div>
               </div>
             </div>
           </CardContent>
@@ -250,35 +268,38 @@ export default function AssetDetailsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {asset.distribution ? (
+              {assetDetails.distribution ? (
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     <Badge variant="outline" className="capitalize">
-                      {asset.distribution.type}
+                      {assetDetails.distribution.type}
                     </Badge>
                     <Badge variant="outline">
-                      Status: {asset.distribution.status}
+                      Status: {assetDetails.distribution.status}
                     </Badge>
                   </div>
-                  {asset.distribution.notes && (
+                  {assetDetails.distribution.notes && (
                     <div>
                       <div className="text-sm text-muted-foreground">Notes</div>
-                      <div className="mt-1">{asset.distribution.notes}</div>
+                      <div className="mt-1">{assetDetails.distribution.notes}</div>
                     </div>
                   )}
-                  {asset.distribution.organization && (
+                  {assetDetails.distribution.organization && (
                     <div>
                       <div className="text-sm text-muted-foreground">Organization</div>
-                      <div className="mt-1">{asset.distribution.organization}</div>
+                      <div className="mt-1">{assetDetails.distribution.organization}</div>
                     </div>
                   )}
-                  {asset.distribution.beneficiaries && (
+                  {assetDetails.distribution.beneficiaries && (
                     <div>
                       <div className="text-sm text-muted-foreground">Beneficiaries</div>
                       <div className="mt-1">
-                        {asset.distribution.beneficiaries.map((beneficiary: Beneficiary) => (
-                          <div key={beneficiary.id}>
-                            {beneficiary.id} ({beneficiary.percentage}%)
+                        {assetDetails.distribution.beneficiaries.map((beneficiary: Beneficiary) => (
+                          <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
+                            <span className="font-medium">
+                              {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
+                            </span>
+                            <span className="text-gray-600">- {beneficiary.percentage}%</span>
                           </div>
                         ))}
                       </div>
