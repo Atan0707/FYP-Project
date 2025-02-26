@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { getInverseRelationship } from '@/lib/relationships';
 
 const prisma = new PrismaClient();
 
@@ -35,7 +36,7 @@ export async function signUp(formData: FormData) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create new user
-    await prisma.user.create({
+    const newUser = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
@@ -44,6 +45,80 @@ export async function signUp(formData: FormData) {
         phone,
       },
     });
+
+    // Update any existing family members with this IC
+    try {
+      // Find all family entries with this IC that are not registered
+      const familyEntries = await prisma.family.findMany({
+        where: {
+          ic: ic,
+          isRegistered: false,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              ic: true,
+              phone: true,
+            }
+          }
+        }
+      });
+
+      if (familyEntries.length > 0) {
+        // Update each family entry and create reciprocal relationships
+        for (const family of familyEntries) {
+          // Update the family entry to mark as registered and link to the user
+          await prisma.family.update({
+            where: { id: family.id },
+            data: {
+              isRegistered: true,
+              relatedUserId: newUser.id,
+              inverseRelationship: getInverseRelationship(family.relationship),
+            }
+          });
+
+          // Create a reciprocal relationship if it doesn't exist
+          const existingReciprocal = await prisma.family.findFirst({
+            where: {
+              ic: family.user.ic,
+              userId: newUser.id
+            }
+          });
+
+          if (!existingReciprocal) {
+            await prisma.family.create({
+              data: {
+                fullName: family.user.fullName,
+                ic: family.user.ic,
+                phone: family.user.phone,
+                relationship: getInverseRelationship(family.relationship),
+                occupation: '',
+                income: 0,
+                isRegistered: true,
+                userId: newUser.id,
+                relatedUserId: family.user.id,
+                inverseRelationship: family.relationship,
+              }
+            });
+          } else {
+            // Update the existing reciprocal relationship
+            await prisma.family.update({
+              where: { id: existingReciprocal.id },
+              data: {
+                relationship: getInverseRelationship(family.relationship),
+                inverseRelationship: family.relationship,
+                relatedUserId: family.user.id,
+              }
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error updating family relationships:', error);
+      // Continue with signup even if this fails
+    }
 
     return { success: true };
   } catch (error) {
