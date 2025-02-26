@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const families = await prisma.family.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
       },
       orderBy: {
         createdAt: 'desc',
@@ -28,8 +29,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
     const family = await prisma.family.create({
       data: {
         ...body,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 
@@ -50,8 +53,10 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -61,7 +66,7 @@ export async function PUT(request: Request) {
     const family = await prisma.family.update({
       where: {
         id,
-        userId: session.user.id,
+        userId: userId,
       },
       data,
     });

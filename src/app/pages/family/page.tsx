@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Family {
   id: string;
@@ -32,10 +33,95 @@ interface Family {
   income: number;
 }
 
+// API functions
+const fetchFamilies = async () => {
+  const response = await fetch('/api/family');
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const createFamily = async (data: Omit<Family, 'id'>) => {
+  const response = await fetch('/api/family', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const updateFamily = async ({ id, ...data }: Family) => {
+  const response = await fetch('/api/family', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...data }),
+  });
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const deleteFamily = async (id: string) => {
+  const response = await fetch(`/api/family/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
 export default function FamilyPage() {
-  const [families, setFamilies] = useState<Family[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState<Family | null>(null);
+  const queryClient = useQueryClient();
+
+  // Queries
+  const { data: families = [], isLoading, error } = useQuery({
+    queryKey: ['families'],
+    queryFn: fetchFamilies,
+  });
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: createFamily,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success('Family member added successfully');
+      setIsOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to add family member: ' + error.message);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateFamily,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success('Family member updated successfully');
+      setIsOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to update family member: ' + error.message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteFamily,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success('Family member deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete family member: ' + error.message);
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -49,48 +135,20 @@ export default function FamilyPage() {
       income: parseFloat(formData.get('income') as string),
     };
 
-    try {
-      const response = await fetch('/api/family', {
-        method: editingFamily ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingFamily ? { ...familyData, id: editingFamily.id } : familyData),
-      });
-
-      if (response.ok) {
-        toast.success(`Family member ${editingFamily ? 'updated' : 'added'} successfully`);
-        setIsOpen(false);
-        // Refresh family list
-        fetchFamilies();
-      }
-    } catch (error) {
-      toast.error('Something went wrong: '+ error);
+    if (editingFamily) {
+      updateMutation.mutate({ ...familyData, id: editingFamily.id });
+    } else {
+      createMutation.mutate(familyData);
     }
   };
 
-  const fetchFamilies = async () => {
-    try {
-      const response = await fetch('/api/family');
-      const data = await response.json();
-      setFamilies(data);
-    } catch (error) {
-      console.error('Error fetching families:', error);
-    }
-  };
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
-  const handleDelete = async (id: string) => {
-    try {
-      const response = await fetch(`/api/family/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        toast.success('Family member deleted successfully');
-        fetchFamilies();
-      }
-    } catch (error) {
-      toast.error('Failed to delete family member: '+ error);
-    }
-  };
+  if (error) {
+    return <div>Error: {(error as Error).message}</div>;
+  }
 
   return (
     <div className="container mx-auto py-10">
@@ -209,7 +267,7 @@ export default function FamilyPage() {
                   <Button
                     variant="destructive"
                     size="icon"
-                    onClick={() => handleDelete(family.id)}
+                    onClick={() => deleteMutation.mutate(family.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

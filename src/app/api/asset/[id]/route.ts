@@ -1,22 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const asset = await prisma.asset.delete({
       where: {
         id: params.id,
-        userId: session.user.id,
+        userId: userId,
       },
     });
 

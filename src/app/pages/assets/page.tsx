@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Asset {
   id: string;
@@ -48,10 +49,95 @@ const assetTypes = [
   'Others',
 ];
 
+// API functions
+const fetchAssets = async () => {
+  const response = await fetch('/api/asset');
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const createAsset = async (data: Omit<Asset, 'id'>) => {
+  const response = await fetch('/api/asset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const updateAsset = async ({ id, ...data }: Asset) => {
+  const response = await fetch('/api/asset', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...data }),
+  });
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const deleteAsset = async (id: string) => {
+  const response = await fetch(`/api/asset/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
 export default function AssetsPage() {
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const queryClient = useQueryClient();
+
+  // Queries
+  const { data: assets = [], isLoading, error } = useQuery({
+    queryKey: ['assets'],
+    queryFn: fetchAssets,
+  });
+
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: createAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      toast.success('Asset added successfully');
+      setIsOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to add asset: ' + error.message);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      toast.success('Asset updated successfully');
+      setIsOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to update asset: ' + error.message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteAsset,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      toast.success('Asset deleted successfully');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete asset: ' + error.message);
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -64,47 +150,20 @@ export default function AssetsPage() {
       purchaseDate: formData.get('purchaseDate') as string,
     };
 
-    try {
-      const response = await fetch('/api/asset', {
-        method: editingAsset ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingAsset ? { ...assetData, id: editingAsset.id } : assetData),
-      });
-
-      if (response.ok) {
-        toast.success(`Asset ${editingAsset ? 'updated' : 'added'} successfully`);
-        setIsOpen(false);
-        fetchAssets();
-      }
-    } catch (error) {
-      toast.error('Something went wrong: '+ error);
+    if (editingAsset) {
+      updateMutation.mutate({ ...assetData, id: editingAsset.id });
+    } else {
+      createMutation.mutate(assetData);
     }
   };
 
-  const fetchAssets = async () => {
-    try {
-      const response = await fetch('/api/asset');
-      const data = await response.json();
-      setAssets(data);
-    } catch (error) {
-      console.error('Error fetching assets:', error);
-    }
-  };
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
-  const handleDelete = async (id: string) => {
-    try {
-      const response = await fetch(`/api/asset/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        toast.success('Asset deleted successfully');
-        fetchAssets();
-      }
-    } catch (error) {
-      toast.error('Failed to delete asset: '+ error);
-    }
-  };
+  if (error) {
+    return <div>Error: {(error as Error).message}</div>;
+  }
 
   return (
     <div className="container mx-auto py-10">
@@ -172,7 +231,7 @@ export default function AssetsPage() {
                     id="purchaseDate"
                     name="purchaseDate"
                     type="date"
-                    defaultValue={editingAsset?.purchaseDate}
+                    defaultValue={editingAsset?.purchaseDate?.split('T')[0]}
                     required
                   />
                 </div>
@@ -219,7 +278,7 @@ export default function AssetsPage() {
                   <Button
                     variant="destructive"
                     size="icon"
-                    onClick={() => handleDelete(asset.id)}
+                    onClick={() => deleteMutation.mutate(asset.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

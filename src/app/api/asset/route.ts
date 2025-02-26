@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const assets = await prisma.asset.findMany({
       where: {
-        userId: session.user.id,
+        userId: userId,
       },
       orderBy: {
         createdAt: 'desc',
@@ -28,16 +29,27 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const body = await request.json();
+    
+    // Convert the date string to a proper DateTime format
+    const purchaseDate = new Date(body.purchaseDate);
+    purchaseDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+
     const asset = await prisma.asset.create({
       data: {
-        ...body,
-        userId: session.user.id,
+        name: body.name,
+        type: body.type,
+        value: body.value,
+        description: body.description,
+        purchaseDate: purchaseDate,
+        userId: userId,
       },
     });
 
@@ -50,18 +62,27 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('userId')?.value;
+
+    if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     const body = await request.json();
     const { id, ...data } = body;
 
+    // Convert the date string to a proper DateTime format if it exists
+    if (data.purchaseDate) {
+      const purchaseDate = new Date(data.purchaseDate);
+      purchaseDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+      data.purchaseDate = purchaseDate;
+    }
+
     const asset = await prisma.asset.update({
       where: {
         id,
-        userId: session.user.id,
+        userId: userId,
       },
       data,
     });
