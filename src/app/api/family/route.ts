@@ -146,11 +146,6 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, ...data } = body;
 
-    // Check if the IC belongs to a registered user
-    const registeredUser = await prisma.user.findUnique({
-      where: { ic: data.ic },
-    });
-
     // Get the existing family record
     const existingFamily = await prisma.family.findUnique({
       where: { id },
@@ -160,6 +155,19 @@ export async function PUT(request: Request) {
     if (!existingFamily) {
       return new NextResponse('Family member not found', { status: 404 });
     }
+
+    // Prevent editing registered family members
+    if (existingFamily.isRegistered) {
+      return NextResponse.json(
+        { error: 'Cannot edit registered family members. Their information is synchronized with their account.' },
+        { status: 403 }
+      );
+    }
+
+    // Check if the IC belongs to a registered user
+    const registeredUser = await prisma.user.findUnique({
+      where: { ic: data.ic },
+    });
 
     // If IC has changed, check if the new IC already exists for this user
     if (existingFamily.ic !== data.ic) {

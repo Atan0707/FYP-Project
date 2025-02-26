@@ -364,142 +364,163 @@ export default function FamilyPage() {
               <DialogHeader>
                 <DialogTitle>{editingFamily ? 'Edit' : 'Add'} Family Member</DialogTitle>
               </DialogHeader>
-              {!editingFamily && !showForm && !showConfirmation && (
-                <div className="flex gap-2 mb-4">
-                  <Input
-                    placeholder="Enter IC number"
-                    value={searchIC}
-                    onChange={(e) => setSearchIC(e.target.value)}
-                  />
-                  <Button type="button" onClick={handleSearch}>
-                    <Search className="h-4 w-4" />
+              {editingFamily && editingFamily.isRegistered ? (
+                <div className="p-4 text-center">
+                  <div className="mb-4 text-amber-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">Cannot Edit Registered Family Member</h3>
+                  <p className="text-muted-foreground mb-4">
+                    This family member has a registered account. Their information is synchronized with their profile and cannot be edited here.
+                  </p>
+                  <Button variant="outline" onClick={() => setIsOpen(false)}>
+                    Close
                   </Button>
                 </div>
-              )}
-              {showConfirmation && foundUser && (
-                <div className="space-y-4">
-                  <div className="rounded-lg border p-4 space-y-3">
-                    <div>
-                      <Label>Full Name</Label>
-                      <div className="font-medium">{foundUser.fullName}</div>
-                    </div>
-                    <div>
-                      <Label>IC Number</Label>
-                      <div className="font-medium">{foundUser.ic}</div>
-                    </div>
-                    <div>
-                      <Label>Phone</Label>
-                      <div className="font-medium">{foundUser.phone}</div>
-                    </div>
-                    <div className="pt-2">
-                      <Badge variant="success">Registered User</Badge>
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="relationship">Relationship</Label>
-                    <Select
-                      onValueChange={(value) => setSelectedRelationship(value)}
-                      value={selectedRelationship}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select relationship" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {relationships.map((relationship) => (
-                          <SelectItem key={relationship} value={relationship}>
-                            {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                    <Button variant="outline" onClick={() => {
-                      setShowConfirmation(false);
-                      setFoundUser(null);
-                      setSearchIC('');
-                      setSelectedRelationship('');
-                    }}>
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleConfirmRegistered}
-                      disabled={!selectedRelationship}
-                    >
-                      Add as Family Member
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {(showForm || editingFamily) && (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="fullName">Full Name</Label>
+              ) : (
+                <>
+                  {!editingFamily && !showForm && !showConfirmation && (
+                    <div className="flex gap-2 mb-4">
                       <Input
-                        id="fullName"
-                        name="fullName"
-                        defaultValue={editingFamily?.fullName}
-                        required
+                        placeholder="Enter IC number"
+                        value={searchIC}
+                        onChange={(e) => setSearchIC(e.target.value)}
                       />
+                      <Button type="button" onClick={handleSearch}>
+                        <Search className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="ic">IC Number</Label>
-                      <Input
-                        id="ic"
-                        name="ic"
-                        defaultValue={editingFamily?.ic || searchIC}
-                        required
-                      />
+                  )}
+                  {showConfirmation && foundUser && (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border p-4 space-y-3">
+                        <div>
+                          <Label>Full Name</Label>
+                          <div className="font-medium">{foundUser.fullName}</div>
+                        </div>
+                        <div>
+                          <Label>IC Number</Label>
+                          <div className="font-medium">{foundUser.ic}</div>
+                        </div>
+                        <div>
+                          <Label>Phone</Label>
+                          <div className="font-medium">{foundUser.phone}</div>
+                        </div>
+                        <div className="pt-2">
+                          <Badge variant="success">Registered User</Badge>
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="relationship">Relationship</Label>
+                        <Select
+                          onValueChange={(value) => setSelectedRelationship(value)}
+                          value={selectedRelationship}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select relationship" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {relationships.map((relationship) => (
+                              <SelectItem key={relationship} value={relationship}>
+                                {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" onClick={() => {
+                          setShowConfirmation(false);
+                          setFoundUser(null);
+                          setSearchIC('');
+                          setSelectedRelationship('');
+                        }}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          onClick={handleConfirmRegistered}
+                          disabled={!selectedRelationship}
+                        >
+                          Add as Family Member
+                        </Button>
+                      </div>
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="relationship">Relationship</Label>
-                      <Select name="relationship" defaultValue={editingFamily?.relationship}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select relationship" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {relationships.map((relationship) => (
-                            <SelectItem key={relationship} value={relationship}>
-                              {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        defaultValue={editingFamily?.phone}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="occupation">Occupation</Label>
-                      <Input
-                        id="occupation"
-                        name="occupation"
-                        defaultValue={editingFamily?.occupation}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="income">Monthly Income</Label>
-                      <Input
-                        id="income"
-                        name="income"
-                        type="number"
-                        defaultValue={editingFamily?.income}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full">
-                    {editingFamily ? 'Update' : 'Add'} Family Member
-                  </Button>
-                </form>
+                  )}
+                  {(showForm || editingFamily) && (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                      <div className="grid gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="fullName">Full Name</Label>
+                          <Input
+                            id="fullName"
+                            name="fullName"
+                            defaultValue={editingFamily?.fullName}
+                            required
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="ic">IC Number</Label>
+                          <Input
+                            id="ic"
+                            name="ic"
+                            defaultValue={editingFamily?.ic || searchIC}
+                            required
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="relationship">Relationship</Label>
+                          <Select name="relationship" defaultValue={editingFamily?.relationship}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select relationship" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {relationships.map((relationship) => (
+                                <SelectItem key={relationship} value={relationship}>
+                                  {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="phone">Phone</Label>
+                          <Input
+                            id="phone"
+                            name="phone"
+                            defaultValue={editingFamily?.phone}
+                            required
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="occupation">Occupation</Label>
+                          <Input
+                            id="occupation"
+                            name="occupation"
+                            defaultValue={editingFamily?.occupation}
+                            required
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="income">Monthly Income</Label>
+                          <Input
+                            id="income"
+                            name="income"
+                            type="number"
+                            defaultValue={editingFamily?.income}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full">
+                        {editingFamily ? 'Update' : 'Add'} Family Member
+                      </Button>
+                    </form>
+                  )}
+                </>
               )}
             </DialogContent>
           </Dialog>
@@ -542,6 +563,8 @@ export default function FamilyPage() {
                       setEditingFamily(family);
                       setIsOpen(true);
                     }}
+                    disabled={family.isRegistered}
+                    title={family.isRegistered ? "Registered family members cannot be edited. Their information is synchronized with their account." : "Edit family member"}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>

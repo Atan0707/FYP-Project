@@ -97,6 +97,19 @@ export async function PUT(request: Request) {
       },
     });
 
+    // Update all family records where this user is referenced
+    await prisma.family.updateMany({
+      where: {
+        ic: updatedUser.ic,
+        userId: { not: userId }, // Only update records created by other users
+        isRegistered: true,
+      },
+      data: {
+        fullName,
+        phone,
+      },
+    });
+
     return NextResponse.json({
       id: updatedUser.id,
       name: updatedUser.fullName,

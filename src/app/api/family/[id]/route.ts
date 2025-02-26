@@ -26,8 +26,46 @@ export async function DELETE(
       include: { relatedToUser: true },
     });
 
+    // If not found, check if the current user is the related user
     if (!familyMember) {
-      return new NextResponse('Family member not found', { status: 404 });
+      // Find the family member where the current user is the related user
+      const relatedFamilyMember = await prisma.family.findFirst({
+        where: {
+          id,
+          relatedUserId: userId
+        },
+        include: { user: true },
+      });
+
+      if (!relatedFamilyMember) {
+        return new NextResponse('Family member not found', { status: 404 });
+      }
+
+      // Find the reciprocal relationship (where the current user is the main user)
+      const reciprocalRelationship = await prisma.family.findFirst({
+        where: {
+          userId: userId,
+          relatedUserId: relatedFamilyMember.userId,
+        },
+      });
+
+      if (reciprocalRelationship) {
+        // Delete the reciprocal relationship
+        await prisma.family.delete({
+          where: {
+            id: reciprocalRelationship.id,
+          },
+        });
+      }
+
+      // Delete the related family member
+      const family = await prisma.family.delete({
+        where: {
+          id: relatedFamilyMember.id,
+        },
+      });
+
+      return NextResponse.json(family);
     }
 
     // Delete the family member
@@ -48,13 +86,9 @@ export async function DELETE(
       });
 
       if (reciprocalRelationship) {
-        // Update the reciprocal relationship to remove the bidirectional link
-        await prisma.family.update({
+        // Delete the reciprocal relationship instead of just updating it
+        await prisma.family.delete({
           where: { id: reciprocalRelationship.id },
-          data: {
-            relatedUserId: null,
-            inverseRelationship: null,
-          },
         });
       }
     }
