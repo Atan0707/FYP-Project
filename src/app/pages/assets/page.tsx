@@ -485,6 +485,12 @@ export default function AssetsPage() {
                       </div>
                     </TableCell>
                   </TableRow>
+                ) : pendingAssetsError ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-red-500">
+                      Error loading pending assets: {(pendingAssetsError as Error).message}
+                    </TableCell>
+                  </TableRow>
                 ) : pendingAssets.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">

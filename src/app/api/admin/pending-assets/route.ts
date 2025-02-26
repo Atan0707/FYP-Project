@@ -12,9 +12,6 @@ export async function GET() {
     }
 
     const pendingAssets = await prisma.pendingAsset.findMany({
-      where: {
-        status: 'pending',
-      },
       orderBy: {
         createdAt: 'desc',
       },
