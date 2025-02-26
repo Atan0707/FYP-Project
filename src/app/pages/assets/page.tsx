@@ -43,6 +43,17 @@ interface Asset {
   pdfFile?: string;
 }
 
+interface PendingAsset {
+  id: string;
+  name: string;
+  type: string;
+  value: number;
+  description?: string;
+  pdfFile?: string;
+  status: string;
+  createdAt: string;
+}
+
 interface FamilyMember {
   id: string;
   fullName: string;
@@ -72,6 +83,14 @@ const fetchAssets = async () => {
   return response.json();
 };
 
+const fetchPendingAssets = async () => {
+  const response = await fetch('/api/pending-asset');
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
 const fetchFamilyAssets = async () => {
   const response = await fetch('/api/family-assets');
   if (!response.ok) {
@@ -81,7 +100,7 @@ const fetchFamilyAssets = async () => {
 };
 
 const createAsset = async (data: Omit<Asset, 'id'>) => {
-  const response = await fetch('/api/asset', {
+  const response = await fetch('/api/pending-asset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -147,6 +166,15 @@ export default function AssetsPage() {
   });
 
   const { 
+    data: pendingAssets = [], 
+    isLoading: isPendingAssetsLoading, 
+    error: pendingAssetsError 
+  } = useQuery({
+    queryKey: ['pendingAssets'],
+    queryFn: fetchPendingAssets,
+  });
+
+  const { 
     data: familyAssets = [], 
     isLoading: isFamilyAssetsLoading, 
     error: familyAssetsError 
@@ -159,8 +187,8 @@ export default function AssetsPage() {
   const createMutation = useMutation({
     mutationFn: createAsset,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['assets'] });
-      toast.success('Asset added successfully');
+      queryClient.invalidateQueries({ queryKey: ['pendingAssets'] });
+      toast.success('Asset submitted for approval');
       setIsOpen(false);
       setUploadedFilePath(null);
     },
@@ -349,7 +377,7 @@ export default function AssetsPage() {
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={uploading}>
-                {editingAsset ? 'Update' : 'Add'} Asset
+                {editingAsset ? 'Update' : 'Submit for Approval'}
               </Button>
             </form>
           </DialogContent>
@@ -357,8 +385,11 @@ export default function AssetsPage() {
       </div>
 
       <Tabs defaultValue="my-assets" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="my-assets">My Assets</TabsTrigger>
+          <TabsTrigger value="pending-assets">
+            Pending Approval
+          </TabsTrigger>
           <TabsTrigger value="family-assets">
             <Users className="mr-2 h-4 w-4" />
             Family Assets
@@ -422,6 +453,79 @@ export default function AssetsPage() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="pending-assets">
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Value (RM)</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Document</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Submitted On</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isPendingAssetsLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6">
+                      <div className="flex justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : pendingAssets.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                      No pending assets found. Submit an asset for approval using the button above.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pendingAssets.map((asset: PendingAsset) => (
+                    <TableRow key={asset.id}>
+                      <TableCell>{asset.name}</TableCell>
+                      <TableCell>{asset.type}</TableCell>
+                      <TableCell>{asset.value.toFixed(2)}</TableCell>
+                      <TableCell>{asset.description}</TableCell>
+                      <TableCell>
+                        {asset.pdfFile ? (
+                          <a
+                            href={asset.pdfFile}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-blue-600 hover:text-blue-800"
+                          >
+                            <Download className="mr-1 h-4 w-4" />
+                            View PDF
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">No document</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {asset.status === 'pending' && (
+                          <Badge variant="secondary">Pending</Badge>
+                        )}
+                        {asset.status === 'approved' && (
+                          <Badge variant="success">Approved</Badge>
+                        )}
+                        {asset.status === 'rejected' && (
+                          <Badge variant="destructive">Rejected</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(asset.createdAt), 'dd/MM/yyyy')}
                       </TableCell>
                     </TableRow>
                   ))

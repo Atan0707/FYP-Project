@@ -28,6 +28,7 @@ model User {
   families  Family[] @relation("UserFamilies")
   relatedFamilies Family[] @relation("RelatedFamilies")
   assets    Asset[]
+  pendingAssets PendingAsset[]
 }
 
 model Admin {
@@ -62,6 +63,20 @@ model Asset {
   value       Float
   description String?
   pdfFile     String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PendingAsset {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // e.g., Property, Vehicle, Investment
+  value       Float
+  description String?
+  pdfFile     String?
+  status      String   @default("pending") // pending, approved, rejected
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   createdAt   DateTime @default(now())
