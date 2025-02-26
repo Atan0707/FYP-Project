@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { toast } from "sonner"
-import { Loader2, Upload, User } from "lucide-react"
+import { Loader2, Upload, User, CheckCircle2, Phone, Mail, CreditCard, MapPin } from "lucide-react"
 
 // Define the form schema
 const profileFormSchema = z.object({
@@ -38,6 +37,7 @@ const UserProfile = () => {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Initialize form
   const form = useForm<ProfileFormValues>({
@@ -86,7 +86,10 @@ const UserProfile = () => {
         }
       } catch (error) {
         console.error('Error fetching user:', error)
-        toast.error("Failed to load user profile")
+        toast.error("Failed to load user profile", {
+          description: "Could not retrieve your profile information. Please try again later.",
+          duration: 5000,
+        })
       } finally {
         setLoading(false)
       }
@@ -98,6 +101,7 @@ const UserProfile = () => {
   // Handle form submission
   const onSubmit = async (data: ProfileFormValues) => {
     try {
+      setIsSubmitting(true)
       const response = await fetch('/api/user', {
         method: 'PUT',
         headers: {
@@ -123,14 +127,23 @@ const UserProfile = () => {
           })
         }
         
-        toast.success("Profile updated")
+        toast.success("Profile updated successfully", {
+          description: "Your profile information has been saved.",
+          icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+          duration: 4000,
+        })
       } else {
         const error = await response.json()
         throw new Error(error.error || 'Failed to update profile')
       }
     } catch (error) {
       console.error('Error updating profile:', error)
-      toast.error(error instanceof Error ? error.message : "Failed to update profile")
+      toast.error("Failed to update profile", {
+        description: error instanceof Error ? error.message : "Please try again later.",
+        duration: 5000,
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -141,13 +154,19 @@ const UserProfile = () => {
 
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image size should be less than 5MB")
+      toast.error("Image size too large", {
+        description: "Please upload an image smaller than 5MB.",
+        duration: 5000,
+      })
       return
     }
 
     // Check file type
     if (!file.type.startsWith('image/')) {
-      toast.error("Please upload an image file")
+      toast.error("Invalid file type", {
+        description: "Please upload a valid image file (JPEG, PNG, GIF).",
+        duration: 5000,
+      })
       return
     }
 
@@ -170,10 +189,17 @@ const UserProfile = () => {
       // Simulate upload delay
       await new Promise(resolve => setTimeout(resolve, 1000))
       
-      toast.success("Image uploaded successfully")
+      toast.success("Image uploaded successfully", {
+        description: "Your profile picture has been updated. Don't forget to save your changes.",
+        icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+        duration: 4000,
+      })
     } catch (error) {
       console.error('Error uploading image:', error)
-      toast.error("Failed to upload image")
+      toast.error("Failed to upload image", {
+        description: "Please try again or use a different image.",
+        duration: 5000,
+      })
     } finally {
       setUploading(false)
     }
@@ -182,41 +208,87 @@ const UserProfile = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your profile...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">My Profile</h1>
+    <div className="container mx-auto py-10 px-4 sm:px-6">
+      <div className="flex flex-col space-y-2 mb-8">
+        <h1 className="text-3xl font-bold">My Profile</h1>
+        <p className="text-muted-foreground">View and manage your personal information</p>
+      </div>
       
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
-          <TabsTrigger value="details">Profile Details</TabsTrigger>
-          <TabsTrigger value="photo">Profile Photo</TabsTrigger>
-        </TabsList>
+      <Card className="max-w-4xl mx-auto shadow-lg border border-neutral-200 overflow-hidden">
+        <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b border-neutral-200">
+          <CardTitle className="flex items-center">
+            <User className="h-5 w-5 mr-2 text-primary" />
+            Profile Information
+          </CardTitle>
+          <CardDescription>
+            View and update your personal information
+          </CardDescription>
+        </CardHeader>
         
-        <TabsContent value="details">
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>
-                View and update your personal information
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <CardContent className="pt-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Profile Photo Section */}
+                <div className="flex flex-col items-center space-y-6 md:w-1/3">
+                  <div className="relative">
+                    <Avatar className="h-40 w-40 border-4 border-white shadow-lg">
+                      <AvatarImage src={imagePreview || user?.photo || '/avatars/default.jpg'} alt={user?.fullName || 'User'} />
+                      <AvatarFallback className="text-4xl bg-primary text-primary-foreground">
+                        {user?.fullName?.substring(0, 2).toUpperCase() || <User className="h-16 w-16" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    {uploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
+                        <Loader2 className="h-8 w-8 animate-spin text-white" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col items-center space-y-3 w-full">
+                    <Label htmlFor="picture" className="w-full">
+                      <div className="flex items-center justify-center w-full h-12 px-4 py-2 text-sm font-medium text-center transition-colors border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground bg-slate-50 hover:bg-slate-100 shadow-sm">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload new photo
+                      </div>
+                      <Input 
+                        id="picture" 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleImageUpload}
+                        disabled={uploading}
+                      />
+                    </Label>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Supported formats: JPEG, PNG, GIF. Max size: 5MB.
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Profile Details Section */}
+                <div className="md:w-2/3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="fullName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Full Name</FormLabel>
+                          <FormLabel className="flex items-center">
+                            <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                            Full Name
+                          </FormLabel>
                           <FormControl>
-                            <Input placeholder="Your name" {...field} />
+                            <Input placeholder="Your name" {...field} className="focus-visible:ring-primary" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -228,9 +300,12 @@ const UserProfile = () => {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel className="flex items-center">
+                            <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                            Email
+                          </FormLabel>
                           <FormControl>
-                            <Input placeholder="Your email" {...field} disabled />
+                            <Input placeholder="Your email" {...field} disabled className="bg-slate-50" />
                           </FormControl>
                           <FormDescription>
                             Email cannot be changed
@@ -245,9 +320,12 @@ const UserProfile = () => {
                       name="ic"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>IC Number</FormLabel>
+                          <FormLabel className="flex items-center">
+                            <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
+                            IC Number
+                          </FormLabel>
                           <FormControl>
-                            <Input placeholder="Your IC" {...field} disabled />
+                            <Input placeholder="Your IC" {...field} disabled className="bg-slate-50" />
                           </FormControl>
                           <FormDescription>
                             IC number cannot be changed
@@ -262,9 +340,12 @@ const UserProfile = () => {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
+                          <FormLabel className="flex items-center">
+                            <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                            Phone Number
+                          </FormLabel>
                           <FormControl>
-                            <Input placeholder="Your phone number" {...field} />
+                            <Input placeholder="Your phone number" {...field} className="focus-visible:ring-primary" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -276,12 +357,15 @@ const UserProfile = () => {
                     control={form.control}
                     name="address"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Address</FormLabel>
+                      <FormItem className="mt-6">
+                        <FormLabel className="flex items-center">
+                          <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                          Address
+                        </FormLabel>
                         <FormControl>
                           <Textarea 
                             placeholder="Your address" 
-                            className="min-h-[100px]" 
+                            className="min-h-[100px] focus-visible:ring-primary resize-none" 
                             {...field} 
                           />
                         </FormControl>
@@ -289,71 +373,29 @@ const UserProfile = () => {
                       </FormItem>
                     )}
                   />
-                  
-                  <Button type="submit" className="w-full md:w-auto">
-                    Save Changes
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="photo">
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle>Profile Photo</CardTitle>
-              <CardDescription>
-                Update your profile picture
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center space-y-6">
-              <div className="relative">
-                <Avatar className="h-40 w-40">
-                  <AvatarImage src={imagePreview || user?.photo || '/avatars/default.jpg'} alt={user?.fullName || 'User'} />
-                  <AvatarFallback className="text-4xl">
-                    {user?.fullName?.substring(0, 2).toUpperCase() || <User className="h-16 w-16" />}
-                  </AvatarFallback>
-                </Avatar>
-                {uploading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-white" />
-                  </div>
-                )}
+                </div>
               </div>
               
-              <div className="flex flex-col items-center space-y-2 w-full max-w-xs">
-                <Label htmlFor="picture" className="w-full">
-                  <div className="flex items-center justify-center w-full h-12 px-4 py-2 text-sm font-medium text-center transition-colors border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload new photo
-                  </div>
-                  <Input 
-                    id="picture" 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleImageUpload}
-                    disabled={uploading}
-                  />
-                </Label>
-                <p className="text-xs text-muted-foreground text-center">
-                  Supported formats: JPEG, PNG, GIF. Max size: 5MB.
-                </p>
+              <div className="flex justify-end pt-4 border-t border-neutral-100 mt-6">
+                <Button 
+                  type="submit" 
+                  className="w-full md:w-auto transition-all hover:shadow-md"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
               </div>
-            </CardContent>
-            <CardFooter className="flex justify-center">
-              <Button 
-                variant="outline" 
-                onClick={() => form.handleSubmit(onSubmit)()}
-                disabled={uploading}
-              >
-                Save Photo
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
