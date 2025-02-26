@@ -26,10 +26,11 @@ import { format } from 'date-fns';
 import { CheckCircle, XCircle, Users, AlertCircle, UserCircle2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Collapsible,
   CollapsibleContent,
@@ -355,35 +356,46 @@ export default function AgreementsPage() {
                           
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <HoverCard>
-                                <HoverCardTrigger asChild>
-                                  <div className="flex items-center gap-2 cursor-help">
-                                    <Users className="h-4 w-4" />
-                                    <span className="text-sm">Signing Progress</span>
-                                  </div>
-                                </HoverCardTrigger>
-                                <HoverCardContent className="w-80">
-                                  <div className="space-y-2">
-                                    <h4 className="text-sm font-semibold">Agreement Status</h4>
-                                    <div className="text-sm">
-                                      {getSigningProgress(agreement.distribution).signed} of{' '}
-                                      {getSigningProgress(agreement.distribution).total} family members have signed
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 cursor-help">
+                                      <Users className="h-4 w-4" />
+                                      <span className="text-sm">Signing Progress</span>
                                     </div>
-                                    {getSigningProgress(agreement.distribution).rejected > 0 && (
-                                      <div className="text-sm text-destructive flex items-center gap-1">
-                                        <AlertCircle className="h-4 w-4" />
-                                        {getSigningProgress(agreement.distribution).rejected} rejection(s)
+                                  </TooltipTrigger>
+                                  <TooltipContent className="w-64 p-2">
+                                    <div className="space-y-2">
+                                      <h4 className="text-sm font-semibold">Agreement Status</h4>
+                                      <div className="text-sm">
+                                        {getSigningProgress(agreement.distribution).signed} of{' '}
+                                        {getSigningProgress(agreement.distribution).total} family members have signed
                                       </div>
-                                    )}
-                                  </div>
-                                </HoverCardContent>
-                              </HoverCard>
+                                      {getSigningProgress(agreement.distribution).rejected > 0 && (
+                                        <div className="text-sm text-destructive flex items-center gap-1">
+                                          <AlertCircle className="h-4 w-4" />
+                                          {getSigningProgress(agreement.distribution).rejected} rejection(s)
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                               {getStatusBadge(getDistributionStatus(agreement.distribution))}
                             </div>
-                            <Progress 
-                              value={getSigningProgress(agreement.distribution).progress} 
-                              className="h-2"
-                            />
+                            <div className="relative">
+                              <Progress 
+                                value={getSigningProgress(agreement.distribution).progress} 
+                                className="h-2"
+                              />
+                              {getSigningProgress(agreement.distribution).rejected > 0 && (
+                                <div className="absolute top-0 right-0 h-2 bg-destructive/20" 
+                                  style={{ 
+                                    width: `${(getSigningProgress(agreement.distribution).rejected / getSigningProgress(agreement.distribution).total) * 100}%` 
+                                  }} 
+                                />
+                              )}
+                            </div>
                           </div>
                           <Collapsible className="mt-4">
                             <CollapsibleTrigger asChild>
@@ -400,7 +412,21 @@ export default function AgreementsPage() {
                                       <UserCircle2 className="h-4 w-4" />
                                       <span>{a.familyId === agreement.distribution?.asset?.userId ? 'Asset Owner' : 'Family Member'}</span>
                                     </div>
-                                    {getStatusBadge(a.status)}
+                                    <div className="flex items-center gap-2">
+                                      {a.status === 'rejected' && a.notes && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <AlertCircle className="h-4 w-4 text-destructive cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p className="text-sm">Rejection reason: {a.notes}</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {getStatusBadge(a.status)}
+                                    </div>
                                   </div>
                                 ))}
                               </div>

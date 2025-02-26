@@ -2,11 +2,6 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
-interface Beneficiary {
-  familyId: string;
-  percentage: number;
-}
-
 // GET all asset distributions for the current user
 export async function GET() {
   try {
@@ -97,18 +92,34 @@ export async function POST(request: Request) {
         },
       });
 
-      // Create agreements for all family members
-      await Promise.all(
-        allFamilyMembers.map((familyMember) =>
-          tx.agreement.create({
-            data: {
-              familyId: familyMember.id,
-              status: 'pending',
-              distributionId: distribution.id,
-            },
-          })
-        )
+      // Filter out the asset owner from family members to avoid duplicate agreements
+      const familyMembersWithoutOwner = allFamilyMembers.filter(
+        member => member.userId !== userId && member.relatedUserId === userId
       );
+
+      // Create agreement for the asset owner
+      await tx.agreement.create({
+        data: {
+          familyId: allFamilyMembers.find(member => member.userId === userId)?.id || '',
+          status: 'pending',
+          distributionId: distribution.id,
+        },
+      });
+
+      // Create agreements for family members (excluding owner)
+      if (familyMembersWithoutOwner.length > 0) {
+        await Promise.all(
+          familyMembersWithoutOwner.map((familyMember) =>
+            tx.agreement.create({
+              data: {
+                familyId: familyMember.id,
+                status: 'pending',
+                distributionId: distribution.id,
+              },
+            })
+          )
+        );
+      }
 
       return distribution;
     });
