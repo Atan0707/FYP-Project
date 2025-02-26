@@ -36,14 +36,9 @@ export async function PUT(
       );
     }
 
-    // Update the pending asset status
-    await prisma.pendingAsset.update({
-      where: { id },
-      data: { status: action === 'approve' ? 'approved' : 'rejected' },
-    });
-
-    // If approved, create a new asset
+    // If approved, create a new asset and delete the pending asset
     if (action === 'approve') {
+      // Create the new asset
       await prisma.asset.create({
         data: {
           name: pendingAsset.name,
@@ -53,6 +48,17 @@ export async function PUT(
           pdfFile: pendingAsset.pdfFile,
           userId: pendingAsset.userId,
         },
+      });
+
+      // Delete the pending asset
+      await prisma.pendingAsset.delete({
+        where: { id },
+      });
+    } else {
+      // If rejected, just update the status
+      await prisma.pendingAsset.update({
+        where: { id },
+        data: { status: 'rejected' },
       });
     }
 

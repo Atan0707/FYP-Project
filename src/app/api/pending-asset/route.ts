@@ -8,12 +8,15 @@ export async function GET() {
     const userId = cookieStore.get('userId')?.value;
 
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const pendingAssets = await prisma.pendingAsset.findMany({
       where: {
-        userId: userId,
+        userId,
+        status: {
+          in: ['pending', 'rejected']
+        }
       },
       orderBy: {
         createdAt: 'desc',
@@ -23,7 +26,10 @@ export async function GET() {
     return NextResponse.json(pendingAssets);
   } catch (error) {
     console.error('Error fetching pending assets:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
