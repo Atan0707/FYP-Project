@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
+interface Beneficiary {
+  familyId: string;
+  percentage: number;
+}
+
 // GET all asset distributions for the current user
 export async function GET() {
   try {
@@ -64,19 +69,42 @@ export async function POST(request: Request) {
       return new NextResponse('Asset already has a distribution', { status: 400 });
     }
 
-    // Create the asset distribution
-    const assetDistribution = await prisma.assetDistribution.create({
-      data: {
-        type: body.type,
-        notes: body.notes,
-        status: 'pending',
-        beneficiaries: body.beneficiaries,
-        organization: body.organization,
-        assetId: body.assetId,
-      },
+    // Start a transaction to create distribution and agreements
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the asset distribution
+      const distribution = await tx.assetDistribution.create({
+        data: {
+          type: body.type,
+          notes: body.notes,
+          status: 'in_progress',
+          beneficiaries: body.beneficiaries,
+          organization: body.organization,
+          assetId: body.assetId,
+        },
+      });
+
+      // If there are beneficiaries, create agreements for each
+      if (body.beneficiaries && Array.isArray(body.beneficiaries)) {
+        const beneficiaryIds = body.beneficiaries.map((b: Beneficiary) => b.familyId);
+        
+        // Create agreements for each beneficiary
+        await Promise.all(
+          beneficiaryIds.map((familyId: string) =>
+            tx.agreement.create({
+              data: {
+                familyId,
+                status: 'pending',
+                distributionId: distribution.id,
+              },
+            })
+          )
+        );
+      }
+
+      return distribution;
     });
 
-    return NextResponse.json(assetDistribution);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating asset distribution:', error);
     return new NextResponse('Internal Server Error', { status: 500 });

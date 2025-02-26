@@ -90,7 +90,7 @@ model AssetDistribution {
   id          String   @id @default(cuid())
   type        String   // waqf, faraid, hibah, will
   notes       String?
-  status      String   @default("pending") // pending, approved, completed
+  status      String   @default("pending") // pending, in_progress, approved, completed
   // For hibah and will, we need to specify beneficiaries
   beneficiaries Json?  // Array of beneficiary objects with family member IDs and percentages
   // For waqf, we need to specify the organization
@@ -100,4 +100,22 @@ model AssetDistribution {
   assetId     String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  // Add relation to agreements
+  agreements  Agreement[]
+}
+
+// New model for agreements
+model Agreement {
+  id          String   @id @default(cuid())
+  familyId    String
+  status      String   @default("pending") // pending, signed, rejected
+  signedAt    DateTime?
+  notes       String?
+  // Reference to the asset distribution
+  distribution AssetDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  distributionId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([distributionId])
 }

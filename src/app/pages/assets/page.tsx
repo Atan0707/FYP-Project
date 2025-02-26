@@ -41,6 +41,7 @@ interface Asset {
   value: number;
   description?: string;
   pdfFile?: string;
+  createdAt?: string;
   distribution?: {
     id: string;
     type: string;
@@ -154,6 +155,28 @@ const uploadFile = async (file: File) => {
   }
 
   return response.json();
+};
+
+const getDistributionStatus = (distribution: Asset['distribution']) => {
+  if (!distribution) {
+    return <Badge variant="secondary">Not Yet</Badge>;
+  }
+
+  switch (distribution.status) {
+    case 'in_progress':
+      return <Badge variant="secondary">In Progress</Badge>;
+    case 'completed':
+      return (
+        <div className="flex flex-col gap-1">
+          <Badge variant="success">{distribution.type}</Badge>
+          <span className="text-xs text-muted-foreground">Completed</span>
+        </div>
+      );
+    case 'rejected':
+      return <Badge variant="destructive">Rejected</Badge>;
+    default:
+      return <Badge variant="outline">{distribution.status}</Badge>;
+  }
 };
 
 export default function AssetsPage() {
@@ -406,10 +429,11 @@ export default function AssetsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Value (RM)</TableHead>
+                  <TableHead>Value</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Document</TableHead>
                   <TableHead>Distribution</TableHead>
+                  <TableHead>Created On</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -446,8 +470,13 @@ export default function AssetsPage() {
                         </a>
                       </TableCell>
                       <TableCell>{asset.type}</TableCell>
-                      <TableCell>{asset.value.toFixed(2)}</TableCell>
-                      <TableCell>{asset.description}</TableCell>
+                      <TableCell>
+                        {new Intl.NumberFormat('en-MY', {
+                          style: 'currency',
+                          currency: 'MYR',
+                        }).format(asset.value)}
+                      </TableCell>
+                      <TableCell>{asset.description || '-'}</TableCell>
                       <TableCell>
                         {asset.pdfFile ? (
                           <a
@@ -460,33 +489,31 @@ export default function AssetsPage() {
                             View PDF
                           </a>
                         ) : (
-                          <span className="text-gray-400">No document</span>
+                          '-'
                         )}
                       </TableCell>
-                      <TableCell>
-                        {asset.distribution ? (
-                          <Badge variant="outline" className="capitalize">
-                            {asset.distribution.type}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Not yet</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right space-x-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleOpenDialog(asset)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => deleteMutation.mutate(asset.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <TableCell>{getDistributionStatus(asset.distribution)}</TableCell>
+                      <TableCell>{format(new Date(asset.createdAt || ''), 'PPP')}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenDialog(asset)}
+                          >
+                            <Pencil className="mr-1 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => deleteMutation.mutate(asset.id)}
+                          >
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            Delete
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -660,7 +687,7 @@ export default function AssetsPage() {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  {format(new Date(asset.createdAt), 'dd/MM/yyyy')}
+                                  {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
                                 </TableCell>
                               </TableRow>
                             ))
