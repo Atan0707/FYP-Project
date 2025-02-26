@@ -46,12 +46,38 @@ export async function GET(
         userId: userId,
       },
       include: {
-        distribution: true,
+        distribution: {
+          include: {
+            agreements: true
+          }
+        }
       },
     });
 
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+
+    // If there are agreements, fetch family member details
+    if (asset.distribution?.agreements) {
+      const familyMembers = await prisma.family.findMany({
+        where: {
+          id: {
+            in: asset.distribution.agreements.map(a => a.familyId)
+          }
+        },
+        select: {
+          id: true,
+          fullName: true,
+          relationship: true
+        }
+      });
+
+      // Attach family member details to agreements
+      asset.distribution.agreements = asset.distribution.agreements.map(agreement => ({
+        ...agreement,
+        familyMember: familyMembers.find(f => f.id === agreement.familyId)
+      }));
     }
 
     return NextResponse.json(asset);

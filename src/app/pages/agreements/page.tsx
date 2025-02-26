@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Users, AlertCircle, UserCircle2 } from 'lucide-react';
+import { CheckCircle, XCircle, Users, AlertCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
   Tooltip,
@@ -31,11 +31,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 
 interface Agreement {
   id: string;
@@ -326,7 +321,7 @@ export default function AgreementsPage() {
                               <CheckCircle className="mr-1 h-4 w-4" />
                               Sign
                             </Button>
-                            <Button
+                            {/* <Button
                               variant="outline"
                               size="sm"
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -337,7 +332,7 @@ export default function AgreementsPage() {
                             >
                               <XCircle className="mr-1 h-4 w-4" />
                               Reject
-                            </Button>
+                            </Button> */}
                           </div>
                         </div>
                       </CardHeader>
@@ -397,41 +392,6 @@ export default function AgreementsPage() {
                               )}
                             </div>
                           </div>
-                          <Collapsible className="mt-4">
-                            <CollapsibleTrigger asChild>
-                              <Button variant="ghost" size="sm" className="flex items-center gap-2 w-full justify-start">
-                                <UserCircle2 className="h-4 w-4" />
-                                <span>View All Signers</span>
-                              </Button>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="mt-2">
-                              <div className="space-y-2">
-                                {agreement.distribution?.agreements?.map((a) => (
-                                  <div key={a.id} className="flex items-center justify-between text-sm">
-                                    <div className="flex items-center gap-2">
-                                      <UserCircle2 className="h-4 w-4" />
-                                      <span>{a.familyId === agreement.distribution?.asset?.userId ? 'Asset Owner' : 'Family Member'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      {a.status === 'rejected' && a.notes && (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <AlertCircle className="h-4 w-4 text-destructive cursor-help" />
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              <p className="text-sm">Rejection reason: {a.notes}</p>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
-                                      {getStatusBadge(a.status)}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </CollapsibleContent>
-                          </Collapsible>
                         </div>
                       </CardContent>
                     </Card>

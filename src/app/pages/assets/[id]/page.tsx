@@ -8,16 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Download, Users, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, Users, AlertCircle, UserCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from "@/components/ui/separator";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface FamilyMember {
   id: string;
@@ -54,7 +56,15 @@ interface Asset {
 
 interface Agreement {
   id: string;
+  familyId: string;
   status: string;
+  signedAt?: string;
+  notes?: string;
+  familyMember?: {
+    id: string;
+    fullName: string;
+    relationship: string;
+  };
 }
 
 const distributionTypes = [
@@ -65,7 +75,7 @@ const distributionTypes = [
 ];
 
 const getSigningProgress = (distribution: Distribution) => {
-  if (!distribution.agreements) return null;
+  if (!distribution?.agreements) return { total: 0, signed: 0, rejected: 0, progress: 0 };
   
   const totalAgreements = distribution.agreements.length;
   const signedAgreements = distribution.agreements.filter(a => a.status === 'signed').length;
@@ -329,80 +339,114 @@ export default function AssetDetailsPage() {
                     </Badge>
                     {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
                   </div>
-                  {assetDetails.distribution.notes && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">Notes</div>
-                      <div className="mt-1">{assetDetails.distribution.notes}</div>
-                    </div>
-                  )}
-                  {assetDetails.distribution.organization && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">Organization</div>
-                      <div className="mt-1">{assetDetails.distribution.organization}</div>
-                    </div>
-                  )}
-                  {assetDetails.distribution.beneficiaries && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">Beneficiaries</div>
-                      <div className="mt-1">
-                        {assetDetails.distribution.beneficiaries.map((beneficiary: Beneficiary) => (
-                          <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
-                            <span className="font-medium">
-                              {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
-                            </span>
-                            <span className="text-gray-600">- {beneficiary.percentage}%</span>
+                  {assetDetails.distribution && (
+                    <>
+                      {assetDetails.distribution.notes && (
+                        <div>
+                          <div className="text-sm text-muted-foreground">Notes</div>
+                          <div className="mt-1">{assetDetails.distribution.notes}</div>
+                        </div>
+                      )}
+                      {assetDetails.distribution.organization && (
+                        <div>
+                          <div className="text-sm text-muted-foreground">Organization</div>
+                          <div className="mt-1">{assetDetails.distribution.organization}</div>
+                        </div>
+                      )}
+                      {assetDetails.distribution.beneficiaries && assetDetails.distribution.beneficiaries.length > 0 && (
+                        <div>
+                          <div className="text-sm text-muted-foreground">Beneficiaries</div>
+                          <div className="mt-1">
+                            {assetDetails.distribution.beneficiaries.map((beneficiary: Beneficiary) => (
+                              <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
+                                <span className="font-medium">
+                                  {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
+                                </span>
+                                <span className="text-gray-600">- {beneficiary.percentage}%</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {assetDetails.distribution.agreements && (
-                    <div className="space-y-2 mt-6">
-                      <div className="flex items-center justify-between">
-                        <HoverCard>
-                          <HoverCardTrigger asChild>
-                            <div className="flex items-center gap-2 cursor-help">
-                              <Users className="h-4 w-4" />
-                              <span className="text-sm">Agreement Status</span>
-                            </div>
-                          </HoverCardTrigger>
-                          <HoverCardContent className="w-80">
-                            {(() => {
-                              const progress = assetDetails.distribution && getSigningProgress(assetDetails.distribution);
-                              if (!progress) return null;
-                              
-                              return (
-                                <div className="space-y-2">
-                                  <h4 className="text-sm font-semibold">Signing Progress</h4>
-                                  <div className="text-sm">
-                                    {progress.signed} of {progress.total} family members have signed
-                                  </div>
-                                  {progress.rejected > 0 && (
-                                    <div className="text-sm text-destructive flex items-center gap-1">
-                                      <AlertCircle className="h-4 w-4" />
-                                      {progress.rejected} rejection(s)
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </HoverCardContent>
-                        </HoverCard>
-                      </div>
-                      {(() => {
-                        const progress = assetDetails.distribution && getSigningProgress(assetDetails.distribution);
-                        return (
+                        </div>
+                      )}
+
+                      <Separator className="my-4" />
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            <span className="font-medium">Signing Status</span>
+                          </div>
+                          {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
+                        </div>
+
+                        <div className="relative">
                           <Progress 
-                            value={progress?.progress || 0} 
+                            value={getSigningProgress(assetDetails.distribution)?.progress || 0} 
                             className="h-2"
                           />
-                        );
-                      })()}
-                    </div>
+                          {getSigningProgress(assetDetails.distribution)?.rejected > 0 && (
+                            <div 
+                              className="absolute top-0 right-0 h-2 bg-destructive/20" 
+                              style={{ 
+                                width: `${(getSigningProgress(assetDetails.distribution)?.rejected || 0) / (getSigningProgress(assetDetails.distribution)?.total || 1) * 100}%` 
+                              }} 
+                            />
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          {assetDetails.distribution.agreements?.map((agreement) => (
+                            <div key={agreement.id} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <UserCircle2 className="h-4 w-4" />
+                                <span>
+                                  {agreement.familyMember ? (
+                                    <>
+                                      {agreement.familyMember.fullName}
+                                      <span className="text-muted-foreground ml-1">
+                                        ({agreement.familyMember.relationship})
+                                      </span>
+                                    </>
+                                  ) : (
+                                    'Unknown Member'
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {agreement.status === 'rejected' && agreement.notes && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <AlertCircle className="h-4 w-4 text-destructive cursor-help" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-sm">Rejection reason: {agreement.notes}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {getStatusBadge(agreement.status)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="text-sm text-muted-foreground">
+                          {getSigningProgress(assetDetails.distribution)?.signed} of {getSigningProgress(assetDetails.distribution)?.total} family members have signed
+                          {getSigningProgress(assetDetails.distribution)?.rejected > 0 && (
+                            <span className="text-destructive ml-1">
+                              • {getSigningProgress(assetDetails.distribution)?.rejected} rejection(s)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-sm text-muted-foreground mt-4">
+                        Distribution type cannot be changed once set. Please contact admin for any changes.
+                      </div>
+                    </>
                   )}
-                  <div className="text-sm text-muted-foreground mt-4">
-                    Distribution type cannot be changed once set. Please contact admin for any changes.
-                  </div>
                 </div>
               ) : (
                 <div className="space-y-6">
