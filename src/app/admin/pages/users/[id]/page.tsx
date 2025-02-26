@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, User, Users, DollarSign } from 'lucide-react'
@@ -182,7 +181,7 @@ export default function UserDetailsPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Summary</CardTitle>
-            <CardDescription>Overview of user's data</CardDescription>
+            <CardDescription>Overview of user&apos;s data</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
