@@ -27,12 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, Pencil, Trash2, FileText, Upload, Download, Users } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, FileText, Upload, Download } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
+import React from 'react';
 
 interface Asset {
   id: string;
@@ -174,7 +174,7 @@ export default function AssetsPage() {
     data: pendingAssets = [], 
     isLoading: isPendingAssetsLoading, 
     error: pendingAssetsError 
-  } = useQuery({
+  } = useQuery<PendingAsset[]>({
     queryKey: ['pendingAssets'],
     queryFn: fetchPendingAssets,
   });
@@ -187,6 +187,13 @@ export default function AssetsPage() {
     queryKey: ['familyAssets'],
     queryFn: fetchFamilyAssets,
   });
+
+  // Watch for changes in pendingAssets
+  React.useEffect(() => {
+    if (pendingAssets.some(asset => asset.status === 'approved')) {
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+    }
+  }, [pendingAssets, queryClient]);
 
   // Mutations
   const createMutation = useMutation({
@@ -389,19 +396,10 @@ export default function AssetsPage() {
         </Dialog>
       </div>
 
-      <Tabs defaultValue="my-assets" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="my-assets">My Assets</TabsTrigger>
-          <TabsTrigger value="pending-assets">
-            Pending Approval
-          </TabsTrigger>
-          <TabsTrigger value="family-assets">
-            <Users className="mr-2 h-4 w-4" />
-            Family Assets
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="my-assets">
+      {/* My Assets Section */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-4">My Assets</h2>
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
@@ -416,7 +414,21 @@ export default function AssetsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {assets.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6">
+                      <div className="flex justify-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : error ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-red-500">
+                      Error loading assets: {(error as Error).message}
+                    </TableCell>
+                  </TableRow>
+                ) : assets.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
                       No assets found. Add your first asset using the button above.
@@ -475,9 +487,11 @@ export default function AssetsPage() {
               </TableBody>
             </Table>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="pending-assets">
+        </div>
+
+        {/* Pending Assets Section */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Pending Approval</h2>
           <div className="border rounded-lg">
             <Table>
               <TableHeader>
@@ -509,7 +523,7 @@ export default function AssetsPage() {
                 ) : pendingAssets.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No pending assets found. Submit an asset for approval using the button above.
+                      No pending assets found.
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -554,9 +568,11 @@ export default function AssetsPage() {
               </TableBody>
             </Table>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="family-assets">
+        </div>
+
+        {/* Family Assets Section */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Family Assets</h2>
           {isFamilyAssetsLoading ? (
             <div className="flex justify-center py-10">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -566,7 +582,7 @@ export default function AssetsPage() {
               Error loading family assets: {(familyAssetsError as Error).message}
             </div>
           ) : familyAssets.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground">
+            <div className="text-center py-10 text-muted-foreground border rounded-lg">
               No family members with assets found. Family members need to be registered users and have assets for them to appear here.
             </div>
           ) : (
@@ -643,8 +659,8 @@ export default function AssetsPage() {
               ))}
             </Accordion>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
