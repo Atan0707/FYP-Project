@@ -14,12 +14,36 @@ export async function DELETE(
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
+    // Access the id directly from params
+    const { id } = params;
+
+    // Check if the family member exists
+    const familyMember = await prisma.family.findUnique({
+      where: { id },
+      include: { relatedToUser: true },
+    });
+
+    if (!familyMember) {
+      return new NextResponse('Family member not found', { status: 404 });
+    }
+
+    // Delete the family member
     const family = await prisma.family.delete({
       where: {
-        id: params.id,
+        id,
         userId: userId,
       },
     });
+
+    // If there's a related user, delete their reciprocal relationship
+    if (familyMember.relatedUserId) {
+      await prisma.family.deleteMany({
+        where: {
+          userId: familyMember.relatedUserId,
+          relatedUserId: userId,
+        },
+      });
+    }
 
     return NextResponse.json(family);
   } catch (error) {

@@ -23,6 +23,17 @@ import { toast } from 'sonner';
 import { PlusCircle, Pencil, Trash2, Search } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getAvailableRelationships } from '@/lib/relationships';
+
+// Get available relationships
+const relationships = getAvailableRelationships();
 
 interface Family {
   id: string;
@@ -75,9 +86,16 @@ const createFamily = async (data: Omit<Family, 'id'>) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+  
   if (!response.ok) {
-    throw new Error('Network response was not ok');
+    // Try to extract error message from response
+    const errorData = await response.json().catch(() => null);
+    if (errorData && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    throw new Error(`Server error: ${response.status}`);
   }
+  
   return response.json();
 };
 
@@ -87,9 +105,16 @@ const updateFamily = async ({ id, ...data }: Family) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, ...data }),
   });
+  
   if (!response.ok) {
-    throw new Error('Network response was not ok');
+    // Try to extract error message from response
+    const errorData = await response.json().catch(() => null);
+    if (errorData && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    throw new Error(`Server error: ${response.status}`);
   }
+  
   return response.json();
 };
 
@@ -110,6 +135,7 @@ export default function FamilyPage() {
   const [foundUser, setFoundUser] = useState<User | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [selectedRelationship, setSelectedRelationship] = useState<string>('');
   const queryClient = useQueryClient();
 
   // Queries
@@ -128,9 +154,13 @@ export default function FamilyPage() {
       setFoundUser(null);
       setSearchIC('');
       setShowForm(false);
+      setSelectedRelationship('');
     },
-    onError: (error) => {
-      toast.error('Failed to add family member: ' + error.message);
+    onError: async (error: Error) => {
+      console.error('Error adding family member:', error);
+      toast.error(`Failed to add family member: ${error.message}`);
+      // Still refresh the data to be sure
+      await queryClient.invalidateQueries({ queryKey: ['families'] });
     },
   });
 
@@ -141,8 +171,11 @@ export default function FamilyPage() {
       toast.success('Family member updated successfully');
       setIsOpen(false);
     },
-    onError: (error) => {
-      toast.error('Failed to update family member: ' + error.message);
+    onError: async (error: Error) => {
+      console.error('Error updating family member:', error);
+      toast.error(`Failed to update family member: ${error.message}`);
+      // Still refresh the data to be sure
+      await queryClient.invalidateQueries({ queryKey: ['families'] });
     },
   });
 
@@ -174,40 +207,81 @@ export default function FamilyPage() {
         setShowForm(true);
         toast.info('User not registered. Please fill in the details.');
       }
-    } catch (error) {
+    } catch (err) {
       toast.error('Error searching for user');
+      console.error('Search error:', err);
       setFoundUser(null);
     }
   };
 
   const handleConfirmRegistered = () => {
-    if (!foundUser) return;
+    if (!foundUser) {
+      toast.error('User information is missing');
+      return;
+    }
+    
+    if (!selectedRelationship) {
+      toast.error('Please select a relationship');
+      return;
+    }
 
     const familyData = {
       fullName: foundUser.fullName,
       ic: foundUser.ic,
       phone: foundUser.phone,
-      relationship: '',
+      relationship: selectedRelationship,
       occupation: '',
       income: 0,
       isRegistered: true,
     };
+    
+    toast.info('Adding family member...');
     createMutation.mutate(familyData);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    
+    // Get the relationship from the form
+    const relationshipField = document.querySelector('select[name="relationship"]') as HTMLSelectElement;
+    const relationship = relationshipField ? relationshipField.value : '';
+    
+    if (!relationship) {
+      toast.error('Please select a relationship');
+      return;
+    }
+    
+    const fullName = formData.get('fullName') as string;
+    const ic = formData.get('ic') as string;
+    const phone = formData.get('phone') as string;
+    const occupation = formData.get('occupation') as string;
+    const incomeStr = formData.get('income') as string;
+    
+    // Validate required fields
+    if (!fullName || !ic || !phone || !occupation || !incomeStr) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    const income = parseFloat(incomeStr);
+    if (isNaN(income)) {
+      toast.error('Income must be a valid number');
+      return;
+    }
+    
     const familyData = {
-      fullName: formData.get('fullName') as string,
-      ic: formData.get('ic') as string,
-      relationship: formData.get('relationship') as string,
-      phone: formData.get('phone') as string,
-      occupation: formData.get('occupation') as string,
-      income: parseFloat(formData.get('income') as string),
+      fullName,
+      ic,
+      relationship,
+      phone,
+      occupation,
+      income,
       isRegistered: false,
     };
 
+    toast.info(editingFamily ? 'Updating family member...' : 'Adding family member...');
+    
     if (editingFamily) {
       updateMutation.mutate({ ...familyData, id: editingFamily.id });
     } else {
@@ -234,6 +308,7 @@ export default function FamilyPage() {
             setFoundUser(null);
             setSearchIC('');
             setShowConfirmation(false);
+            setSelectedRelationship('');
           }
         }}>
           <DialogTrigger asChild>
@@ -243,6 +318,7 @@ export default function FamilyPage() {
               setSearchIC('');
               setShowForm(false);
               setShowConfirmation(false);
+              setSelectedRelationship('');
             }}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Add Family Member
@@ -285,36 +361,35 @@ export default function FamilyPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="relationship">Relationship</Label>
-                  <Input
-                    id="relationship"
-                    name="relationship"
-                    placeholder="Enter relationship"
-                    onChange={(e) => {
-                      if (foundUser) {
-                        const familyData = {
-                          fullName: foundUser.fullName,
-                          ic: foundUser.ic,
-                          phone: foundUser.phone,
-                          relationship: e.target.value,
-                          occupation: '',
-                          income: 0,
-                          isRegistered: true,
-                        };
-                        createMutation.mutate(familyData);
-                      }
-                    }}
-                    required
-                  />
+                  <Select
+                    onValueChange={(value) => setSelectedRelationship(value)}
+                    value={selectedRelationship}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select relationship" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {relationships.map((relationship) => (
+                        <SelectItem key={relationship} value={relationship}>
+                          {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" onClick={() => {
                     setShowConfirmation(false);
                     setFoundUser(null);
                     setSearchIC('');
+                    setSelectedRelationship('');
                   }}>
                     Cancel
                   </Button>
-                  <Button onClick={handleConfirmRegistered}>
+                  <Button 
+                    onClick={handleConfirmRegistered}
+                    disabled={!selectedRelationship}
+                  >
                     Add as Family Member
                   </Button>
                 </div>
@@ -343,12 +418,18 @@ export default function FamilyPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="relationship">Relationship</Label>
-                    <Input
-                      id="relationship"
-                      name="relationship"
-                      defaultValue={editingFamily?.relationship}
-                      required
-                    />
+                    <Select name="relationship" defaultValue={editingFamily?.relationship}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select relationship" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {relationships.map((relationship) => (
+                          <SelectItem key={relationship} value={relationship}>
+                            {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="phone">Phone</Label>

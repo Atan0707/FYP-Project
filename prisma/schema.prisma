@@ -24,6 +24,7 @@ model User {
   updatedAt DateTime @updatedAt
   // Family relationships
   families  Family[] @relation("UserFamilies")
+  relatedFamilies Family[] @relation("RelatedFamilies")
   assets    Asset[]
 }
 
@@ -36,18 +37,22 @@ model Admin {
 }
 
 model Family {
-  id          String   @id @default(cuid())
-  fullName    String
-  ic          String   @unique
-  relationship String
-  phone       String
-  occupation  String
-  income      Float
-  isRegistered Boolean @default(false)
-  user        User     @relation("UserFamilies", fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  fullName      String
+  ic            String   @unique
+  relationship  String
+  phone         String
+  occupation    String
+  income        Float
+  isRegistered  Boolean  @default(false)
+  user          User     @relation("UserFamilies", fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  // Add reciprocal relationship fields
+  relatedToUser User?    @relation("RelatedFamilies", fields: [relatedUserId], references: [id], onDelete: SetNull)
+  relatedUserId String?
+  inverseRelationship String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Asset {
