@@ -159,6 +159,7 @@ export default function FamilyPage() {
     onError: async (error: Error) => {
       console.error('Error adding family member:', error);
       toast.error(`Failed to add family member: ${error.message}`);
+      // Don't close the dialog on error so the user can fix the issue
       // Still refresh the data to be sure
       await queryClient.invalidateQueries({ queryKey: ['families'] });
     },
@@ -174,6 +175,7 @@ export default function FamilyPage() {
     onError: async (error: Error) => {
       console.error('Error updating family member:', error);
       toast.error(`Failed to update family member: ${error.message}`);
+      // Don't close the dialog on error so the user can fix the issue
       // Still refresh the data to be sure
       await queryClient.invalidateQueries({ queryKey: ['families'] });
     },

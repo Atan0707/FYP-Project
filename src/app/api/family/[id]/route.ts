@@ -17,9 +17,12 @@ export async function DELETE(
     // Access the id directly from params
     const { id } = params;
 
-    // Check if the family member exists
-    const familyMember = await prisma.family.findUnique({
-      where: { id },
+    // Check if the family member exists and belongs to the current user
+    const familyMember = await prisma.family.findFirst({
+      where: { 
+        id,
+        userId 
+      },
       include: { relatedToUser: true },
     });
 
@@ -31,18 +34,29 @@ export async function DELETE(
     const family = await prisma.family.delete({
       where: {
         id,
-        userId: userId,
       },
     });
 
-    // If there's a related user, delete their reciprocal relationship
+    // If there's a related user, find and update their reciprocal relationship
     if (familyMember.relatedUserId) {
-      await prisma.family.deleteMany({
+      // Find the reciprocal relationship
+      const reciprocalRelationship = await prisma.family.findFirst({
         where: {
           userId: familyMember.relatedUserId,
           relatedUserId: userId,
         },
       });
+
+      if (reciprocalRelationship) {
+        // Update the reciprocal relationship to remove the bidirectional link
+        await prisma.family.update({
+          where: { id: reciprocalRelationship.id },
+          data: {
+            relatedUserId: null,
+            inverseRelationship: null,
+          },
+        });
+      }
     }
 
     return NextResponse.json(family);

@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     if (existingFamily) {
       return NextResponse.json(
-        { error: 'Family member with this IC already exists' },
+        { error: 'Family member with this IC already exists for your account' },
         { status: 400 }
       );
     }
@@ -173,7 +173,7 @@ export async function PUT(request: Request) {
 
       if (duplicateIC) {
         return NextResponse.json(
-          { error: 'Another family member with this IC already exists' },
+          { error: 'Another family member with this IC already exists for your account' },
           { status: 400 }
         );
       }
@@ -192,6 +192,11 @@ export async function PUT(request: Request) {
         ...(registeredUser && {
           relatedUserId: registeredUser.id,
           inverseRelationship: getInverseRelationship(data.relationship),
+        }),
+        // If the person is not registered, clear the relationship fields
+        ...(!registeredUser && {
+          relatedUserId: null,
+          inverseRelationship: null,
         }),
       },
     });

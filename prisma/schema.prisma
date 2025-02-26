@@ -39,7 +39,7 @@ model Admin {
 model Family {
   id            String   @id @default(cuid())
   fullName      String
-  ic            String   @unique
+  ic            String
   relationship  String
   phone         String
   occupation    String
