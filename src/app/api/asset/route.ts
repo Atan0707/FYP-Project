@@ -38,17 +38,13 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     
-    // Convert the date string to a proper DateTime format
-    const purchaseDate = new Date(body.purchaseDate);
-    purchaseDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-
     const asset = await prisma.asset.create({
       data: {
         name: body.name,
         type: body.type,
         value: body.value,
         description: body.description,
-        purchaseDate: purchaseDate,
+        pdfFile: body.pdfFile,
         userId: userId,
       },
     });
@@ -71,13 +67,6 @@ export async function PUT(request: Request) {
 
     const body = await request.json();
     const { id, ...data } = body;
-
-    // Convert the date string to a proper DateTime format if it exists
-    if (data.purchaseDate) {
-      const purchaseDate = new Date(data.purchaseDate);
-      purchaseDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-      data.purchaseDate = purchaseDate;
-    }
 
     const asset = await prisma.asset.update({
       where: {

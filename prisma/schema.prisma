@@ -61,7 +61,7 @@ model Asset {
   type        String   // e.g., Property, Vehicle, Investment
   value       Float
   description String?
-  purchaseDate DateTime
+  pdfFile     String?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   createdAt   DateTime @default(now())

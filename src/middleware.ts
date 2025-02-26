@@ -23,11 +23,11 @@ export function middleware(request: NextRequest) {
 
   // Handle user routes
   if (!userId && !isAuthPage && !isAdminAuthPage) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/pages/login', request.url));
   }
 
   if (userId && isAuthPage) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/pages/dashboard', request.url));
   }
 
   return NextResponse.next();

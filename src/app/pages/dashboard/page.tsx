@@ -109,7 +109,7 @@ export default function DashboardPage() {
             {greeting}, {data?.user?.fullName || 'User'}!
           </CardTitle>
           <CardDescription>
-            Welcome to your i-FAMS dashboard. Here's an overview of your family and assets.
+            Welcome to your i-FAMS dashboard. Here&apos;s an overview of your family and assets.
           </CardDescription>
         </CardHeader>
       </Card>
