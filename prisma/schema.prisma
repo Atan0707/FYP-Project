@@ -108,9 +108,10 @@ model AssetDistribution {
 model Agreement {
   id          String   @id @default(cuid())
   familyId    String
-  status      String   @default("pending") // pending, signed, rejected
+  status      String   @default("pending") // pending, signed, rejected, pending_admin, completed
   signedAt    DateTime?
   notes       String?
+  adminSignedAt DateTime?
   // Reference to the asset distribution
   distribution AssetDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
   distributionId String

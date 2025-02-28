@@ -53,17 +53,23 @@ export async function POST(
       },
     });
 
-    // Check if all agreements are signed
+    // Check if all family members have signed
     const agreementId = (await params).id;
     const allSigned = agreement.distribution.agreements.every(
       (a) => a.id === agreementId || a.status === 'signed'
     );
 
     if (allSigned) {
-      // Update the distribution status to completed
+      // Update all agreements to pending_admin status
+      await prisma.agreement.updateMany({
+        where: { distributionId: agreement.distribution.id },
+        data: { status: 'pending_admin' },
+      });
+
+      // Update the distribution status to pending_admin
       await prisma.assetDistribution.update({
         where: { id: agreement.distribution.id },
-        data: { status: 'completed' },
+        data: { status: 'pending_admin' },
       });
     }
 
