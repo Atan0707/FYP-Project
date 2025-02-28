@@ -11,10 +11,10 @@ export default function Header() {
         <div className="absolute inset-0 bg-black/50" /> {/* Dark overlay */}
         <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4">
           <h1 className="text-white text-5xl font-bold mb-4">
-            Syariah Compliance Asset
+            Will & Estate Management
           </h1>
           <h2 className="text-white text-5xl font-bold mb-8">
-            Management System
+            Solution Provider (WEMSP)
           </h2>
           <button className="bg-white text-black px-6 py-3 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-2">
             Store Your Asset

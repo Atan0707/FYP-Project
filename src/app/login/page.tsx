@@ -16,7 +16,7 @@ export default function LoginPage() {
       {/* Logo/Text placeholder */}
       <div className="absolute top-4 left-4 z-10">
         <Link href="/" className="text-2xl font-bold text-white hover:opacity-80 transition-opacity">
-          i-FAMS
+          WEMSP
         </Link>
       </div>
 

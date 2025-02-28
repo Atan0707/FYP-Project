@@ -15,7 +15,7 @@ export default function About() {
                 About Us
               </h3>
               <h2 className="text-4xl font-bold mb-8">
-                Islamic service provider registered under MAIWP since 2015
+                Will & Estate Management Solution Provider (WEMSP)
               </h2>
             </div>
             

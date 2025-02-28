@@ -42,6 +42,17 @@ async function main() {
   }
 
   console.log('Users seeded successfully');
+
+  // Create admin account
+  const adminPassword = await bcrypt.hash('root', 10);
+  await prisma.admin.create({
+    data: {
+      username: 'admin',
+      password: adminPassword,
+    },
+  });
+
+  console.log('Admin account seeded successfully');
 }
 
 main()

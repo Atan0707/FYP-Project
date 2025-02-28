@@ -23,7 +23,7 @@ const Navbar = () => {
           onClick={() => scrollToSection('header')} 
           className="text-2xl font-bold hover:text-gray-200 transition-colors"
         >
-          i-FAMS
+          WEMSP
         </button>
 
         {/* Mobile menu button */}
@@ -69,7 +69,7 @@ const Navbar = () => {
             Services
           </button>
           <button 
-            onClick={() => scrollToSection('contact')} 
+            onClick={() => scrollToSection('footer')} 
             className="hover:text-gray-200 transition-colors font-medium"
           >
             Contact Us
