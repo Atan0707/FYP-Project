@@ -4,9 +4,10 @@ import { cookies } from 'next/headers';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const id = (await params).id;
     const cookieStore = await cookies();
     const userId = cookieStore.get('userId')?.value;
 
@@ -16,7 +17,7 @@ export async function DELETE(
 
     const pendingAsset = await prisma.pendingAsset.delete({
       where: {
-        id: params.id,
+        id: id,
         userId: userId,
       },
     });

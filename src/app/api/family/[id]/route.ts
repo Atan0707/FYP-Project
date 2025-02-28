@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -15,7 +15,7 @@ export async function DELETE(
     }
 
     // Access the id directly from params
-    const { id } = params;
+    const id = (await params).id;
 
     // Check if the family member exists and belongs to the current user
     const familyMember = await prisma.family.findFirst({
@@ -102,9 +102,10 @@ export async function DELETE(
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const id = (await params).id;
     const cookieStore = await cookies();
     const userId = cookieStore.get('userId')?.value;
 
@@ -114,7 +115,7 @@ export async function GET(
 
     const familyMember = await prisma.family.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: userId,
       },
       select: {

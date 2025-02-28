@@ -3,8 +3,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-
 const prisma = new PrismaClient();
 
 export async function adminLogin(formData: FormData) {

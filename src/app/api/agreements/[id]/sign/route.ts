@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -19,7 +19,7 @@ export async function POST(
     // Find the agreement and verify ownership
     const agreement = await prisma.agreement.findFirst({
       where: {
-        id: params.id,
+        id: (await params).id,
         familyId: {
           in: (await prisma.family.findMany({
             where: { userId },
@@ -45,7 +45,7 @@ export async function POST(
 
     // Update the agreement status
     const updatedAgreement = await prisma.agreement.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: {
         status: 'signed',
         signedAt: new Date(),
@@ -54,8 +54,9 @@ export async function POST(
     });
 
     // Check if all agreements are signed
+    const agreementId = (await params).id;
     const allSigned = agreement.distribution.agreements.every(
-      (a) => a.id === params.id || a.status === 'signed'
+      (a) => a.id === agreementId || a.status === 'signed'
     );
 
     if (allSigned) {

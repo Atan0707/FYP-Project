@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { CheckCircle, XCircle, Users, AlertCircle } from 'lucide-react';
+import { CheckCircle, Users, AlertCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
   Tooltip,
