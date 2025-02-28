@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcryptjs';
+import * as jose from 'jose';
 
 const prisma = new PrismaClient();
 
@@ -31,12 +31,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { adminId: admin.id, username: admin.username },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '1d' }
-    );
+    // Generate JWT token using jose
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+    const token = await new jose.SignJWT({ adminId: admin.id, username: admin.username })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('1d')
+      .sign(secret);
 
     return NextResponse.json({ token });
   } catch (error) {
