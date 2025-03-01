@@ -480,7 +480,7 @@ export default function AssetsPage() {
                       <TableCell>
                         {asset.pdfFile ? (
                           <a
-                            href={asset.pdfFile}
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center text-blue-600 hover:text-blue-800"
@@ -570,7 +570,7 @@ export default function AssetsPage() {
                       <TableCell>
                         {asset.pdfFile ? (
                           <a
-                            href={asset.pdfFile}
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center text-blue-600 hover:text-blue-800"
@@ -674,7 +674,7 @@ export default function AssetsPage() {
                                 <TableCell>
                                   {asset.pdfFile ? (
                                     <a
-                                      href={asset.pdfFile}
+                                      href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex items-center text-blue-600 hover:text-blue-800"

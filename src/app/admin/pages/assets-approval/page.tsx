@@ -337,7 +337,7 @@ export default function AssetsApprovalPage() {
                       <TableCell>
                         {asset.pdfFile ? (
                           <a
-                            href={asset.pdfFile}
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center text-blue-600 hover:text-blue-800"
