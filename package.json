@@ -12,6 +12,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.15.2",
     "@hookform/resolvers": "^4.1.2",
     "@prisma/client": "^6.4.1",
     "@radix-ui/react-accordion": "^1.2.3",

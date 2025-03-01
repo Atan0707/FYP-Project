@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { Storage } from '@google-cloud/storage';
 
 export async function POST(request: Request) {
   try {
@@ -39,33 +38,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads');
-    try {
-      await import('fs').then(fs => {
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-      });
-    } catch (error) {
-      console.error('Error creating uploads directory:', error);
-    }
-
     // Generate a unique filename
     const uniqueId = uuidv4();
     const fileName = `${uniqueId}-${file.name}`;
-    const filePath = join(uploadsDir, fileName);
-
-    // Convert file to buffer and save it
+    
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     
-    await writeFile(filePath, buffer);
-
-    // Return the file path relative to public directory
-    const publicPath = `/uploads/${fileName}`;
+    // Initialize Google Cloud Storage
+    const storage = new Storage({
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+      keyFilename: process.env.GOOGLE_CLOUD_KEYFILE,
+    });
     
-    return NextResponse.json({ filePath: publicPath });
+    const bucketName = 'fyp-project-hariz';
+    const bucket = storage.bucket(bucketName);
+    const fileObject = bucket.file(fileName);
+    
+    // Upload buffer to Google Cloud Storage
+    await fileObject.save(buffer, {
+      contentType: file.type,
+      metadata: {
+        uploadedBy: userId,
+        originalName: file.name
+      }
+    });
+    
+    // Get the file URL (note: this might require authentication to access if bucket is not public)
+    const fileUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
+    
+    return NextResponse.json({ filePath: fileUrl });
   } catch (error) {
     console.error('Error uploading file:', error);
     return NextResponse.json(

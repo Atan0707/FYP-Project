@@ -56,7 +56,7 @@ const data = {
   },
   teams: [
     {
-      name: "i-FAMS",
+      name: "WEMSP",
       logo: GalleryVerticalEnd,
       plan: "Enterprise",
     },
