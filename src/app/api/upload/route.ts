@@ -47,9 +47,11 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
     
     // Initialize Google Cloud Storage
+    // Instead of using a keyFilename that requires a physical file,
+    // use credentials directly for serverless environments
     const storage = new Storage({
       projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      keyFilename: process.env.GOOGLE_CLOUD_KEYFILE,
+      credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS || '{}'),
     });
     
     const bucketName = 'fyp-project-hariz';
