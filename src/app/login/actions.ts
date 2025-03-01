@@ -43,6 +43,6 @@ export async function login(formData: FormData) {
     return { success: true };
   } catch (error) {
     console.error('Login error:', error);
-    return { error: 'Something went wrong during login' };
+    return { error: 'Something went wrong during login '+ error };
   }
 } 
