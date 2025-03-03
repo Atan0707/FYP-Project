@@ -36,7 +36,7 @@ export async function PUT(
       );
     }
 
-    // If approved, create a new asset and delete the pending asset
+    // If approved, create a new asset and update the pending asset status
     if (action === 'approve') {
       // Create the new asset
       await prisma.asset.create({
@@ -50,9 +50,10 @@ export async function PUT(
         },
       });
 
-      // Delete the pending asset
-      await prisma.pendingAsset.delete({
+      // Update the pending asset status instead of deleting it
+      await prisma.pendingAsset.update({
         where: { id },
+        data: { status: 'approved' },
       });
     } else {
       // If rejected, just update the status

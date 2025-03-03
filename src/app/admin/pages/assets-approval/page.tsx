@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Download, User, AlertCircle, Clock, ListFilter } from 'lucide-react';
+import { CheckCircle, XCircle, Download, User, AlertCircle, Clock, Filter, Eye } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
@@ -37,6 +37,12 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface PendingAsset {
   id: string;
@@ -91,7 +97,7 @@ export default function AssetsApprovalPage() {
   });
 
   // Filter assets based on status
-  const pendingAssets = statusFilter === 'all' 
+  const filteredAssets = statusFilter === 'all' 
     ? allPendingAssets 
     : allPendingAssets.filter((asset: PendingAsset) => asset.status === statusFilter);
 
@@ -140,11 +146,53 @@ export default function AssetsApprovalPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="secondary">Pending</Badge>;
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>Pending</span>
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>This asset is waiting for approval</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       case 'approved':
-        return <Badge variant="success">Approved</Badge>;
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  <span>Approved</span>
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>This asset has been approved</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <XCircle className="h-3 w-3" />
+                  <span>Rejected</span>
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>This asset has been rejected</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -180,7 +228,7 @@ export default function AssetsApprovalPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Assets Approval</h1>
         <Button onClick={() => router.push('/admin/pages/pending-assets')}>
-          <ListFilter className="mr-2 h-4 w-4" />
+          <Eye className="mr-2 h-4 w-4" />
           View Pending Assets
         </Button>
       </div>
@@ -194,17 +242,29 @@ export default function AssetsApprovalPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-secondary/50 p-4 rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground mb-1">Pending Assets</div>
+            <div className="bg-secondary/50 p-4 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer" 
+                 onClick={() => setStatusFilter('pending')}>
+              <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
+                <Clock className="mr-2 h-4 w-4" />
+                Pending Assets
+              </div>
               <div className="text-2xl font-bold">{pendingCount}</div>
             </div>
-            <div className="bg-secondary/50 p-4 rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground mb-1">Approved Assets</div>
-              <div className="text-2xl font-bold">{approvedCount}</div>
+            <div className="bg-green-50 p-4 rounded-lg hover:bg-green-100 transition-colors cursor-pointer" 
+                 onClick={() => setStatusFilter('approved')}>
+              <div className="text-sm font-medium text-green-700 mb-1 flex items-center">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Approved Assets
+              </div>
+              <div className="text-2xl font-bold text-green-800">{approvedCount}</div>
             </div>
-            <div className="bg-secondary/50 p-4 rounded-lg">
-              <div className="text-sm font-medium text-muted-foreground mb-1">Rejected Assets</div>
-              <div className="text-2xl font-bold">{rejectedCount}</div>
+            <div className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors cursor-pointer" 
+                 onClick={() => setStatusFilter('rejected')}>
+              <div className="text-sm font-medium text-red-700 mb-1 flex items-center">
+                <XCircle className="mr-2 h-4 w-4" />
+                Rejected Assets
+              </div>
+              <div className="text-2xl font-bold text-red-800">{rejectedCount}</div>
             </div>
           </div>
         </CardContent>
@@ -229,8 +289,17 @@ export default function AssetsApprovalPage() {
                   recentAssets.map((asset: PendingAsset) => (
                     <div key={asset.id} className="flex items-center justify-between border-b pb-3">
                       <div className="flex items-center gap-3">
-                        <div className="bg-secondary/50 p-2 rounded-full">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
+                        <div className={`p-2 rounded-full ${
+                          asset.status === 'approved' ? 'bg-green-100' : 
+                          asset.status === 'rejected' ? 'bg-red-100' : 'bg-secondary/50'
+                        }`}>
+                          {asset.status === 'approved' ? (
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          ) : asset.status === 'rejected' ? (
+                            <XCircle className="h-4 w-4 text-red-600" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
                         <div>
                           <div className="font-medium">{asset.name}</div>
@@ -259,12 +328,18 @@ export default function AssetsApprovalPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {Object.entries(assetTypeDistribution).map(([type, count]) => (
-                  <div key={type} className="flex justify-between items-center">
-                    <span>{type}</span>
-                    <Badge variant="outline">{count as number}</Badge>
+                {Object.entries(assetTypeDistribution).length === 0 ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    No asset types found.
                   </div>
-                ))}
+                ) : (
+                  Object.entries(assetTypeDistribution).map(([type, count]) => (
+                    <div key={type} className="flex justify-between items-center p-2 rounded-md hover:bg-secondary/30">
+                      <span className="font-medium">{type}</span>
+                      <Badge variant="outline">{count as number}</Badge>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -282,10 +357,22 @@ export default function AssetsApprovalPage() {
             </div>
             <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'pending' | 'approved' | 'rejected')}>
               <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-                <TabsTrigger value="approved">Approved</TabsTrigger>
-                <TabsTrigger value="rejected">Rejected</TabsTrigger>
+                <TabsTrigger value="all" className="flex items-center gap-1">
+                  <Filter className="h-4 w-4" />
+                  All
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  Pending
+                </TabsTrigger>
+                <TabsTrigger value="approved" className="flex items-center gap-1">
+                  <CheckCircle className="h-4 w-4" />
+                  Approved
+                </TabsTrigger>
+                <TabsTrigger value="rejected" className="flex items-center gap-1">
+                  <XCircle className="h-4 w-4" />
+                  Rejected
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -307,15 +394,18 @@ export default function AssetsApprovalPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingAssets.length === 0 ? (
+                {filteredAssets.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
                       No assets found with the selected filter.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pendingAssets.map((asset: PendingAsset) => (
-                    <TableRow key={asset.id}>
+                  filteredAssets.map((asset: PendingAsset) => (
+                    <TableRow key={asset.id} className={
+                      asset.status === 'approved' ? 'bg-green-50' : 
+                      asset.status === 'rejected' ? 'bg-red-50' : ''
+                    }>
                       <TableCell>
                         <div className="flex items-center">
                           <User className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -386,7 +476,7 @@ export default function AssetsApprovalPage() {
         </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
-            Showing {pendingAssets.length} of {allPendingAssets.length} assets
+            Showing {filteredAssets.length} of {allPendingAssets.length} assets
           </div>
         </CardFooter>
       </Card>
