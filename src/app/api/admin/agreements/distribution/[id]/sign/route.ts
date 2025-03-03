@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -15,7 +15,7 @@ export async function POST(
     }
 
     const { notes } = await request.json();
-    const distributionId = params.id;
+    const distributionId = (await params).id;
 
     // Find the distribution and its agreements
     const distribution = await prisma.assetDistribution.findFirst({
