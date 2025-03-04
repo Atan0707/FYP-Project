@@ -105,7 +105,7 @@ export function OnboardingDialog() {
           <div className="p-2">
             <img
               className="w-full rounded-lg"
-              src="https://images.unsplash.com/photo-1586473219010-2ffc57b0d282?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&q=80"
+              src="https://i.pinimg.com/236x/07/94/fb/0794fb25179c94bac2d8e03b34de4ee5.jpg"
               width={382}
               height={216}
               alt="Estate Management"
