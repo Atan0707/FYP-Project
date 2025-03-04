@@ -4,7 +4,7 @@ import Navbar from '../components/home/navbar';
 import Header from "../components/home/header";
 import About from "../components/home/about";
 import Services from "../components/home/services";
-import { Footer } from "@/components/ui/code.demo";
+import { Footer } from "@/components/ui/footer";
 
 export default function Home() {
   return (

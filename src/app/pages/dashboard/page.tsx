@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { FiUsers, FiDollarSign, FiHome, FiCalendar, FiActivity, FiPlusCircle } from 'react-icons/fi';
 import Link from 'next/link';
+import { OnboardingDialog } from '@/components/OnboardingDialog';
 
 // Types
 interface DashboardData {
@@ -102,6 +103,9 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6 p-4">
+      {/* Onboarding Dialog */}
+      <OnboardingDialog />
+      
       {/* Welcome Section */}
       <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
         <CardHeader>
