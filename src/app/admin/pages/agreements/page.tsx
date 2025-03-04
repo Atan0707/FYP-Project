@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { 
@@ -63,6 +64,7 @@ interface Agreement {
   status: string;
   signedAt?: string;
   notes?: string;
+  adminSignedAt?: string;
   distributionId: string;
   createdAt: string;
   updatedAt: string;
@@ -74,6 +76,8 @@ interface AssetDistribution {
   type: string;
   notes?: string;
   status: string;
+  createdAt: string;
+  updatedAt: string;
   beneficiaries?: Array<{
     familyId: string;
     percentage: number;
@@ -96,6 +100,12 @@ const fetchPendingAdminAgreements = async () => {
   return response.json();
 };
 
+const fetchAllAgreements = async () => {
+  const response = await fetch('/api/admin/agreements');
+  if (!response.ok) throw new Error('Failed to fetch all agreements');
+  return response.json();
+};
+
 const signAdminAgreement = async ({ distributionId, notes }: { distributionId: string; notes?: string }) => {
   const response = await fetch(`/api/admin/agreements/distribution/${distributionId}/sign`, {
     method: 'POST',
@@ -106,24 +116,75 @@ const signAdminAgreement = async ({ distributionId, notes }: { distributionId: s
   return response.json();
 };
 
+const rejectAdminAgreement = async ({ distributionId, reason }: { distributionId: string; reason: string }) => {
+  const response = await fetch(`/api/admin/agreements/distribution/${distributionId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error('Failed to reject agreement');
+  return response.json();
+};
+
 const AdminAgreements = () => {
   const queryClient = useQueryClient();
   const [selectedAgreement, setSelectedAgreement] = React.useState<Agreement | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = React.useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = React.useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = React.useState(false);
   const [notes, setNotes] = React.useState('');
+  const [rejectReason, setRejectReason] = React.useState('');
   const [isConfirmed, setIsConfirmed] = React.useState(false);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_admin' | 'signed' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_admin' | 'signed' | 'rejected' | 'completed'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Queries
-  const { data: allAgreements = [], isLoading: isPendingLoading } = useQuery({
+  const { data: pendingAgreements = [], isLoading: isPendingLoading } = useQuery({
     queryKey: ['adminPendingAgreements'],
     queryFn: fetchPendingAdminAgreements,
   });
 
-  // Filter agreements based on status
-  const filteredAgreements = statusFilter === 'all' 
-    ? allAgreements 
-    : allAgreements.filter((agreement: Agreement) => agreement.status === statusFilter);
+  const { data: allAgreementsData = [], isLoading: isAllAgreementsLoading } = useQuery({
+    queryKey: ['adminAllAgreements'],
+    queryFn: fetchAllAgreements,
+  });
+
+  // Combine both data sources
+  const allAgreements = React.useMemo(() => {
+    // Create a map of existing agreements by ID
+    const agreementMap = new Map();
+    allAgreementsData.forEach((agreement: Agreement) => {
+      agreementMap.set(agreement.id, agreement);
+    });
+    
+    // Add any pending agreements that might not be in the all agreements list
+    pendingAgreements.forEach((agreement: Agreement) => {
+      if (!agreementMap.has(agreement.id)) {
+        agreementMap.set(agreement.id, agreement);
+      }
+    });
+    
+    return Array.from(agreementMap.values());
+  }, [allAgreementsData, pendingAgreements]);
+
+  // Filter agreements based on status and search term
+  const filteredAgreements = React.useMemo(() => {
+    let filtered = statusFilter === 'all' 
+      ? allAgreements 
+      : allAgreements.filter((agreement: Agreement) => agreement.status === statusFilter);
+    
+    if (searchTerm.trim() !== '') {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter((agreement: Agreement) => 
+        agreement.distribution.asset.name.toLowerCase().includes(term) ||
+        agreement.distribution.type.toLowerCase().includes(term) ||
+        (agreement.distribution.organization && 
+         agreement.distribution.organization.toLowerCase().includes(term))
+      );
+    }
+    
+    return filtered;
+  }, [allAgreements, statusFilter, searchTerm]);
 
   // Get recent agreements (last 5)
   const recentAgreements = [...allAgreements]
@@ -144,6 +205,7 @@ const AdminAgreements = () => {
     mutationFn: signAdminAgreement,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminPendingAgreements'] });
+      queryClient.invalidateQueries({ queryKey: ['adminAllAgreements'] });
       toast.success('All agreements in this distribution have been signed successfully');
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
@@ -151,6 +213,21 @@ const AdminAgreements = () => {
     },
     onError: (error) => {
       toast.error('Failed to sign agreements: ' + (error as Error).message);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: rejectAdminAgreement,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminPendingAgreements'] });
+      queryClient.invalidateQueries({ queryKey: ['adminAllAgreements'] });
+      toast.success('All agreements in this distribution have been rejected');
+      setIsRejectDialogOpen(false);
+      setSelectedAgreement(null);
+      setRejectReason('');
+    },
+    onError: (error) => {
+      toast.error('Failed to reject agreements: ' + (error as Error).message);
     },
   });
 
@@ -162,13 +239,25 @@ const AdminAgreements = () => {
     });
   };
 
-  // Reset state when dialog closes
+  const handleReject = () => {
+    if (!selectedAgreement || !rejectReason || !isConfirmed) return;
+    rejectMutation.mutate({
+      distributionId: selectedAgreement.distributionId,
+      reason: rejectReason,
+    });
+  };
+
+  // Reset state when dialogs close
   React.useEffect(() => {
     if (!isSignDialogOpen) {
       setIsConfirmed(false);
       setNotes('');
     }
-  }, [isSignDialogOpen]);
+    if (!isRejectDialogOpen) {
+      setIsConfirmed(false);
+      setRejectReason('');
+    }
+  }, [isSignDialogOpen, isRejectDialogOpen]);
 
   const getSigningProgress = (distribution: AssetDistribution) => {
     if (!distribution || !distribution.agreements) {
@@ -297,7 +386,7 @@ const AdminAgreements = () => {
     }
   };
 
-  if (isPendingLoading) {
+  if (isPendingLoading || isAllAgreementsLoading) {
     return (
       <div className="container mx-auto py-10">
         <div className="flex justify-center items-center h-64">
@@ -310,6 +399,7 @@ const AdminAgreements = () => {
   const pendingAdminCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'pending_admin').length;
   const signedCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'signed').length;
   const rejectedCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'rejected').length;
+  const completedCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'completed').length;
 
   return (
     <div className="container mx-auto py-10">
@@ -331,7 +421,7 @@ const AdminAgreements = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-secondary/50 p-4 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer" 
                  onClick={() => setStatusFilter('pending_admin')}>
               <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
@@ -347,6 +437,14 @@ const AdminAgreements = () => {
                 Signed Agreements
               </div>
               <div className="text-2xl font-bold text-green-800">{signedCount}</div>
+            </div>
+            <div className="bg-blue-50 p-4 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer" 
+                 onClick={() => setStatusFilter('completed')}>
+              <div className="text-sm font-medium text-blue-700 mb-1 flex items-center">
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Completed Agreements
+              </div>
+              <div className="text-2xl font-bold text-blue-800">{completedCount}</div>
             </div>
             <div className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors cursor-pointer" 
                  onClick={() => setStatusFilter('rejected')}>
@@ -445,26 +543,40 @@ const AdminAgreements = () => {
                 View and manage all agreements
               </CardDescription>
             </div>
-            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'pending_admin' | 'signed' | 'rejected')}>
-              <TabsList>
-                <TabsTrigger value="all" className="flex items-center gap-1">
-                  <Filter className="h-4 w-4" />
-                  All
-                </TabsTrigger>
-                <TabsTrigger value="pending_admin" className="flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4" />
-                  Pending Admin
-                </TabsTrigger>
-                <TabsTrigger value="signed" className="flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4" />
-                  Signed
-                </TabsTrigger>
-                <TabsTrigger value="rejected" className="flex items-center gap-1">
-                  <XCircle className="h-4 w-4" />
-                  Rejected
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="w-full md:w-64">
+                <Input
+                  placeholder="Search agreements..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'pending_admin' | 'signed' | 'rejected' | 'completed')}>
+                <TabsList>
+                  <TabsTrigger value="all" className="flex items-center gap-1">
+                    <Filter className="h-4 w-4" />
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger value="pending_admin" className="flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Pending Admin
+                  </TabsTrigger>
+                  <TabsTrigger value="signed" className="flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" />
+                    Signed
+                  </TabsTrigger>
+                  <TabsTrigger value="rejected" className="flex items-center gap-1">
+                    <XCircle className="h-4 w-4" />
+                    Rejected
+                  </TabsTrigger>
+                  <TabsTrigger value="completed" className="flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" />
+                    Completed
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -528,19 +640,45 @@ const AdminAgreements = () => {
                       <TableCell>{format(new Date(agreement.createdAt), 'dd/MM/yyyy')}</TableCell>
                       <TableCell className="text-right">
                         {agreement.status === 'pending_admin' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => {
-                              setSelectedAgreement(agreement);
-                              setIsSignDialogOpen(true);
-                            }}
-                          >
-                            <CheckCircle className="mr-1 h-4 w-4" />
-                            Sign All
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 mr-2"
+                              onClick={() => {
+                                setSelectedAgreement(agreement);
+                                setIsSignDialogOpen(true);
+                              }}
+                            >
+                              <CheckCircle className="mr-1 h-4 w-4" />
+                              Sign All
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => {
+                                setSelectedAgreement(agreement);
+                                setIsRejectDialogOpen(true);
+                              }}
+                            >
+                              <XCircle className="mr-1 h-4 w-4" />
+                              Reject
+                            </Button>
+                          </>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-primary hover:text-primary/80"
+                          onClick={() => {
+                            setSelectedAgreement(agreement);
+                            setIsViewDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          View
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -621,6 +759,239 @@ const AdminAgreements = () => {
               ) : (
                 'Sign All Agreements'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject All Agreements for this Distribution</DialogTitle>
+            <DialogDescription>
+              This will reject all {selectedAgreement?.distribution.agreements.length || 0} agreements for this asset distribution. All users who have signed will be notified that the agreement has been rejected.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAgreement && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Distribution Information</AlertTitle>
+              <AlertDescription>
+                <div className="mt-2 space-y-2 text-sm">
+                  <div><span className="font-medium">Asset:</span> {selectedAgreement.distribution.asset.name}</div>
+                  <div><span className="font-medium">Type:</span> <span className="capitalize">{selectedAgreement.distribution.type}</span></div>
+                  <div><span className="font-medium">Value:</span> RM {selectedAgreement.distribution.asset.value.toFixed(2)}</div>
+                  <div><span className="font-medium">Agreements:</span> {selectedAgreement.distribution.agreements.length} total</div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Reason for Rejection</label>
+              <Textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Add a reason for rejecting these agreements"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox 
+                id="confirm" 
+                checked={isConfirmed}
+                onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
+              />
+              <label
+                htmlFor="confirm"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                I confirm that I want to reject all {selectedAgreement?.distribution.agreements.length || 0} agreements
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)} disabled={rejectMutation.isPending}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleReject} 
+              className="bg-red-600 hover:bg-red-700"
+              disabled={rejectMutation.isPending || !isConfirmed}
+            >
+              {rejectMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                'Reject All Agreements'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Agreement Details</DialogTitle>
+            <DialogDescription>
+              Detailed information about this agreement and its distribution
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAgreement && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Asset Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Name:</span>
+                      <span>{selectedAgreement.distribution.asset.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Type:</span>
+                      <span className="capitalize">{selectedAgreement.distribution.asset.type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Value:</span>
+                      <span>{new Intl.NumberFormat('en-MY', {
+                        style: 'currency',
+                        currency: 'MYR',
+                      }).format(selectedAgreement.distribution.asset.value)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Distribution Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Type:</span>
+                      <span className="capitalize">{selectedAgreement.distribution.type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Status:</span>
+                      <span>{getStatusBadge(selectedAgreement.distribution.status)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Created:</span>
+                      <span>{format(new Date(selectedAgreement.distribution.createdAt), 'PPp')}</span>
+                    </div>
+                    {selectedAgreement.distribution.notes && (
+                      <div>
+                        <span className="font-medium">Notes:</span>
+                        <p className="mt-1 text-sm text-muted-foreground">{selectedAgreement.distribution.notes}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Agreements</CardTitle>
+                  <CardDescription>All agreements for this distribution</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Family ID</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Signed At</TableHead>
+                          <TableHead>Admin Signed At</TableHead>
+                          <TableHead>Notes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedAgreement.distribution.agreements.map((agreement) => (
+                          <TableRow key={agreement.id}>
+                            <TableCell>{agreement.familyId}</TableCell>
+                            <TableCell>{getStatusBadge(agreement.status)}</TableCell>
+                            <TableCell>
+                              {agreement.signedAt 
+                                ? format(new Date(agreement.signedAt), 'dd/MM/yyyy HH:mm') 
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {agreement.adminSignedAt 
+                                ? format(new Date(agreement.adminSignedAt), 'dd/MM/yyyy HH:mm') 
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {agreement.notes || '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {selectedAgreement.distribution.type === 'hibah' || 
+               selectedAgreement.distribution.type === 'will' || 
+               selectedAgreement.distribution.type === 'faraid' ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Beneficiaries</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedAgreement.distribution.beneficiaries && 
+                     selectedAgreement.distribution.beneficiaries.length > 0 ? (
+                      <div className="border rounded-lg">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Family ID</TableHead>
+                              <TableHead>Percentage</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedAgreement.distribution.beneficiaries.map((beneficiary, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{beneficiary.familyId}</TableCell>
+                                <TableCell>{beneficiary.percentage}%</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        No beneficiaries found.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : selectedAgreement.distribution.type === 'waqf' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Organization</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-4 border rounded-lg">
+                      {selectedAgreement.distribution.organization || 'No organization specified'}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

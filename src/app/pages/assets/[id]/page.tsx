@@ -78,7 +78,7 @@ const getSigningProgress = (distribution: Distribution) => {
   if (!distribution?.agreements) return { total: 0, signed: 0, rejected: 0, progress: 0 };
   
   const totalAgreements = distribution.agreements.length;
-  const signedAgreements = distribution.agreements.filter(a => a.status === 'signed').length;
+  const signedAgreements = distribution.agreements.filter(a => a.status === 'signed' || a.status === 'pending_admin').length;
   const rejectedAgreements = distribution.agreements.filter(a => a.status === 'rejected').length;
   const progress = (signedAgreements / totalAgreements) * 100;
 
@@ -91,8 +91,16 @@ const getSigningProgress = (distribution: Distribution) => {
 };
 
 const getDistributionStatus = (distribution: Distribution) => {
+  if (!distribution || !distribution.agreements || distribution.agreements.length === 0) {
+    return distribution?.status || 'pending';
+  }
+  
+  // If the distribution status is already set to a final state, return it
+  if (distribution.status === 'pending_admin' || distribution.status === 'completed') {
+    return distribution.status;
+  }
+  
   const progress = getSigningProgress(distribution);
-  if (!progress) return distribution.status;
   
   if (progress.rejected > 0) return 'rejected';
   if (progress.signed === progress.total) return 'completed';
@@ -107,9 +115,13 @@ const getStatusBadge = (status: string) => {
     case 'in_progress':
       return <Badge variant="default">Signing in Progress</Badge>;
     case 'completed':
-      return <Badge variant="success">All Signed</Badge>;
+      return <Badge variant="success">Completed</Badge>;
     case 'rejected':
       return <Badge variant="destructive">Rejected</Badge>;
+    case 'signed':
+      return <Badge variant="success">Signed</Badge>;
+    case 'pending_admin':
+      return <Badge variant="success">Pending Admin</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -377,7 +389,9 @@ export default function AssetDetailsPage() {
                             <Users className="h-4 w-4" />
                             <span className="font-medium">Signing Status</span>
                           </div>
-                          {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
+                          <div>
+                            {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
+                          </div>
                         </div>
 
                         <div className="relative">
