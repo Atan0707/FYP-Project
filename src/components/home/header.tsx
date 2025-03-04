@@ -16,8 +16,11 @@ export default function Header() {
           <h2 className="text-white text-5xl font-bold mb-8">
             Solution Provider (WEMSP)
           </h2>
+          <h2 className="text-white text-3xl font-light mb-8">
+            Testing Phase
+          </h2>
           <button className="bg-white text-black px-6 py-3 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-2">
-            Store Your Asset
+            <a href="https://forms.gle/SPYPAoFPx77YSb5PA" target="_blank" rel="noopener noreferrer">Submit a Feedback</a>
             <Arrow />
           </button>
         </div>
