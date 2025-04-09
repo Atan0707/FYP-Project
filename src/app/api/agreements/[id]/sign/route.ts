@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { FamilySignature } from '@prisma/client';
 
 export async function POST(
   request: Request,
@@ -15,65 +16,91 @@ export async function POST(
     }
 
     const { notes } = await request.json();
+    const signatureId = (await params).id;
 
-    // Find the agreement and verify ownership
-    const agreement = await prisma.agreement.findFirst({
+    // Find the family signature and its related agreement
+    const signature = await prisma.familySignature.findFirst({
       where: {
-        id: (await params).id,
-        familyId: {
-          in: (await prisma.family.findMany({
-            where: { userId },
-            select: { id: true },
-          })).map(f => f.id),
-        },
+        id: signatureId,
+        status: 'pending',
       },
       include: {
-        distribution: {
+        agreement: {
           include: {
-            agreements: true,
+            distribution: {
+              include: {
+                asset: true,
+              },
+            },
+            signatures: true,
           },
         },
       },
     });
 
-    if (!agreement) {
+    if (!signature) {
       return NextResponse.json(
-        { error: 'Agreement not found or unauthorized' },
+        { error: 'Signature not found or already signed' },
         { status: 404 }
       );
     }
 
-    // Update the agreement status
-    const updatedAgreement = await prisma.agreement.update({
-      where: { id: (await params).id },
+    // Make sure the user owns this family member
+    const family = await prisma.family.findFirst({
+      where: {
+        id: signature.familyId,
+        userId,
+      },
+    });
+
+    if (!family) {
+      return NextResponse.json(
+        { error: 'You are not authorized to sign this agreement' },
+        { status: 403 }
+      );
+    }
+
+    // Update the signature
+    const updatedSignature = await prisma.familySignature.update({
+      where: { id: signatureId },
       data: {
         status: 'signed',
         signedAt: new Date(),
         notes,
       },
+      include: {
+        agreement: {
+          include: {
+            distribution: {
+              include: {
+                asset: true,
+              },
+            },
+            signatures: true,
+          },
+        },
+      },
     });
 
-    // Check if all family members have signed
-    const agreementId = (await params).id;
-    const allSigned = agreement.distribution.agreements.every(
-      (a) => a.id === agreementId || a.status === 'signed'
-    );
+    // Check if all signatures are now signed
+    const allSignatures = updatedSignature.agreement.signatures;
+    const allSigned = allSignatures.every((sig: FamilySignature) => sig.status === 'signed');
 
     if (allSigned) {
-      // Update all agreements to pending_admin status
-      await prisma.agreement.updateMany({
-        where: { distributionId: agreement.distribution.id },
+      // Update the agreement status to pending_admin
+      await prisma.agreement.update({
+        where: { id: updatedSignature.agreement.id },
         data: { status: 'pending_admin' },
       });
 
       // Update the distribution status to pending_admin
       await prisma.assetDistribution.update({
-        where: { id: agreement.distribution.id },
+        where: { id: updatedSignature.agreement.distribution.id },
         data: { status: 'pending_admin' },
       });
     }
 
-    return NextResponse.json(updatedAgreement);
+    return NextResponse.json(updatedSignature);
   } catch (error) {
     console.error('Error signing agreement:', error);
     return NextResponse.json(

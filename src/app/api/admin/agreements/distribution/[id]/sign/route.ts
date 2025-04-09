@@ -17,46 +17,38 @@ export async function POST(
     const { notes } = await request.json();
     const distributionId = (await params).id;
 
-    // Find the distribution and its agreements
+    // Find the distribution with its agreement using the new schema
     const distribution = await prisma.assetDistribution.findFirst({
       where: {
         id: distributionId,
         status: 'pending_admin',
       },
       include: {
-        agreements: {
-          where: {
-            status: 'pending_admin',
+        asset: true,
+        agreement: {
+          include: {
+            signatures: true,
           },
         },
-        asset: true,
       },
     });
 
-    if (!distribution) {
+    if (!distribution || !distribution.agreement) {
       return NextResponse.json(
         { error: 'Distribution not found or not ready for admin signature' },
         { status: 404 }
       );
     }
 
-    if (distribution.agreements.length === 0) {
-      return NextResponse.json(
-        { error: 'No pending agreements found for this distribution' },
-        { status: 400 }
-      );
-    }
-
-    // Update all agreements in the distribution to completed
-    await prisma.agreement.updateMany({
+    // Update the agreement status to completed
+    await prisma.agreement.update({
       where: {
-        distributionId: distributionId,
-        status: 'pending_admin',
+        id: distribution.agreement.id,
       },
       data: {
         status: 'completed',
         adminSignedAt: new Date(),
-        notes: notes ? `[Admin] ${notes}` : undefined,
+        adminNotes: notes,
       },
     });
 
@@ -71,17 +63,21 @@ export async function POST(
       where: { id: distributionId },
       include: {
         asset: true,
-        agreements: true,
+        agreement: {
+          include: {
+            signatures: true,
+          },
+        },
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'All agreements signed successfully',
+      message: 'Agreement signed successfully',
       distribution: updatedDistribution,
     });
   } catch (error) {
-    console.error('Error signing agreements:', error);
+    console.error('Error signing agreement:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

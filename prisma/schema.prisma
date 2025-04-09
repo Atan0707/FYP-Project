@@ -101,22 +101,36 @@ model AssetDistribution {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   // Add relation to agreements
-  agreements  Agreement[]
+  agreement   Agreement?
 }
 
 // New model for agreements
 model Agreement {
+  id            String   @id @default(cuid())
+  status        String   @default("pending") // pending, in_progress, pending_admin, completed, rejected
+  adminSignedAt DateTime?
+  adminNotes    String?
+  // Reference to the asset distribution
+  distribution  AssetDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  distributionId String  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  // Add relation to family signatures
+  signatures    FamilySignature[]
+}
+
+// New model for family signatures
+model FamilySignature {
   id          String   @id @default(cuid())
   familyId    String
-  status      String   @default("pending") // pending, signed, rejected, pending_admin, completed
+  status      String   @default("pending") // pending, signed, rejected
   signedAt    DateTime?
   notes       String?
-  adminSignedAt DateTime?
-  // Reference to the asset distribution
-  distribution AssetDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
-  distributionId String
+  // Reference to the agreement
+  agreement   Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  agreementId String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([distributionId])
+  @@index([agreementId])
 }

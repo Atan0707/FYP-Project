@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,12 +25,14 @@ interface FamilyMember {
   id: string;
   fullName: string;
   relationship: string;
+  relatedUserId: string;
 }
 
 interface Beneficiary {
   id: string;
   percentage: number;
   familyMember?: FamilyMember;
+  firstName?: string;
 }
 
 interface Distribution {
@@ -64,7 +66,14 @@ interface Agreement {
     id: string;
     fullName: string;
     relationship: string;
+    email?: string;
   };
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
 }
 
 const distributionTypes = [
@@ -139,6 +148,27 @@ export default function AssetDetailsPage() {
   const [organization, setOrganization] = useState<string>('');
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // Fetch current user data
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/user');
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('Current user data:', userData);
+          setCurrentUser(userData);
+        } else {
+          console.error('Failed to fetch user data:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+    
+    fetchCurrentUser();
+  }, []);
 
   // Fetch asset details
   const { data: assetDetails, isLoading } = useQuery<Asset>({
@@ -148,16 +178,71 @@ export default function AssetDetailsPage() {
       if (!response.ok) throw new Error('Failed to fetch asset');
       const data = await response.json();
       
+      // Fetch family member details for agreements
+      if (data.distribution?.agreements?.length > 0) {
+        // Create a map of family IDs to fetch
+        const familyIds = [...new Set(
+          data.distribution.agreements
+            .filter((a: Agreement) => !a.familyMember)
+            .map((a: Agreement) => a.familyId)
+        )];
+          
+        if (familyIds.length > 0) {
+          // Fetch family details
+          const familyDetailsPromises = familyIds.map(async (id) => {
+            try {
+              const res = await fetch(`/api/family/${id}`);
+              if (res.ok) {
+                const familyData = await res.json();
+                return { id, data: familyData };
+              }
+              return { id, data: null };
+            } catch (err) {
+              console.error(`Error fetching family ${id}:`, err);
+              return { id, data: null };
+            }
+          });
+          
+          const familyResults = await Promise.all(familyDetailsPromises);
+          
+          // Create a map for easy lookup
+          const familyMap = new Map();
+          familyResults.forEach(result => {
+            if (result.data) {
+              familyMap.set(result.id, result.data);
+            }
+          });
+          
+          // Attach family details to agreements
+          data.distribution.agreements = data.distribution.agreements.map((agreement: Agreement) => {
+            if (!agreement.familyMember && familyMap.has(agreement.familyId)) {
+              return {
+                ...agreement,
+                familyMember: familyMap.get(agreement.familyId)
+              };
+            }
+            return agreement;
+          });
+        }
+      }
+      
+      // Fetch family member details for beneficiaries
       if (data.distribution?.beneficiaries) {
-        // Fetch family member details for each beneficiary
         const beneficiariesWithDetails = await Promise.all(
           data.distribution.beneficiaries.map(async (beneficiary: Beneficiary) => {
-            const familyResponse = await fetch(`/api/family/${beneficiary.id}`);
-            const familyData = await familyResponse.json();
-            return {
-              ...beneficiary,
-              familyMember: familyData,
-            };
+            try {
+              const familyResponse = await fetch(`/api/family/${beneficiary.id}`);
+              if (familyResponse.ok) {
+                const familyData = await familyResponse.json();
+                return {
+                  ...beneficiary,
+                  familyMember: familyData,
+                };
+              }
+            } catch (err) {
+              console.error(`Error fetching beneficiary ${beneficiary.id}:`, err);
+            }
+            return beneficiary;
           })
         );
         data.distribution.beneficiaries = beneficiariesWithDetails;
@@ -373,14 +458,20 @@ export default function AssetDetailsPage() {
                         <div>
                           <div className="text-sm text-muted-foreground">Beneficiaries</div>
                           <div className="mt-1">
-                            {assetDetails.distribution.beneficiaries.map((beneficiary: Beneficiary) => (
-                              <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
-                                <span className="font-medium">
-                                  {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
-                                </span>
-                                <span className="text-gray-600">- {beneficiary.percentage}%</span>
-                              </div>
-                            ))}
+                            {assetDetails.distribution.beneficiaries
+                              ?.sort((a: Beneficiary, b: Beneficiary) => {
+                                const nameA = a.familyMember?.fullName || a.firstName || '';
+                                const nameB = b.familyMember?.fullName || b.firstName || '';
+                                return nameA.localeCompare(nameB);
+                              })
+                              .map((beneficiary: Beneficiary) => (
+                                <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
+                                  <span className="font-medium">
+                                    {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
+                                  </span>
+                                  <span className="text-gray-600">- {beneficiary.percentage}%</span>
+                                </div>
+                              ))}
                           </div>
                         </div>
                       )}
@@ -414,7 +505,7 @@ export default function AssetDetailsPage() {
                         </div>
 
                         <div className="space-y-2">
-                          {assetDetails.distribution.agreements?.map((agreement) => (
+                          {assetDetails.distribution.agreements?.map((agreement: Agreement) => (
                             <div key={agreement.id} className="flex items-center justify-between text-sm">
                               <div className="flex items-center gap-2">
                                 <UserCircle2 className="h-4 w-4" />
@@ -423,7 +514,19 @@ export default function AssetDetailsPage() {
                                     <>
                                       {agreement.familyMember.fullName}
                                       <span className="text-muted-foreground ml-1">
-                                        ({agreement.familyMember.relationship})
+                                        {(() => {
+                                          // Debug output to help diagnose the issue
+                                          console.log('Comparing user info:', {
+                                            currentUserEmail: currentUser?.email,
+                                            familyMemberName: agreement.familyMember.fullName,
+                                          });
+                                          
+                                          // For the "you" display, we can check if the current user's full name matches the family member's name
+                                          // This is a more reliable approach than comparing IDs
+                                          return currentUser && agreement.familyMember.fullName === currentUser.name
+                                            ? "(you)" 
+                                            : `(${agreement.familyMember.relationship})`;
+                                        })()}
                                       </span>
                                     </>
                                   ) : (

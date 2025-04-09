@@ -655,7 +655,7 @@ const AdminAgreements = () => {
                               }}
                             >
                               <CheckCircle className="mr-1 h-4 w-4" />
-                              Sign All
+                              Sign Agreement
                             </Button>
                             <Button
                               variant="outline"
@@ -701,9 +701,9 @@ const AdminAgreements = () => {
       <Dialog open={isSignDialogOpen} onOpenChange={setIsSignDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Sign All Agreements for this Distribution</DialogTitle>
+            <DialogTitle>Sign Agreement</DialogTitle>
             <DialogDescription>
-              This will sign all {selectedAgreement?.distribution.agreements.length || 0} agreements for this asset distribution. All users who have signed will be notified that the agreement has been completed.
+              This will sign the agreement for this asset distribution. All users who have signed will be notified that the agreement has been completed.
             </DialogDescription>
           </DialogHeader>
           
@@ -716,7 +716,7 @@ const AdminAgreements = () => {
                   <div><span className="font-medium">Asset:</span> {selectedAgreement.distribution.asset.name}</div>
                   <div><span className="font-medium">Type:</span> <span className="capitalize">{selectedAgreement.distribution.type}</span></div>
                   <div><span className="font-medium">Value:</span> RM {selectedAgreement.distribution.asset.value.toFixed(2)}</div>
-                  <div><span className="font-medium">Agreements:</span> {selectedAgreement.distribution.agreements.length} total</div>
+                  <div><span className="font-medium">Signatures:</span> {selectedAgreement.distribution.agreements.length} total</div>
                 </div>
               </AlertDescription>
             </Alert>
@@ -728,7 +728,7 @@ const AdminAgreements = () => {
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any notes about signing these agreements"
+                placeholder="Add any notes about signing this agreement"
                 className="mt-1"
               />
             </div>
@@ -742,7 +742,7 @@ const AdminAgreements = () => {
                 htmlFor="confirm"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                I confirm that I want to sign all {selectedAgreement?.distribution.agreements.length || 0} agreements
+                I confirm that I want to sign this agreement
               </label>
             </div>
           </div>
@@ -761,7 +761,7 @@ const AdminAgreements = () => {
                   Signing...
                 </>
               ) : (
-                'Sign All Agreements'
+                'Sign Agreement'
               )}
             </Button>
           </DialogFooter>
@@ -771,9 +771,9 @@ const AdminAgreements = () => {
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject All Agreements for this Distribution</DialogTitle>
+            <DialogTitle>Reject Agreement</DialogTitle>
             <DialogDescription>
-              This will reject all {selectedAgreement?.distribution.agreements.length || 0} agreements for this asset distribution. All users who have signed will be notified that the agreement has been rejected.
+              This will reject the agreement for this asset distribution. All users who have signed will be notified that the agreement has been rejected.
             </DialogDescription>
           </DialogHeader>
           
@@ -786,7 +786,7 @@ const AdminAgreements = () => {
                   <div><span className="font-medium">Asset:</span> {selectedAgreement.distribution.asset.name}</div>
                   <div><span className="font-medium">Type:</span> <span className="capitalize">{selectedAgreement.distribution.type}</span></div>
                   <div><span className="font-medium">Value:</span> RM {selectedAgreement.distribution.asset.value.toFixed(2)}</div>
-                  <div><span className="font-medium">Agreements:</span> {selectedAgreement.distribution.agreements.length} total</div>
+                  <div><span className="font-medium">Signatures:</span> {selectedAgreement.distribution.agreements.length} total</div>
                 </div>
               </AlertDescription>
             </Alert>
@@ -798,7 +798,7 @@ const AdminAgreements = () => {
               <Textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Add a reason for rejecting these agreements"
+                placeholder="Add a reason for rejecting this agreement"
                 className="mt-1"
               />
             </div>
@@ -812,7 +812,7 @@ const AdminAgreements = () => {
                 htmlFor="confirm"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                I confirm that I want to reject all {selectedAgreement?.distribution.agreements.length || 0} agreements
+                I confirm that I want to reject this agreement
               </label>
             </div>
           </div>
@@ -831,7 +831,7 @@ const AdminAgreements = () => {
                   Rejecting...
                 </>
               ) : (
-                'Reject All Agreements'
+                'Reject Agreement'
               )}
             </Button>
           </DialogFooter>

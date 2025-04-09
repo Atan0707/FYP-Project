@@ -16,7 +16,11 @@ export async function GET() {
         userId: userId,
       },
       include: {
-        distribution: true,
+        distribution: {
+          include: {
+            agreement: true
+          }
+        },
       },
       orderBy: {
         createdAt: 'desc',

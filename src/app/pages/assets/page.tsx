@@ -46,6 +46,11 @@ interface Asset {
     id: string;
     type: string;
     status: string;
+    agreement?: {
+      id: string;
+      status: string;
+      adminSignedAt?: string;
+    };
   } | null;
 }
 
@@ -160,6 +165,17 @@ const uploadFile = async (file: File) => {
 const getDistributionStatus = (distribution: Asset['distribution']) => {
   if (!distribution) {
     return <Badge variant="secondary">Not Yet</Badge>;
+  }
+
+  // Handle pending_admin status which means all users have signed
+  if (distribution.status === 'pending_admin' || 
+     (distribution.agreement && distribution.agreement.status === 'pending_admin')) {
+    return (
+      <div className="flex flex-col gap-1">
+        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">Pending Admin</Badge>
+        <span className="text-xs text-muted-foreground">All Signed</span>
+      </div>
+    );
   }
 
   switch (distribution.status) {

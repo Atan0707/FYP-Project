@@ -78,6 +78,11 @@ export async function POST(request: Request) {
       return new NextResponse('No family members found', { status: 400 });
     }
 
+    // Filter out the asset owner from family members to avoid duplicate agreements
+    const familyMembersWithoutOwner = allFamilyMembers.filter(
+      member => member.userId !== userId && member.relatedUserId === userId
+    );
+
     // Start a transaction to create distribution and agreements
     const result = await prisma.$transaction(async (tx) => {
       // Create the asset distribution
@@ -89,37 +94,36 @@ export async function POST(request: Request) {
           beneficiaries: body.beneficiaries,
           organization: body.organization,
           assetId: body.assetId,
-        },
-      });
-
-      // Filter out the asset owner from family members to avoid duplicate agreements
-      const familyMembersWithoutOwner = allFamilyMembers.filter(
-        member => member.userId !== userId && member.relatedUserId === userId
-      );
-
-      // Create agreement for the asset owner
-      await tx.agreement.create({
-        data: {
-          familyId: allFamilyMembers.find(member => member.userId === userId)?.id || '',
-          status: 'pending',
-          distributionId: distribution.id,
-        },
-      });
-
-      // Create agreements for family members (excluding owner)
-      if (familyMembersWithoutOwner.length > 0) {
-        await Promise.all(
-          familyMembersWithoutOwner.map((familyMember) =>
-            tx.agreement.create({
-              data: {
-                familyId: familyMember.id,
-                status: 'pending',
-                distributionId: distribution.id,
+          // Create a single agreement for the distribution with family signatures
+          agreement: {
+            create: {
+              status: 'pending',
+              // Create family signatures for each family member
+              signatures: {
+                create: [
+                  // Create signature for the asset owner
+                  {
+                    familyId: allFamilyMembers.find(member => member.userId === userId)?.id || '',
+                    status: 'pending',
+                  },
+                  // Create signatures for family members (excluding owner)
+                  ...familyMembersWithoutOwner.map((familyMember) => ({
+                    familyId: familyMember.id,
+                    status: 'pending',
+                  })),
+                ],
               },
-            })
-          )
-        );
-      }
+            },
+          },
+        },
+        include: {
+          agreement: {
+            include: {
+              signatures: true,
+            },
+          },
+        },
+      });
 
       return distribution;
     });

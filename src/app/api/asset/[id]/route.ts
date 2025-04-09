@@ -2,6 +2,24 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
+// Define interfaces for type safety
+interface FormattedAgreement {
+  id: string;
+  familyId: string;
+  status: string;
+  signedAt: Date | null;
+  notes: string | null;
+  adminSignedAt: Date | null;
+  distributionId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  familyMember?: {
+    id: string;
+    fullName: string;
+    relationship: string;
+  };
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -31,15 +49,23 @@ export async function DELETE(
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const id = (await params).id;
     const cookieStore = await cookies();
     const userId = cookieStore.get('userId')?.value;
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const id = params.id;
+
+    // Check if the user has permission to view this asset
+    const hasPermission = await checkPermission(userId, id);
+
+    if (!hasPermission) {
+      return new NextResponse('Unauthorized', { status: 403 });
     }
 
     const asset = await prisma.asset.findFirst({
@@ -50,44 +76,126 @@ export async function GET(
       include: {
         distribution: {
           include: {
-            agreements: true
+            agreement: {
+              include: {
+                signatures: true
+              }
+            }
           }
         }
       },
     });
 
     if (!asset) {
-      return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+      return new NextResponse('Asset not found', { status: 404 });
     }
 
-    // If there are agreements, fetch family member details
-    if (asset.distribution?.agreements) {
-      const familyMembers = await prisma.family.findMany({
-        where: {
-          id: {
-            in: asset.distribution.agreements.map(a => a.familyId)
+    // Format the response to match the old structure for backward compatibility
+    let formattedDistribution = null;
+    if (asset.distribution) {
+      const distribution = asset.distribution;
+      let agreements: FormattedAgreement[] = [];
+      
+      if (distribution.agreement) {
+        const agreement = distribution.agreement;
+        
+        // Get all signature family IDs
+        const familyIds = agreement.signatures.map(sig => sig.familyId);
+        
+        // Fetch family member details for all signatures at once
+        const familyMembers = await prisma.family.findMany({
+          where: {
+            id: {
+              in: familyIds
+            }
+          },
+          select: {
+            id: true,
+            fullName: true,
+            relationship: true
           }
-        },
-        select: {
-          id: true,
-          fullName: true,
-          relationship: true
-        }
-      });
-
-      // Attach family member details to agreements
-      asset.distribution.agreements = asset.distribution.agreements.map(agreement => ({
-        ...agreement,
-        familyMember: familyMembers.find(f => f.id === agreement.familyId)
-      }));
+        });
+        
+        // Map signatures to agreements with family member details
+        agreements = agreement.signatures.map(signature => {
+          const familyMember = familyMembers.find(f => f.id === signature.familyId);
+          
+          return {
+            id: signature.id,
+            familyId: signature.familyId,
+            status: signature.status,
+            signedAt: signature.signedAt,
+            notes: signature.notes,
+            adminSignedAt: agreement.adminSignedAt,
+            distributionId: distribution.id,
+            createdAt: signature.createdAt,
+            updatedAt: signature.updatedAt,
+            familyMember: familyMember || undefined
+          };
+        });
+      }
+      
+      formattedDistribution = {
+        ...distribution,
+        agreements
+      };
     }
+    
+    const formattedAsset = {
+      ...asset,
+      distribution: formattedDistribution
+    };
 
-    return NextResponse.json(asset);
+    return NextResponse.json(formattedAsset);
   } catch (error) {
     console.error('Error fetching asset:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
+}
+
+// Helper function to check if user has permission to view the asset
+async function checkPermission(userId: string, assetId: string) {
+  // Check if the user owns the asset
+  const ownedAsset = await prisma.asset.findFirst({
+    where: {
+      id: assetId,
+      userId,
+    },
+  });
+
+  if (ownedAsset) return true;
+
+  // Check if the user is a family member associated with this asset's distribution
+  const relatedFamily = await prisma.family.findFirst({
+    where: {
+      userId,
+      OR: [
+        // Check if user is directly related to the asset owner
+        {
+          relatedUserId: {
+            equals: userId,
+          },
+        },
+        // Check through asset's owner
+        {
+          id: {
+            in: await prisma.familySignature.findMany({
+              where: {
+                agreement: {
+                  distribution: {
+                    assetId,
+                  },
+                },
+              },
+              select: {
+                familyId: true,
+              },
+            }).then(sigs => sigs.map(sig => sig.familyId)),
+          },
+        },
+      ],
+    },
+  });
+
+  return !!relatedFamily;
 } 
