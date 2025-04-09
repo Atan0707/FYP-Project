@@ -1,99 +1,64 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { CheckCircle, XCircle, Download, User, AlertCircle, Clock, Filter, Eye } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+// import { format } from 'date-fns';
+import { toast } from 'sonner';
+import { Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, 
+  // CardContent, 
+  // CardDescription, 
+  CardHeader, 
+  // CardTitle, 
+  CardFooter } from '@/components/ui/card';
 
-interface PendingAsset {
-  id: string;
-  name: string;
-  type: string;
-  value: number;
-  description?: string;
-  pdfFile?: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  user: {
-    id: string;
-    fullName: string;
-    email: string;
-  };
-}
+// Types
+import { PendingAsset, AssetStatus } from './types';
 
-// API functions
-const fetchPendingAssets = async () => {
-  const response = await fetch('/api/admin/pending-assets');
-  if (!response.ok) {
-    throw new Error('Network response was not ok');
-  }
-  return response.json();
-};
+// Services
+import { fetchPendingAssets, approveOrRejectAsset } from './services';
 
-const approveOrRejectAsset = async ({ id, action }: { id: string; action: 'approve' | 'reject' }) => {
-  const response = await fetch(`/api/admin/pending-assets/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
-  });
-  if (!response.ok) {
-    throw new Error('Network response was not ok');
-  }
-  return response.json();
-};
+// Components
+import { LoadingSpinner } from './components/LoadingSpinner';
+import { ErrorDisplay } from './components/ErrorDisplay';
+// import { StatusBadge } from './components/StatusBadge';
+import { AssetsOverview } from './components/AssetsOverview';
+import { RecentActivityCard } from './components/RecentActivityCard';
+import { AssetTypesCard } from './components/AssetTypesCard';
+import { AssetsTable } from './components/AssetsTable';
+import { ConfirmationDialog } from './components/ConfirmationDialog';
 
 export default function AssetsApprovalPage() {
   const router = useRouter();
   const [selectedAsset, setSelectedAsset] = useState<PendingAsset | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<'approve' | 'reject'>('approve');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [statusFilter, setStatusFilter] = useState<AssetStatus | 'all'>('all');
   const queryClient = useQueryClient();
 
   // Queries
-  const { data: allPendingAssets = [], isLoading, error } = useQuery({
+  const { 
+    data: allPendingAssets = [], 
+    isLoading, 
+    error 
+  } = useQuery({
     queryKey: ['adminPendingAssets'],
     queryFn: fetchPendingAssets,
+  });
+
+  // Mutations
+  const approveRejectMutation = useMutation({
+    mutationFn: approveOrRejectAsset,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminPendingAssets'] });
+      toast.success(data.message);
+      setIsConfirmDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error('Failed to process asset: ' + (error as Error).message);
+    },
   });
 
   // Filter assets based on status
@@ -115,19 +80,6 @@ export default function AssetsApprovalPage() {
     return acc;
   }, {});
 
-  // Mutations
-  const approveRejectMutation = useMutation({
-    mutationFn: approveOrRejectAsset,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['adminPendingAssets'] });
-      toast.success(data.message);
-      setIsConfirmDialogOpen(false);
-    },
-    onError: (error) => {
-      toast.error('Failed to process asset: ' + (error as Error).message);
-    },
-  });
-
   const handleAction = (asset: PendingAsset, action: 'approve' | 'reject') => {
     setSelectedAsset(asset);
     setActionType(action);
@@ -143,337 +95,59 @@ export default function AssetsApprovalPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span>Pending</span>
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>This asset is waiting for approval</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      case 'approved':
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  <span>Approved</span>
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>This asset has been approved</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      case 'rejected':
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="destructive" className="flex items-center gap-1">
-                  <XCircle className="h-3 w-3" />
-                  <span>Rejected</span>
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>This asset has been rejected</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-10">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto py-10">
-        <div className="flex justify-center items-center h-64 text-red-500">
-          <AlertCircle className="mr-2 h-5 w-5" />
-          <span>Error: {(error as Error).message}</span>
-        </div>
-      </div>
-    );
-  }
-
+  // Calculate counts for the overview cards
   const pendingCount = allPendingAssets.filter((asset: PendingAsset) => asset.status === 'pending').length;
   const approvedCount = allPendingAssets.filter((asset: PendingAsset) => asset.status === 'approved').length;
   const rejectedCount = allPendingAssets.filter((asset: PendingAsset) => asset.status === 'rejected').length;
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorDisplay error={error as Error} />;
 
   return (
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Assets Approval</h1>
-        <Button onClick={() => router.push('/admin/pages/pending-assets')}>
+        <Button 
+          onClick={() => router.push('/admin/pages/pending-assets')}
+          className="transition-all hover:shadow-md"
+        >
           <Eye className="mr-2 h-4 w-4" />
           View Pending Assets
         </Button>
       </div>
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Assets Overview</CardTitle>
-          <CardDescription>
-            Summary of all asset submissions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-secondary/50 p-4 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer" 
-                 onClick={() => setStatusFilter('pending')}>
-              <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
-                <Clock className="mr-2 h-4 w-4" />
-                Pending Assets
-              </div>
-              <div className="text-2xl font-bold">{pendingCount}</div>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg hover:bg-green-100 transition-colors cursor-pointer" 
-                 onClick={() => setStatusFilter('approved')}>
-              <div className="text-sm font-medium text-green-700 mb-1 flex items-center">
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Approved Assets
-              </div>
-              <div className="text-2xl font-bold text-green-800">{approvedCount}</div>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors cursor-pointer" 
-                 onClick={() => setStatusFilter('rejected')}>
-              <div className="text-sm font-medium text-red-700 mb-1 flex items-center">
-                <XCircle className="mr-2 h-4 w-4" />
-                Rejected Assets
-              </div>
-              <div className="text-2xl font-bold text-red-800">{rejectedCount}</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Overview Cards */}
+      <AssetsOverview 
+        pendingCount={pendingCount}
+        approvedCount={approvedCount}
+        rejectedCount={rejectedCount}
+        setStatusFilter={setStatusFilter}
+      />
 
+      {/* Activity and Types Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="md:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Asset Activity</CardTitle>
-              <CardDescription>
-                Latest approved and rejected assets
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentAssets.length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No recent approved or rejected assets found.
-                  </div>
-                ) : (
-                  recentAssets.map((asset: PendingAsset) => (
-                    <div key={asset.id} className="flex items-center justify-between border-b pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${
-                          asset.status === 'approved' ? 'bg-green-100' : 
-                          asset.status === 'rejected' ? 'bg-red-100' : 'bg-secondary/50'
-                        }`}>
-                          {asset.status === 'approved' ? (
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          ) : asset.status === 'rejected' ? (
-                            <XCircle className="h-4 w-4 text-red-600" />
-                          ) : (
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-medium">{asset.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {asset.user.fullName} • {format(new Date(asset.updatedAt), 'PPp')}
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        {getStatusBadge(asset.status)}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="md:col-span-2 flex flex-col">
+          <RecentActivityCard 
+            recentAssets={recentAssets} 
+          />
         </div>
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Asset Types</CardTitle>
-              <CardDescription>
-                Distribution by type
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {Object.entries(assetTypeDistribution).length === 0 ? (
-                  <div className="text-center py-4 text-muted-foreground">
-                    No asset types found.
-                  </div>
-                ) : (
-                  Object.entries(assetTypeDistribution).map(([type, count]) => (
-                    <div key={type} className="flex justify-between items-center p-2 rounded-md hover:bg-secondary/30">
-                      <span className="font-medium">{type}</span>
-                      <Badge variant="outline">{count as number}</Badge>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex flex-col">
+          <AssetTypesCard 
+            assetTypeDistribution={assetTypeDistribution} 
+          />
         </div>
       </div>
 
-      <Card>
+      {/* Assets Table */}
+      <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
         <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <CardTitle>All Asset Submissions</CardTitle>
-              <CardDescription>
-                View and manage all asset submissions
-              </CardDescription>
-            </div>
-            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'pending' | 'approved' | 'rejected')}>
-              <TabsList>
-                <TabsTrigger value="all" className="flex items-center gap-1">
-                  <Filter className="h-4 w-4" />
-                  All
-                </TabsTrigger>
-                <TabsTrigger value="pending" className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  Pending
-                </TabsTrigger>
-                <TabsTrigger value="approved" className="flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4" />
-                  Approved
-                </TabsTrigger>
-                <TabsTrigger value="rejected" className="flex items-center gap-1">
-                  <XCircle className="h-4 w-4" />
-                  Rejected
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          <AssetsTable 
+            filteredAssets={filteredAssets}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            handleAction={handleAction}
+          />
         </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Asset Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Value (RM)</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted On</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAssets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
-                      No assets found with the selected filter.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredAssets.map((asset: PendingAsset) => (
-                    <TableRow key={asset.id} className={
-                      asset.status === 'approved' ? 'bg-green-50' : 
-                      asset.status === 'rejected' ? 'bg-red-50' : ''
-                    }>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <div className="font-medium">{asset.user.fullName}</div>
-                            <div className="text-xs text-muted-foreground">{asset.user.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{asset.name}</TableCell>
-                      <TableCell>{asset.type}</TableCell>
-                      <TableCell>
-                        {new Intl.NumberFormat('en-MY', {
-                          style: 'currency',
-                          currency: 'MYR',
-                        }).format(asset.value)}
-                      </TableCell>
-                      <TableCell>{asset.description || '-'}</TableCell>
-                      <TableCell>
-                        {asset.pdfFile ? (
-                          <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center text-blue-600 hover:text-blue-800"
-                          >
-                            <Download className="mr-1 h-4 w-4" />
-                            View PDF
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">No document</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(asset.status)}
-                      </TableCell>
-                      <TableCell>{format(new Date(asset.createdAt), 'dd/MM/yyyy')}</TableCell>
-                      <TableCell className="text-right">
-                        {asset.status === 'pending' && (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={() => handleAction(asset, 'approve')}
-                            >
-                              <CheckCircle className="mr-1 h-4 w-4" />
-                              Approve
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleAction(asset, 'reject')}
-                            >
-                              <XCircle className="mr-1 h-4 w-4" />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
         <CardFooter className="flex justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filteredAssets.length} of {allPendingAssets.length} assets
@@ -481,50 +155,14 @@ export default function AssetsApprovalPage() {
         </CardFooter>
       </Card>
 
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {actionType === 'approve' ? 'Approve Asset' : 'Reject Asset'}
-            </DialogTitle>
-            <DialogDescription>
-              {actionType === 'approve'
-                ? 'Are you sure you want to approve this asset? This will add it to the user\'s assets.'
-                : 'Are you sure you want to reject this asset? The user will be notified.'}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedAsset && (
-            <div className="py-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="font-medium">Asset Name:</div>
-                <div>{selectedAsset.name}</div>
-                <div className="font-medium">Type:</div>
-                <div>{selectedAsset.type}</div>
-                <div className="font-medium">Value:</div>
-                <div>
-                  {new Intl.NumberFormat('en-MY', {
-                    style: 'currency',
-                    currency: 'MYR',
-                  }).format(selectedAsset.value)}
-                </div>
-                <div className="font-medium">User:</div>
-                <div>{selectedAsset.user.fullName}</div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConfirmDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant={actionType === 'approve' ? 'default' : 'destructive'}
-              onClick={confirmAction}
-            >
-              {actionType === 'approve' ? 'Approve' : 'Reject'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog 
+        isOpen={isConfirmDialogOpen}
+        setIsOpen={setIsConfirmDialogOpen}
+        selectedAsset={selectedAsset}
+        actionType={actionType}
+        confirmAction={confirmAction}
+      />
     </div>
   );
 }

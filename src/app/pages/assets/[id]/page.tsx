@@ -78,7 +78,11 @@ const getSigningProgress = (distribution: Distribution) => {
   if (!distribution?.agreements) return { total: 0, signed: 0, rejected: 0, progress: 0 };
   
   const totalAgreements = distribution.agreements.length;
-  const signedAgreements = distribution.agreements.filter(a => a.status === 'signed' || a.status === 'pending_admin').length;
+  const signedAgreements = distribution.agreements.filter(a => 
+    a.status === 'signed' || 
+    a.status === 'pending_admin' || 
+    a.status === 'completed'
+  ).length;
   const rejectedAgreements = distribution.agreements.filter(a => a.status === 'rejected').length;
   const progress = (signedAgreements / totalAgreements) * 100;
 

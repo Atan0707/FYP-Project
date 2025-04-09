@@ -130,7 +130,7 @@ const AdminDashboard = () => {
 
   // Calculate statistics
   const totalUsers = users.length
-  const totalPendingAssets = pendingAssets.length
+  const totalPendingAssets = pendingAssets.filter(asset => asset.status === 'pending').length
   const totalAgreements = agreements.length
   const totalAssetValue = pendingAssets.reduce((sum, asset) => sum + asset.value, 0)
 

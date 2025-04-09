@@ -30,17 +30,20 @@ interface PendingAssetsWidgetProps {
 const PendingAssetsWidget = ({ pendingAssets, loading }: PendingAssetsWidgetProps) => {
   const router = useRouter()
   
+  // Filter to only show assets with 'pending' status
+  const truePendingAssets = pendingAssets.filter(asset => asset.status === 'pending')
+  
   // Only show the first 5 pending assets
-  const displayAssets = pendingAssets.slice(0, 5)
+  const displayAssets = truePendingAssets.slice(0, 5)
   
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>Pending Assets</span>
-          {!loading && pendingAssets.length > 0 && (
+          {!loading && truePendingAssets.length > 0 && (
             <Badge variant="outline" className="ml-2">
-              {pendingAssets.length} pending
+              {truePendingAssets.length} pending
             </Badge>
           )}
         </CardTitle>
@@ -77,14 +80,14 @@ const PendingAssetsWidget = ({ pendingAssets, loading }: PendingAssetsWidgetProp
               </div>
             ))}
             
-            {pendingAssets.length > 5 && (
+            {truePendingAssets.length > 5 && (
               <div className="text-center mt-4">
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => router.push('/admin/pages/pending-assets')}
                 >
-                  View all {pendingAssets.length} pending assets
+                  View all {truePendingAssets.length} pending assets
                 </Button>
               </div>
             )}

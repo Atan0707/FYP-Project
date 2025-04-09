@@ -270,7 +270,11 @@ const AdminAgreements = () => {
     }
     
     const totalAgreements = distribution.agreements.length;
-    const signedAgreements = distribution.agreements.filter(a => a.status === 'signed').length;
+    const signedAgreements = distribution.agreements.filter(a => 
+      a.status === 'signed' || 
+      a.status === 'pending_admin' || 
+      a.status === 'completed'
+    ).length;
     const rejectedAgreements = distribution.agreements.filter(a => a.status === 'rejected').length;
     const progress = (signedAgreements / totalAgreements) * 100;
 
