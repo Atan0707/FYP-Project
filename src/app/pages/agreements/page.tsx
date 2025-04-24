@@ -508,8 +508,8 @@ export default function AgreementsPage() {
 
       <Tabs defaultValue="pending" className="mb-6">
         <TabsList className="mb-4">
-          <TabsTrigger value="pending">Pending Agreements</TabsTrigger>
           <TabsTrigger value="all">All Agreements</TabsTrigger>
+          <TabsTrigger value="pending">Pending Agreements</TabsTrigger>         
         </TabsList>
         
         <TabsContent value="pending">

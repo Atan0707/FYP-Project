@@ -49,7 +49,7 @@ export async function DELETE(
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -59,7 +59,7 @@ export async function GET(
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const id = params.id;
+    const id = (await params).id;
 
     // Check if the user has permission to view this asset
     const hasPermission = await checkPermission(userId, id);

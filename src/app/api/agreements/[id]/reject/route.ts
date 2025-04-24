@@ -26,13 +26,17 @@ export async function POST(
     // Find the agreement and verify ownership
     const agreement = await prisma.agreement.findFirst({
       where: {
-        id: (await params).id,  
-        familyId: {
-          in: (await prisma.family.findMany({
-            where: { userId },
-            select: { id: true },
-          })).map(f => f.id),
-        },
+        id: (await params).id,
+        signatures: {
+          some: {
+            familyId: {
+              in: (await prisma.family.findMany({
+                where: { userId },
+                select: { id: true },
+              })).map(f => f.id),
+            }
+          }
+        }
       },
       include: {
         distribution: true,
@@ -51,13 +55,13 @@ export async function POST(
       where: { id: (await params).id },
       data: {
         status: 'rejected',
-        notes,
+        adminNotes: notes,
       },
     });
 
     // Update the distribution status to rejected
     await prisma.assetDistribution.update({
-      where: { id: agreement.distribution.id },
+      where: { id: agreement.distributionId },
       data: { status: 'rejected' },
     });
 

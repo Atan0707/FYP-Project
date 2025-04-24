@@ -16,37 +16,39 @@ export async function GET() {
     const distributions = await prisma.assetDistribution.findMany({
       where: {
         status: 'pending_admin',
-        agreements: {
-          every: {
-            status: 'pending_admin',
-          },
+        agreement: {
+          status: 'pending_admin',
         },
       },
       include: {
         asset: true,
-        agreements: {
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
+        agreement: true,
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    // For each distribution, we'll only return one agreement (the first one)
-    // but keep all the agreements data in the distribution for progress tracking
+    // Transform the data to match the expected interface
     const pendingAdminAgreements = distributions.map(distribution => {
-      const firstAgreement = distribution.agreements[0];
-      return {
-        ...firstAgreement,
-        distribution: {
-          ...distribution,
-          agreements: distribution.agreements,
-        },
+      if (!distribution.agreement) return null;
+      
+      // Create a structure that matches the expected interface
+      // where distribution has an agreements array property
+      const distributionWithAgreements = {
+        ...distribution,
+        agreements: [distribution.agreement],
       };
-    });
+      
+      // Remove the singular agreement property
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { agreement: _, ...distributionWithoutAgreement } = distributionWithAgreements;
+      
+      return {
+        ...distribution.agreement,
+        distribution: distributionWithoutAgreement,
+      };
+    }).filter(Boolean);
 
     return NextResponse.json(pendingAdminAgreements);
   } catch (error) {

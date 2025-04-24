@@ -32,7 +32,7 @@ export async function POST(
         status: 'pending_admin',
       },
       include: {
-        agreements: {
+        agreement: {
           where: {
             status: 'pending_admin',
           },
@@ -48,7 +48,7 @@ export async function POST(
       );
     }
 
-    if (distribution.agreements.length === 0) {
+    if (!distribution.agreement) {
       return NextResponse.json(
         { error: 'No pending agreements found for this distribution' },
         { status: 400 }
@@ -63,7 +63,7 @@ export async function POST(
       },
       data: {
         status: 'rejected',
-        notes: `[Admin Rejected] ${reason}`,
+        adminNotes: `[Admin Rejected] ${reason}`,
       },
     });
 
@@ -78,7 +78,7 @@ export async function POST(
       where: { id: distributionId },
       include: {
         asset: true,
-        agreements: true,
+        agreement: true,
       },
     });
 

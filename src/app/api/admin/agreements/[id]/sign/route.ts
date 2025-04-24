@@ -25,7 +25,7 @@ export async function POST(
       include: {
         distribution: {
           include: {
-            agreements: true,
+            agreement: true,
           },
         },
       },
@@ -41,19 +41,19 @@ export async function POST(
     // Update all agreements in the distribution to completed
     await prisma.agreement.updateMany({
       where: {
-        distributionId: agreement.distribution.id,
+        distributionId: agreement.distributionId,
         status: 'pending_admin',
       },
       data: {
         status: 'completed',
         adminSignedAt: new Date(),
-        notes: notes ? `[Admin] ${notes}` : undefined,
+        adminNotes: notes ? `[Admin] ${notes}` : undefined,
       },
     });
 
     // Update the distribution status to completed
     await prisma.assetDistribution.update({
-      where: { id: agreement.distribution.id },
+      where: { id: agreement.distributionId },
       data: { status: 'completed' },
     });
 
@@ -64,7 +64,7 @@ export async function POST(
         distribution: {
           include: {
             asset: true,
-            agreements: true,
+            agreement: true,
           },
         },
       },
