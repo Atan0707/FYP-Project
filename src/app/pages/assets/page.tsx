@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -27,12 +27,57 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, Pencil, Trash2, FileText, Upload, Download } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, FileText, Upload, Download, MapPin, X, MapPin as LocationIcon } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
+import {
+  GoogleMap,
+  LoadScript,
+  Marker,
+  Libraries
+} from '@react-google-maps/api';
 import React from 'react';
+
+// Define libraries to load with Google Maps
+const googleMapsLibraries: Libraries = ['places'];
+
+// Extend Window interface to include Google Maps
+declare global {
+  interface Window {
+    google?: {
+      maps: {
+        Geocoder: new () => {
+          geocode: (
+            request: { address?: string; location?: { lat: number; lng: number } },
+            callback: (
+              results: Array<{ formatted_address: string; geometry: { location: { lat: () => number; lng: () => number } } }>,
+              status: string
+            ) => void
+          ) => void;
+        };
+        GeocoderStatus: { OK: string };
+        MapMouseEvent: { latLng?: { lat: () => number; lng: () => number } };
+        places: {
+          AutocompleteService: new () => {
+            getPlacePredictions: (
+              request: {
+                input: string;
+                componentRestrictions?: { country: string };
+              },
+              callback: (
+                predictions: Array<{ description: string }> | null,
+                status: string
+              ) => void
+            ) => void;
+          };
+          PlacesServiceStatus: { OK: string };
+        };
+      };
+    };
+  }
+}
 
 interface Asset {
   id: string;
@@ -52,6 +97,11 @@ interface Asset {
       adminSignedAt?: string;
     };
   } | null;
+  propertyAddress?: string;
+  location?: {
+    lat: number;
+    lng: number;
+  };
 }
 
 interface PendingAsset {
@@ -144,6 +194,15 @@ const deleteAsset = async (id: string) => {
   return response.json();
 };
 
+// Map styles and container
+const defaultCenter = {
+  lat: 3.1390, // Default to Malaysia's coordinates
+  lng: 101.6869,
+};
+
+// For demo purposes - replace with your actual API key in production
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyC7MA3-v6oc_rZSjyGmnjSF0dx0zLecE4o";
+
 // File upload function
 const uploadFile = async (file: File) => {
   const formData = new FormData();
@@ -200,7 +259,13 @@ export default function AssetsPage() {
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [currentAssetType, setCurrentAssetType] = useState(assetTypes[0]);
+  const [propertyAddress, setPropertyAddress] = useState('');
+  const [mapPosition, setMapPosition] = useState(defaultCenter);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   // Queries
@@ -234,6 +299,103 @@ export default function AssetsPage() {
     }
   }, [pendingAssets, queryClient]);
 
+  // Handle marker drag end to update position
+  const handleMarkerDragEnd = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!window.google || !window.google.maps) {
+      return;
+    }
+    
+    if (e.latLng) {
+      setMapPosition({
+        lat: e.latLng.lat(),
+        lng: e.latLng.lng()
+      });
+      
+      // Reverse geocode to get address
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: { lat: e.latLng.lat(), lng: e.latLng.lng() } }, (results, status) => {
+        if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
+          setPropertyAddress(results[0].formatted_address);
+        }
+      });
+    }
+  }, []);
+
+  // Handle address input change with debounce for suggestions
+  const handleAddressChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPropertyAddress(value);
+    
+    if (value.trim().length > 2) {
+      // Show suggestions panel
+      setShowSuggestions(true);
+      
+      // Fetch suggestions using the service
+      if (window.google && window.google.maps && window.google.maps.places) {
+        try {
+          const service = new window.google.maps.places.AutocompleteService();
+          service.getPlacePredictions(
+            {
+              input: value,
+              componentRestrictions: { country: 'my' }, // Restrict to Malaysia
+            },
+            (predictions, status) => {
+              if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+                setSuggestions(predictions.map(p => p.description));
+              } else {
+                setSuggestions([]);
+              }
+            }
+          );
+        } catch (error) {
+          console.error("Error with Places API:", error);
+          setSuggestions([]);
+        }
+      } else {
+        setSuggestions([]);
+      }
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, []);
+
+  // Handle suggestion selection
+  const handleSelectSuggestion = (suggestion: string) => {
+    setPropertyAddress(suggestion);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    
+    // Get coordinates for this address
+    if (window.google && window.google.maps) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ address: suggestion }, (results, status) => {
+        if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
+          const location = results[0].geometry.location;
+          setMapPosition({
+            lat: location.lat(),
+            lng: location.lng()
+          });
+        }
+      });
+    }
+  };
+
+  // Close suggestions when clicking outside
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
+      setShowSuggestions(false);
+    }
+  }, []);
+
+  // Add event listener for clicking outside
+  React.useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [handleClickOutside]);
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: createAsset,
@@ -242,6 +404,8 @@ export default function AssetsPage() {
       toast.success('Asset submitted for approval');
       setIsOpen(false);
       setUploadedFilePath(null);
+      setPropertyAddress('');
+      setMapPosition(defaultCenter);
     },
     onError: (error) => {
       toast.error('Failed to add asset: ' + error.message);
@@ -255,6 +419,8 @@ export default function AssetsPage() {
       toast.success('Asset updated successfully');
       setIsOpen(false);
       setUploadedFilePath(null);
+      setPropertyAddress('');
+      setMapPosition(defaultCenter);
     },
     onError: (error) => {
       toast.error('Failed to update asset: ' + error.message);
@@ -309,6 +475,9 @@ export default function AssetsPage() {
       value: parseFloat(formData.get('value') as string),
       description: formData.get('description') as string,
       pdfFile: uploadedFilePath || editingAsset?.pdfFile,
+      // Add property address and location for property type
+      propertyAddress: currentAssetType === 'Property' ? propertyAddress : undefined,
+      location: currentAssetType === 'Property' ? mapPosition : undefined,
     };
 
     if (editingAsset) {
@@ -325,7 +494,20 @@ export default function AssetsPage() {
   const handleOpenDialog = (asset: Asset | null = null) => {
     setEditingAsset(asset);
     setUploadedFilePath(null);
+    if (asset) {
+      setCurrentAssetType(asset.type);
+      setPropertyAddress(asset.propertyAddress || '');
+      setMapPosition(asset.location || defaultCenter);
+    } else {
+      setCurrentAssetType(assetTypes[0]);
+      setPropertyAddress('');
+      setMapPosition(defaultCenter);
+    }
     setIsOpen(true);
+  };
+
+  const handleAssetTypeChange = (value: string) => {
+    setCurrentAssetType(value);
   };
 
   if (isLoading) {
@@ -347,7 +529,7 @@ export default function AssetsPage() {
               Add Asset
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
             <DialogHeader>
               <DialogTitle>{editingAsset ? 'Edit' : 'Add'} Asset</DialogTitle>
             </DialogHeader>
@@ -364,7 +546,11 @@ export default function AssetsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="type">Asset Type</Label>
-                  <Select name="type" defaultValue={editingAsset?.type || assetTypes[0]}>
+                  <Select 
+                    name="type" 
+                    defaultValue={editingAsset?.type || assetTypes[0]}
+                    onValueChange={handleAssetTypeChange}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select asset type" />
                     </SelectTrigger>
@@ -426,7 +612,113 @@ export default function AssetsPage() {
                     Upload a PDF document (max 5MB)
                   </p>
                 </div>
+
+                {/* Property Address and Google Maps Integration */}
+                {currentAssetType === 'Property' && (
+                  <div className="grid gap-4 mt-4 border-t pt-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="propertyAddress" className="flex items-center">
+                        <LocationIcon className="mr-2 h-4 w-4" />
+                        Property Address
+                      </Label>
+                      <div className="flex flex-wrap items-center gap-2 relative">
+                        <Input
+                          id="propertyAddress"
+                          value={propertyAddress}
+                          onChange={handleAddressChange}
+                          placeholder="Enter property address"
+                          className="flex-grow min-w-[200px]"
+                          ref={inputRef}
+                        />
+                        {propertyAddress && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPropertyAddress('');
+                              setSuggestions([]);
+                            }}
+                            className="absolute right-16 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            if (propertyAddress && window.google?.maps) {
+                              const geocoder = new window.google.maps.Geocoder();
+                              geocoder.geocode({ address: propertyAddress }, (results, status) => {
+                                if (status === window.google.maps.GeocoderStatus.OK && results?.[0]) {
+                                  const location = results[0].geometry.location;
+                                  setMapPosition({
+                                    lat: location.lat(),
+                                    lng: location.lng()
+                                  });
+                                } else {
+                                  toast.error("Could not find this address on the map");
+                                }
+                              });
+                            }
+                          }}
+                        >
+                          Find
+                        </Button>
+
+                        {/* Address suggestions */}
+                        {showSuggestions && suggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-50 max-h-[200px] overflow-y-auto">
+                            <ul className="py-1">
+                              {suggestions.map((suggestion, index) => (
+                                <li 
+                                  key={index}
+                                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-start"
+                                  onClick={() => handleSelectSuggestion(suggestion)}
+                                >
+                                  <MapPin className="h-4 w-4 mr-2 mt-0.5 shrink-0 text-gray-500" />
+                                  <span className="text-sm">{suggestion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Enter the property&apos;s address or drop a pin on the map
+                      </p>
+                    </div>
+                    
+                    <LoadScript 
+                      googleMapsApiKey={GOOGLE_MAPS_API_KEY}
+                      libraries={googleMapsLibraries}
+                      loadingElement={<div className="h-[250px] w-full bg-slate-100 animate-pulse rounded-md"></div>}
+                    >
+                      <div className="rounded-md overflow-hidden border w-full max-w-full">
+                        <GoogleMap
+                          mapContainerStyle={{
+                            width: '100%',
+                            height: '250px',
+                            borderRadius: '0.375rem',
+                          }}
+                          center={mapPosition}
+                          zoom={15}
+                        >
+                          <Marker
+                            position={mapPosition}
+                            draggable={true}
+                            onDragEnd={handleMarkerDragEnd}
+                          />
+                        </GoogleMap>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Note: To use this feature in production, you need to set up a Google Maps API key in your .env.local file.
+                      </p>
+                    </LoadScript>
+                  </div>
+                )}
               </div>
+
               <Button type="submit" className="w-full" disabled={uploading}>
                 {editingAsset ? 'Update' : 'Submit for Approval'}
               </Button>
