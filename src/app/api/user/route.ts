@@ -38,7 +38,7 @@ export async function GET() {
         ic: fullUser.ic,
         phone: fullUser.phone,
         address: fullUser.address || '',
-        avatar: fullUser.photo || '/avatars/default.jpg'
+        photo: fullUser.photo || '/images/default-avatar.jpg'
       })
     } catch (dbError) {
       console.error('Database error fetching user:', dbError)
@@ -117,7 +117,7 @@ export async function PUT(request: Request) {
       ic: updatedUser.ic,
       phone: updatedUser.phone,
       address: updatedUser.address || '',
-      avatar: updatedUser.photo || '/avatars/default.jpg'
+      photo: updatedUser.photo || '/images/default-avatar.jpg'
     });
   } catch (error) {
     console.error('Error updating user profile:', error);

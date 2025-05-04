@@ -28,7 +28,7 @@ import { useQuery } from "@tanstack/react-query"
 type User = {
   name: string;
   email: string;
-  avatar: string;
+  photo: string;
 }
 
 // Make sure your API returns data in this format
@@ -52,7 +52,7 @@ const data = {
   user: {
     name: "shadcn",
     email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    photo: "/images/default-avatar.jpg",
   },
   teams: [
     {

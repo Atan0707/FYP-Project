@@ -66,7 +66,7 @@ const UserProfile = () => {
             ic: userData.ic,
             phone: userData.phone,
             address: userData.address || "",
-            photo: userData.avatar,
+            photo: userData.photo,
           })
           
           // Set form values
@@ -76,12 +76,12 @@ const UserProfile = () => {
             ic: userData.ic,
             phone: userData.phone,
             address: userData.address || "",
-            photo: userData.avatar,
+            photo: userData.photo,
           })
           
           // Set image preview
-          if (userData.avatar && userData.avatar !== '/avatars/default.jpg') {
-            setImagePreview(userData.avatar)
+          if (userData.photo && !userData.photo.includes('/images/default-avatar.jpg')) {
+            setImagePreview(userData.photo)
           }
         }
       } catch (error) {
@@ -123,7 +123,7 @@ const UserProfile = () => {
             fullName: updatedUser.name,
             phone: updatedUser.phone,
             address: updatedUser.address || "",
-            photo: updatedUser.avatar,
+            photo: updatedUser.photo,
           })
         }
         
@@ -175,25 +175,46 @@ const UserProfile = () => {
       
       // Create a preview
       const reader = new FileReader()
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         if (event.target?.result) {
           setImagePreview(event.target.result as string)
           
-          // In a real app, you would upload to a server/cloud storage
-          // For now, we'll just use the data URL
-          form.setValue('photo', event.target.result as string)
+          // Upload to Google Cloud Storage via our API
+          try {
+            const response = await fetch('/api/upload', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                image: event.target.result
+              }),
+            })
+            
+            if (!response.ok) {
+              throw new Error('Failed to upload image')
+            }
+            
+            const data = await response.json()
+            
+            // Update the form data with the new image URL
+            form.setValue('photo', data.url)
+            
+            toast.success("Image uploaded successfully", {
+              description: "Your profile picture has been updated. Don't forget to save your changes.",
+              icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
+              duration: 4000,
+            })
+          } catch (error) {
+            console.error('Error uploading to GCS:', error)
+            toast.error("Failed to upload to cloud storage", {
+              description: "Please try again or use a different image.",
+              duration: 5000,
+            })
+          }
         }
       }
       reader.readAsDataURL(file)
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      toast.success("Image uploaded successfully", {
-        description: "Your profile picture has been updated. Don't forget to save your changes.",
-        icon: <CheckCircle2 className="h-5 w-5 text-green-500" />,
-        duration: 4000,
-      })
     } catch (error) {
       console.error('Error uploading image:', error)
       toast.error("Failed to upload image", {
@@ -242,7 +263,7 @@ const UserProfile = () => {
                 <div className="flex flex-col items-center space-y-6 md:w-1/3">
                   <div className="relative">
                     <Avatar className="h-40 w-40 border-4 border-white shadow-lg">
-                      <AvatarImage src={imagePreview || user?.photo || '/avatars/default.jpg'} alt={user?.fullName || 'User'} />
+                      <AvatarImage src={imagePreview || user?.photo || '/images/default-avatar.jpg'} alt={user?.fullName || 'User'} />
                       <AvatarFallback className="text-4xl bg-primary text-primary-foreground">
                         {user?.fullName?.substring(0, 2).toUpperCase() || <User className="h-16 w-16" />}
                       </AvatarFallback>

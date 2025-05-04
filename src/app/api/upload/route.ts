@@ -1,80 +1,60 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { v4 as uuidv4 } from 'uuid';
-import { Storage } from '@google-cloud/storage';
+import { NextRequest, NextResponse } from 'next/server';
+import { uploadProfileImage, deleteProfileImage } from '@/lib/googleCloudStorage';
+import { getCurrentUser } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('userId')?.value;
-
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
-    }
-
-    // Check file type
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json(
-        { error: 'Only PDF files are allowed' },
-        { status: 400 }
-      );
-    }
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: 'File size exceeds 5MB limit' },
-        { status: 400 }
-      );
-    }
-
-    // Generate a unique filename
-    const uniqueId = uuidv4();
-    const fileName = `${uniqueId}-${file.name}`;
+    // Verify user authentication
+    const user = await getCurrentUser();
     
-    // Convert file to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    if (!user || !user.id) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
     
-    // Initialize Google Cloud Storage
-    // Instead of using a keyFilename that requires a physical file,
-    // use credentials directly for serverless environments
-    const storage = new Storage({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS || '{}'),
+    // Get user ID
+    const userId = user.id;
+    
+    // Parse the request body
+    const body = await request.json();
+    
+    if (!body.image) {
+      return NextResponse.json(
+        { error: 'No image provided' },
+        { status: 400 }
+      );
+    }
+    
+    // Get the current user to check if they have an existing profile image
+    const userProfile = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { photo: true }
     });
     
-    const bucketName = 'fyp-project-hariz';
-    const bucket = storage.bucket(bucketName);
-    const fileObject = bucket.file(fileName);
+    // If user has an existing custom profile image, delete it
+    if (userProfile?.photo && !userProfile.photo.includes('/avatars/default.jpg')) {
+      await deleteProfileImage(userProfile.photo);
+    }
     
-    // Upload buffer to Google Cloud Storage
-    await fileObject.save(buffer, {
-      contentType: file.type,
-      metadata: {
-        uploadedBy: userId,
-        originalName: file.name
-      }
+    // Upload the new image to Google Cloud Storage
+    const imageUrl = await uploadProfileImage(body.image, userId);
+    
+    // Update the user's profile with the new image URL
+    await prisma.user.update({
+      where: { id: userId },
+      data: { photo: imageUrl }
     });
     
-    // Get the file URL (note: this might require authentication to access if bucket is not public)
-    const fileUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
+    return NextResponse.json({ url: imageUrl });
     
-    return NextResponse.json({ filePath: fileUrl });
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('Error uploading image:', error);
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to upload image' },
       { status: 500 }
     );
   }
