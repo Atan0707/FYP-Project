@@ -2,57 +2,31 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { auth0 } from "@/lib/auth0"
 
 export async function GET() {
   try {
-    const user = await getCurrentUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Get session using Auth0
+    const session = await auth0.getSession()
+    
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+    
+    const { user } = session
+    
+    // Format the user data for the frontend
+    const userData = {
+      name: user.name || user.nickname || 'User',
+      email: user.email || '',
+      avatar: user.picture || '',
+      // You can add more user profile data here
     }
 
-    // Get the full user data including address and photo
-    try {
-      const fullUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          id: true,
-          email: true,
-          fullName: true,
-          ic: true,
-          phone: true,
-          address: true,
-          photo: true,
-        },
-      })
-
-      if (!fullUser) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
-      }
-
-      // Format the response to match your User type
-      return NextResponse.json({
-        id: fullUser.id,
-        name: fullUser.fullName,
-        email: fullUser.email,
-        ic: fullUser.ic,
-        phone: fullUser.phone,
-        address: fullUser.address || '',
-        avatar: fullUser.photo || '/avatars/default.jpg'
-      })
-    } catch (dbError) {
-      console.error('Database error fetching user:', dbError)
-      return NextResponse.json(
-        { error: 'Database error' }, 
-        { status: 500 }
-      )
-    }
+    return NextResponse.json(userData)
   } catch (error) {
-    console.error('Error in auth process:', error)
-    return NextResponse.json(
-      { error: 'Authentication error' }, 
-      { status: 401 }
-    )
+    console.error('Error fetching user data:', error)
+    return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 })
   }
 }
 

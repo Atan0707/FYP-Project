@@ -1,44 +1,34 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { auth0 } from "./lib/auth0";
 
-export function middleware(request: NextRequest) {
-  const userId = request.cookies.get('userId');
-  const adminId = request.cookies.get('adminId');
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
-                     request.nextUrl.pathname.startsWith('/signup');
-  const isAdminAuthPage = request.nextUrl.pathname.startsWith('/admin/login');
-  const isAdminPage = request.nextUrl.pathname.startsWith('/admin') && !isAdminAuthPage;
-
-  // Handle admin routes
-  if (isAdminPage) {
-    if (!adminId) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+export async function middleware(request: NextRequest) {
+  // Check if the request is for a protected page
+  const isProtectedPage = request.nextUrl.pathname.startsWith('/pages');
+  
+  const result = await auth0.middleware(request);
+  
+  // Handle redirects for authenticated users
+  if (result instanceof Response && result.status === 307) {
+    const redirectUrl = new URL(result.headers.get('Location') || '', request.url);
+    
+    // If the request is for Auth0 login callback, redirect to dashboard
+    if (request.nextUrl.pathname === '/auth/callback') {
+      return NextResponse.redirect(new URL('/pages/dashboard', request.url));
     }
-    return NextResponse.next();
   }
-
-  if (adminId && isAdminAuthPage) {
-    return NextResponse.redirect(new URL('/admin/pages/dashboard', request.url));
-  }
-
-  // Handle user routes
-  if (!userId && !isAuthPage && !isAdminAuthPage) {
-    return NextResponse.redirect(new URL('/pages/login', request.url));
-  }
-
-  if (userId && isAuthPage) {
-    return NextResponse.redirect(new URL('/pages/dashboard', request.url));
-  }
-
-  return NextResponse.next();
+  
+  return result;
 }
 
 export const config = {
   matcher: [
-    '/dashboard/:path*',
-    '/admin/:path*',
-    '/family/:path*',
-    '/login',
-    '/signup'
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
   ],
 }; 

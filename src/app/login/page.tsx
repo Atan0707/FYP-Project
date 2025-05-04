@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
-import LoginForm from "./form"
 
 export default function LoginPage() {
   return (
@@ -51,8 +50,12 @@ export default function LoginPage() {
                 </Link>
               </p>
             </CardHeader>
-            <CardContent>
-              <LoginForm />
+            <CardContent className="flex flex-col items-center">
+              <a href="/auth/login" className="w-full">
+                <button className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary/90 transition-colors">
+                  Log In with Auth0
+                </button>
+              </a>
             </CardContent>
           </Card>
         </div>

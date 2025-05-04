@@ -12,6 +12,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^4.5.1",
     "@google-cloud/storage": "^7.15.2",
     "@hookform/resolvers": "^4.1.2",
     "@prisma/client": "^6.4.1",
