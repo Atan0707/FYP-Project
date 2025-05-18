@@ -13,7 +13,7 @@ import { ErrorBoundary } from "react-error-boundary";
 type UserData = {
   name: string;
   email: string;
-  avatar: string;
+  photo: string;
 };
 
 // UserProfile component to display user information in the sidebar
@@ -35,6 +35,7 @@ const UserProfile = ({ open }: { open: boolean }) => {
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
+          // console.log('User data fetched:', userData);
           // Remove sessionStorage caching
         } else if (response.status === 401) {
           // Handle unauthorized - user not logged in
@@ -90,9 +91,9 @@ const UserProfile = ({ open }: { open: boolean }) => {
   }
 
   return (
-    <Link href="/pages/profile" className="flex items-center p-2 mt-auto border-t border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors">
+    <Link href="/pages/profile" className="flex items-center mt-auto pt-2 border-t border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors">
       <Avatar className="h-8 w-8 rounded-full">
-        <AvatarImage src={user.avatar} alt={user.name} />
+        <AvatarImage src={user.photo} alt={user.name} className="object-cover" />
         <AvatarFallback className="bg-primary text-primary-foreground">
           {user.name.substring(0, 2).toUpperCase()}
         </AvatarFallback>

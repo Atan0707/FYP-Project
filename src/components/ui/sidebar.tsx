@@ -67,7 +67,7 @@ export const SidebarProvider = ({
   setOpen: setOpenProp,
   animate = true,
 }: SidebarProviderProps) => {
-  const [openState, setOpenState] = React.useState(false)
+  const [openState, setOpenState] = React.useState(true)
   const [isMobile, setIsMobile] = React.useState(false)
 
   React.useEffect(() => {
@@ -125,21 +125,27 @@ export const DesktopSidebar = ({
   children,
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
-  const { open, setOpen, animate } = useSidebar()
+  const { open, animate, toggleSidebar } = useSidebar()
   return (
     <motion.div
       className={cn(
-        "h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] flex-shrink-0",
+        "h-full px-4 py-4 hidden md:flex md:flex-col bg-neutral-100 dark:bg-neutral-800 w-[300px] flex-shrink-0 relative",
         className
       )}
       animate={{
         width: animate ? (open ? "300px" : "60px") : "300px",
       }}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
       {...props}
     >
-      {children}
+      <Button 
+        onClick={toggleSidebar}
+        variant="outline" 
+        size="icon"
+        className="absolute right-2 top-2 z-50 mr-1"
+      >
+        {open ? <PanelLeft className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+      </Button>
+      {children as React.ReactNode}
     </motion.div>
   )
 }

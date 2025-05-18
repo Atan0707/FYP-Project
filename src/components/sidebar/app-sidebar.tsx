@@ -23,6 +23,7 @@ import { TeamSwitcher } from "@/components/sidebar/team-switcher"
 import { Sidebar, SidebarBody } from "@/components/ui/sidebar"
 // import Image from "next/image"
 import { useQuery } from "@tanstack/react-query"
+import { useEffect } from "react"
 
 // The user object should have this shape
 type User = {
@@ -37,6 +38,7 @@ const getUser = async () => {
     // Add a timestamp to prevent browser caching
     const timestamp = new Date().getTime();
     const response = await fetch(`/api/user?t=${timestamp}`);
+    // console.log('User data fetched:', response);
     if (!response.ok) {
       throw new Error('Failed to fetch user');
     }
@@ -104,6 +106,10 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  useEffect(() => {
+    getUser()
+  }, [])
+
   // Add a key to force refetch when component mounts
   const [refreshKey, setRefreshKey] = React.useState(0);
 

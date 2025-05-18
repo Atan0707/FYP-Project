@@ -263,7 +263,11 @@ const UserProfile = () => {
                 <div className="flex flex-col items-center space-y-6 md:w-1/3">
                   <div className="relative">
                     <Avatar className="h-40 w-40 border-4 border-white shadow-lg">
-                      <AvatarImage src={imagePreview || user?.photo || '/images/default-avatar.jpg'} alt={user?.fullName || 'User'} />
+                      <AvatarImage 
+                        src={imagePreview || user?.photo || '/images/default-avatar.jpg'} 
+                        alt={user?.fullName || 'User'} 
+                        className="object-cover"
+                      />
                       <AvatarFallback className="text-4xl bg-primary text-primary-foreground">
                         {user?.fullName?.substring(0, 2).toUpperCase() || <User className="h-16 w-16" />}
                       </AvatarFallback>
