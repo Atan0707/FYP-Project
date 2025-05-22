@@ -120,7 +120,7 @@ export function AssetsTable({
                   <TableCell>
                     {asset.pdfFile ? (
                       <a
-                        href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
+                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center text-blue-600 hover:text-blue-800"

@@ -1,61 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Storage } from '@google-cloud/storage';
+import path from 'path';
+
+// Function to decode the Google Cloud Storage URL
+const decodeGoogleStorageUrl = (url: string) => {
+  try {
+    // Remove the base URL if it exists
+    const baseUrl = 'https://storage.googleapis.com/';
+    const path = url.startsWith(baseUrl) ? url.slice(baseUrl.length) : url;
+    
+    // Split into bucket and object path
+    const [bucket, ...objectParts] = path.split('/');
+    const object = objectParts.join('/');
+    
+    return { bucket, object };
+  } catch (error) {
+    console.error('Error decoding Google Storage URL:', error);
+    return null;
+  }
+};
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ filename: string }> }
+  { params }: { params: { filename: string } }
 ) {
   try {
-    // Auth check can be added here if needed
-    // For this implementation we'll allow access to the files
-    
-    const { filename } = await params;
-    
-    if (!filename) {
-      return NextResponse.json(
-        { error: 'No filename provided' },
-        { status: 400 }
-      );
-    }
-    
     // Initialize Google Cloud Storage
     const storage = new Storage({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      credentials: JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS || '{}'),
+      keyFilename: path.join(process.cwd(), 'hariz-fyp.json'),
+      projectId: 'exalted-summer-448722-c5',
     });
+
+    // Decode the filename from the URL parameter
+    const decodedFilename = decodeURIComponent(params.filename);
     
-    const bucketName = 'fyp-project-hariz';
-    const bucket = storage.bucket(bucketName);
-    
-    // Get the file
-    const file = bucket.file(decodeURIComponent(filename));
-    
+    // Get bucket and object path
+    const bucketInfo = decodeGoogleStorageUrl(decodedFilename);
+    if (!bucketInfo) {
+      throw new Error('Invalid storage URL');
+    }
+
+    const bucket = storage.bucket(bucketInfo.bucket);
+    const file = bucket.file(bucketInfo.object);
+
     // Check if file exists
     const [exists] = await file.exists();
     if (!exists) {
-      return NextResponse.json(
-        { error: 'File not found' },
-        { status: 404 }
-      );
+      throw new Error('File not found in bucket');
     }
-    
-    // Get file contents
+
+    // Get file content
     const [fileContent] = await file.download();
-    
-    // Create a response with the PDF content
-    const response = new NextResponse(fileContent, {
+
+    // Create response with appropriate headers
+    return new NextResponse(fileContent, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}"`,
+        'Content-Disposition': `inline; filename="${path.basename(bucketInfo.object)}"`,
       },
     });
-    
-    return response;
   } catch (error) {
     console.error('Error downloading file:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: 'File not found or inaccessible' },
+      { status: 404 }
     );
   }
 } 

@@ -8,7 +8,8 @@ const storage = new Storage({
   projectId: 'exalted-summer-448722-c5',
 });
 
-const bucketName = 'fyp-user-profiles'; // This bucket will be created if it doesn't exist
+const bucketName = 'fyp-user-profiles'; // Bucket for user profile images
+const assetsBucketName = 'fyp-asset-documents'; // New bucket for asset documents
 
 export async function uploadProfileImage(base64Image: string, userId: string): Promise<string> {
   // Extract the mimetype and base64 data
@@ -88,5 +89,80 @@ export async function deleteProfileImage(imageUrl: string): Promise<void> {
   } catch (error) {
     console.error('Error deleting file from Cloud Storage:', error);
     // Continue even if deletion fails
+  }
+}
+
+export async function uploadAssetDocument(base64File: string, userId: string, assetName: string) {
+  try {
+    // Check if assets bucket exists and create it if it doesn't
+    const [bucketExists] = await storage.bucket(assetsBucketName).exists();
+    
+    if (!bucketExists) {
+      try {
+        console.log(`Creating bucket ${assetsBucketName}...`);
+        await storage.createBucket(assetsBucketName, {
+          location: 'us-central1',
+          storageClass: 'STANDARD',
+        });
+        console.log(`Bucket ${assetsBucketName} created successfully.`);
+        
+        // Make the bucket public
+        await storage.bucket(assetsBucketName).makePublic();
+        console.log(`Made bucket ${assetsBucketName} publicly readable.`);
+      } catch (error) {
+        console.error('Error creating bucket:', error);
+        if (error instanceof Error && error.message.includes('already exists')) {
+          console.log('Bucket already exists, continuing...');
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // Convert base64 to buffer
+    const fileBuffer = Buffer.from(base64File.split(',')[1], 'base64');
+    
+    // Generate a unique filename
+    const timestamp = Date.now();
+    const filename = `${userId}/${assetName.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.pdf`;
+    
+    const file = storage.bucket(assetsBucketName).file(filename);
+    
+    // Upload the file
+    await file.save(fileBuffer, {
+      metadata: {
+        contentType: 'application/pdf',
+      },
+    });
+    
+    // Make the file publicly accessible
+    await file.makePublic();
+    
+    // Return the public URL
+    return `https://storage.googleapis.com/${assetsBucketName}/${filename}`;
+  } catch (error) {
+    console.error('Error uploading to Google Cloud Storage:', error);
+    throw new Error('Failed to upload file to storage');
+  }
+}
+
+export async function deleteAssetDocument(fileUrl: string) {
+  try {
+    if (!fileUrl.includes(`storage.googleapis.com/${assetsBucketName}/`)) {
+      throw new Error('Invalid file URL: Not from assets bucket');
+    }
+
+    // Extract filename from URL
+    const urlParts = fileUrl.split(`${assetsBucketName}/`);
+    if (urlParts.length !== 2) throw new Error('Invalid file URL format');
+    
+    const filename = urlParts[1];
+    
+    // Delete the file
+    await storage.bucket(assetsBucketName).file(filename).delete();
+    
+  } catch (error) {
+    console.error('Error deleting from Google Cloud Storage:', error);
+    throw new Error('Failed to delete file from storage');
   }
 } 

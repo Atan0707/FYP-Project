@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-
+ 
 /**
- * @title AgreementNFT
+ * @title AgreementContract
  * @dev Contract for minting NFTs that represent legally binding asset distribution agreements
  */
-contract AgreementNFT is ERC721URIStorage, Ownable {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+contract AgreementContract is ERC721URIStorage, Ownable {
+    uint256 private _tokenIds;
 
     struct Signer {
         string name;
@@ -48,6 +46,7 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
     mapping(uint256 => Agreement) public agreements;
     mapping(address => uint256[]) public userAgreements;
     mapping(string => uint256) private agreementIdToTokenId;
+    mapping(string => uint256[]) private userICAgreements; // New mapping to track agreements by IC
 
     event AgreementCreated(
         uint256 indexed tokenId,
@@ -96,8 +95,8 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
         require(bytes(agreementId).length > 0, "Agreement ID cannot be empty");
         require(agreementIdToTokenId[agreementId] == 0, "Agreement ID already exists");
         
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+        uint256 newTokenId = _tokenIds;
+        _tokenIds++;    
         
         // Mint the NFT to the creator
         _mint(msg.sender, newTokenId);
@@ -146,10 +145,10 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
         string memory signerName,
         string memory signerIC
     ) public {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         require(msg.sender == agreements[tokenId].owner || msg.sender == agreements[tokenId].adminAddress, 
                 "Only owner or admin can add signers");
-        require(agreements[tokenId].status != "completed", 
+        require(keccak256(abi.encodePacked(agreements[tokenId].status)) != keccak256(abi.encodePacked("completed")), 
                 "Agreement is already completed");
         
         // Create new signer and add to array
@@ -164,6 +163,9 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
         agreements[tokenId].signerIndices[signerIC] = agreements[tokenId].signers.length;
         agreements[tokenId].signers.push(newSigner);
         
+        // Add agreement to userICAgreements mapping
+        userICAgreements[signerIC].push(tokenId);
+        
         // If first signer is added, change status to in_progress
         if (agreements[tokenId].signers.length == 1) {
             agreements[tokenId].status = "in_progress";
@@ -176,9 +178,9 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
      * @dev Allows a signer to sign the agreement
      */
     function signAgreement(uint256 tokenId, string memory signerIC) public {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         require(agreements[tokenId].isActive, "Agreement is not active");
-        require(agreements[tokenId].status != "completed", 
+        require(keccak256(abi.encodePacked(agreements[tokenId].status)) != keccak256(abi.encodePacked("completed")), 
                 "Agreement is already completed");
         
         // Check if the IC corresponds to a registered signer
@@ -202,9 +204,9 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
      * @dev Allows admin to sign the agreement
      */
     function adminSignAgreement(uint256 tokenId, string memory adminName) public {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         require(agreements[tokenId].isActive, "Agreement is not active");
-        require(agreements[tokenId].status != "completed", 
+        require(keccak256(abi.encodePacked(agreements[tokenId].status)) != keccak256(abi.encodePacked("completed")), 
                 "Agreement is already completed");
         require(msg.sender == agreements[tokenId].adminAddress, "Only admin can sign with this function");
         require(!agreements[tokenId].admin.hasSigned, "Admin already signed");
@@ -250,7 +252,7 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
      * @dev Adds notes to an agreement
      */
     function addNotes(uint256 tokenId, string memory notes) public {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         require(msg.sender == agreements[tokenId].owner || msg.sender == agreements[tokenId].adminAddress, 
                 "Only owner or admin can add notes");
         
@@ -261,7 +263,7 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
      * @dev Returns all signers for an agreement
      */
     function getAgreementSigners(uint256 tokenId) public view returns (Signer[] memory) {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         return agreements[tokenId].signers;
     }
     
@@ -269,15 +271,17 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
      * @dev Returns the admin for an agreement
      */
     function getAgreementAdmin(uint256 tokenId) public view returns (Admin memory) {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         return agreements[tokenId].admin;
     }
     
     /**
-     * @dev Returns agreements owned by a user
+     * @dev Returns agreements associated with a user's IC
+     * @param userIC The identification number of the user
      */
-    function getUserAgreements(address user) public view returns (uint256[] memory) {
-        return userAgreements[user];
+    function getUserAgreements(string memory userIC) public view returns (uint256[] memory) {
+        require(bytes(userIC).length > 0, "IC cannot be empty");
+        return userICAgreements[userIC];
     }
     
     /**
@@ -299,7 +303,7 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
         string memory metadataURI,
         bool isActive
     ) {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         Agreement storage agreement = agreements[tokenId];
         
         return (
@@ -324,7 +328,7 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
      * @dev Check if an IC is registered as a signer for an agreement
      */
     function isICRegistered(uint256 tokenId, string memory signerIC) public view returns (bool) {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         
         // Check if it's in our mapping and has a valid index
         uint256 index = agreements[tokenId].signerIndices[signerIC];
@@ -343,7 +347,7 @@ contract AgreementNFT is ERC721URIStorage, Ownable {
         bool hasSigned,
         uint256 signedAt
     ) {
-        require(_exists(tokenId), "Agreement does not exist");
+        require(ownerOf(tokenId) == msg.sender, "Agreement does not exist");
         require(isICRegistered(tokenId, signerIC), "Signer not found");
         
         uint256 index = agreements[tokenId].signerIndices[signerIC];

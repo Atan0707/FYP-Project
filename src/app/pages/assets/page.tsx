@@ -203,24 +203,6 @@ const defaultCenter = {
 // For demo purposes - replace with your actual API key in production
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyC7MA3-v6oc_rZSjyGmnjSF0dx0zLecE4o";
 
-// File upload function
-const uploadFile = async (file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  const response = await fetch('/api/upload', {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to upload file');
-  }
-
-  return response.json();
-};
-
 const getDistributionStatus = (distribution: Asset['distribution']) => {
   if (!distribution) {
     return <Badge variant="secondary">Not Yet</Badge>;
@@ -456,8 +438,21 @@ export default function AssetsPage() {
 
     try {
       setUploading(true);
-      const result = await uploadFile(file);
-      setUploadedFilePath(result.filePath);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/uploadFile', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload file');
+      }
+
+      const data = await response.json();
+      setUploadedFilePath(data.fileUrl);
       toast.success('File uploaded successfully');
     } catch (error) {
       toast.error('Failed to upload file: ' + (error as Error).message);
@@ -522,6 +517,8 @@ export default function AssetsPage() {
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Assets</h1>
+
+        {/* Add assets */}
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleOpenDialog(null)}>
@@ -788,7 +785,7 @@ export default function AssetsPage() {
                       <TableCell>
                         {asset.pdfFile ? (
                           <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center text-blue-600 hover:text-blue-800"
@@ -878,7 +875,7 @@ export default function AssetsPage() {
                       <TableCell>
                         {asset.pdfFile ? (
                           <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center text-blue-600 hover:text-blue-800"
@@ -982,7 +979,7 @@ export default function AssetsPage() {
                                 <TableCell>
                                   {asset.pdfFile ? (
                                     <a
-                                      href={`/api/download/${encodeURIComponent(asset.pdfFile.split('/').pop() || '')}`}
+                                      href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex items-center text-blue-600 hover:text-blue-800"
