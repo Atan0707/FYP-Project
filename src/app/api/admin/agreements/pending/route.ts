@@ -12,45 +12,77 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get all asset distributions where all agreements are in pending_admin status
+    // Get all asset distributions where:
+    // 1. The agreement status is pending_admin
+    // 2. All signatures in the agreement are signed
+    // 3. Ensure we get only unique distributions by assetId
     const distributions = await prisma.assetDistribution.findMany({
       where: {
-        status: 'pending_admin',
         agreement: {
           status: 'pending_admin',
-        },
+          signatures: {
+            every: {
+              status: 'signed'
+            }
+          }
+        }
       },
       include: {
         asset: true,
-        agreement: true,
+        agreement: {
+          include: {
+            signatures: true
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc',
       },
+      distinct: ['assetId'], // Add distinct constraint on assetId
     });
 
     // Transform the data to match the expected interface
-    const pendingAdminAgreements = distributions.map(distribution => {
-      if (!distribution.agreement) return null;
-      
-      // Create a structure that matches the expected interface
-      // where distribution has an agreements array property
-      const distributionWithAgreements = {
-        ...distribution,
-        agreements: [distribution.agreement],
-      };
-      
-      // Remove the singular agreement property
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { agreement: _, ...distributionWithoutAgreement } = distributionWithAgreements;
-      
-      return {
-        ...distribution.agreement,
-        distribution: distributionWithoutAgreement,
-      };
-    }).filter(Boolean);
+    const pendingAdminAgreements = distributions
+      .map(distribution => {
+        const agreement = distribution.agreement;
+        if (!agreement) return null;
+        
+        // Create a structure that matches the expected interface
+        return {
+          id: agreement.id,
+          status: agreement.status,
+          adminSignedAt: agreement.adminSignedAt,
+          distributionId: distribution.id,
+          createdAt: agreement.createdAt,
+          updatedAt: agreement.updatedAt,
+          distribution: {
+            ...distribution,
+            agreements: agreement.signatures.map(sig => ({
+              id: sig.id,
+              familyId: sig.familyId,
+              status: sig.status,
+              signedAt: sig.signedAt,
+              notes: sig.notes,
+              adminSignedAt: agreement.adminSignedAt,
+              distributionId: distribution.id,
+              createdAt: sig.createdAt,
+              updatedAt: sig.updatedAt,
+            }))
+          }
+        };
+      })
+      .filter(Boolean);
 
-    return NextResponse.json(pendingAdminAgreements);
+    // Additional check to ensure no duplicate assets in the response
+    const uniqueAgreements = Array.from(
+      new Map(
+        pendingAdminAgreements
+          .filter((item): item is NonNullable<typeof item> => item !== null)
+          .map(item => [item.distribution.assetId, item])
+      ).values()
+    );
+
+    return NextResponse.json(uniqueAgreements);
   } catch (error) {
     console.error('Error fetching pending admin agreements:', error);
     return NextResponse.json(

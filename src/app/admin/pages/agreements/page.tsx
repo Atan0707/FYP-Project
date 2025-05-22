@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Table,
@@ -116,6 +116,7 @@ const signAdminAgreement = async ({ distributionId, notes }: { distributionId: s
   return response.json();
 };
 
+
 const rejectAdminAgreement = async ({ distributionId, reason }: { distributionId: string; reason: string }) => {
   const response = await fetch(`/api/admin/agreements/distribution/${distributionId}/reject`, {
     method: 'POST',
@@ -128,15 +129,22 @@ const rejectAdminAgreement = async ({ distributionId, reason }: { distributionId
 
 const AdminAgreements = () => {
   const queryClient = useQueryClient();
-  const [selectedAgreement, setSelectedAgreement] = React.useState<Agreement | null>(null);
-  const [isSignDialogOpen, setIsSignDialogOpen] = React.useState(false);
-  const [isRejectDialogOpen, setIsRejectDialogOpen] = React.useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = React.useState(false);
-  const [notes, setNotes] = React.useState('');
-  const [rejectReason, setRejectReason] = React.useState('');
-  const [isConfirmed, setIsConfirmed] = React.useState(false);
+  const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
+  const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_admin' | 'signed' | 'rejected' | 'completed'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // useEffect(() => {
+  //   const data  = fetchAllAgreements();
+  //   // console.log(data)
+  //   const data2 = fetchPendingAdminAgreements();
+  //   console.log(data2)
+  // })
 
   // Queries
   const { data: pendingAgreements = [], isLoading: isPendingLoading } = useQuery({
@@ -150,17 +158,24 @@ const AdminAgreements = () => {
   });
 
   // Combine both data sources
-  const allAgreements = React.useMemo(() => {
-    // Create a map of existing agreements by ID
+  const allAgreements = useMemo(() => {
+    // Create a map of existing agreements by asset ID to prevent duplicates
     const agreementMap = new Map();
+    
+    // Process all agreements data first
     allAgreementsData.forEach((agreement: Agreement) => {
-      agreementMap.set(agreement.id, agreement);
+      const assetId = agreement.distribution.asset.id;
+      if (!agreementMap.has(assetId) || 
+          (agreement.status === 'completed' && agreementMap.get(assetId).status !== 'completed')) {
+        agreementMap.set(assetId, agreement);
+      }
     });
     
-    // Add any pending agreements that might not be in the all agreements list
+    // Add pending agreements only if they don't exist for that asset
     pendingAgreements.forEach((agreement: Agreement) => {
-      if (!agreementMap.has(agreement.id)) {
-        agreementMap.set(agreement.id, agreement);
+      const assetId = agreement.distribution.asset.id;
+      if (!agreementMap.has(assetId)) {
+        agreementMap.set(assetId, agreement);
       }
     });
     
@@ -168,7 +183,7 @@ const AdminAgreements = () => {
   }, [allAgreementsData, pendingAgreements]);
 
   // Filter agreements based on status and search term
-  const filteredAgreements = React.useMemo(() => {
+  const filteredAgreements = useMemo(() => {
     let filtered = statusFilter === 'all' 
       ? allAgreements 
       : allAgreements.filter((agreement: Agreement) => agreement.status === statusFilter);
@@ -248,7 +263,7 @@ const AdminAgreements = () => {
   };
 
   // Reset state when dialogs close
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isSignDialogOpen) {
       setIsConfirmed(false);
       setNotes('');
@@ -286,7 +301,7 @@ const AdminAgreements = () => {
     };
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, context: 'signature' | 'agreement' = 'agreement') => {
     switch (status) {
       case 'pending':
         return (
@@ -337,6 +352,25 @@ const AdminAgreements = () => {
           </TooltipProvider>
         );
       case 'pending_admin':
+        // For signatures in pending_admin agreements, show them as signed
+        if (context === 'signature') {
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    <span>Signed</span>
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>This signature has been completed and is waiting for admin approval</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        }
+        // For the agreement itself, show pending admin
         return (
           <TooltipProvider>
             <Tooltip>
@@ -409,7 +443,7 @@ const AdminAgreements = () => {
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Agreements Management</h1>
-        <Link href="/admin/pages/all-agreements">
+        <Link href="/admin/pages/agreements/all">
           <Button variant="outline" className="flex items-center gap-2">
             <Eye className="h-4 w-4" />
             View All Agreements
@@ -699,7 +733,7 @@ const AdminAgreements = () => {
       </Card>
 
       <Dialog open={isSignDialogOpen} onOpenChange={setIsSignDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Sign Agreement</DialogTitle>
             <DialogDescription>
@@ -769,7 +803,7 @@ const AdminAgreements = () => {
       </Dialog>
 
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reject Agreement</DialogTitle>
             <DialogDescription>
@@ -839,8 +873,8 @@ const AdminAgreements = () => {
       </Dialog>
 
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] overflow-y-auto pr-8">
+          <DialogHeader className="top-0 z-10 bg-background pb-4 border-b">
             <DialogTitle>Agreement Details</DialogTitle>
             <DialogDescription>
               Detailed information about this agreement and its distribution
@@ -848,22 +882,22 @@ const AdminAgreements = () => {
           </DialogHeader>
           
           {selectedAgreement && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Asset Information</CardTitle>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Asset Information</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex justify-between">
+                  <CardContent className="space-y-2 pt-2">
+                    <div className="flex justify-between text-sm">
                       <span className="font-medium">Name:</span>
                       <span>{selectedAgreement.distribution.asset.name}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-sm">
                       <span className="font-medium">Type:</span>
                       <span className="capitalize">{selectedAgreement.distribution.asset.type}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-sm">
                       <span className="font-medium">Value:</span>
                       <span>{new Intl.NumberFormat('en-MY', {
                         style: 'currency',
@@ -873,72 +907,74 @@ const AdminAgreements = () => {
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Distribution Information</CardTitle>
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Distribution Information</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex justify-between">
+                  <CardContent className="space-y-2 pt-2">
+                    <div className="flex justify-between text-sm">
                       <span className="font-medium">Type:</span>
                       <span className="capitalize">{selectedAgreement.distribution.type}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-sm">
                       <span className="font-medium">Status:</span>
                       <span>{getStatusBadge(selectedAgreement.distribution.status)}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-sm">
                       <span className="font-medium">Created:</span>
                       <span>{format(new Date(selectedAgreement.distribution.createdAt), 'PPp')}</span>
                     </div>
                     {selectedAgreement.distribution.notes && (
-                      <div>
+                      <div className="text-sm">
                         <span className="font-medium">Notes:</span>
-                        <p className="mt-1 text-sm text-muted-foreground">{selectedAgreement.distribution.notes}</p>
+                        <p className="mt-1 text-muted-foreground">{selectedAgreement.distribution.notes}</p>
                       </div>
                     )}
                   </CardContent>
                 </Card>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Agreements</CardTitle>
-                  <CardDescription>All agreements for this distribution</CardDescription>
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Agreements</CardTitle>
+                  <CardDescription className="text-xs">All agreements for this distribution</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Family ID</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Signed At</TableHead>
-                          <TableHead>Admin Signed At</TableHead>
-                          <TableHead>Notes</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedAgreement.distribution.agreements.map((agreement) => (
-                          <TableRow key={agreement.id}>
-                            <TableCell>{agreement.familyId}</TableCell>
-                            <TableCell>{getStatusBadge(agreement.status)}</TableCell>
-                            <TableCell>
-                              {agreement.signedAt 
-                                ? format(new Date(agreement.signedAt), 'dd/MM/yyyy HH:mm') 
-                                : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {agreement.adminSignedAt 
-                                ? format(new Date(agreement.adminSignedAt), 'dd/MM/yyyy HH:mm') 
-                                : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {agreement.notes || '-'}
-                            </TableCell>
+                <CardContent className="pt-2">
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="max-h-[200px] overflow-y-auto">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-background">
+                          <TableRow>
+                            <TableHead>Family ID</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Signed At</TableHead>
+                            <TableHead>Admin Signed At</TableHead>
+                            <TableHead>Notes</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedAgreement.distribution.agreements.map((agreement) => (
+                            <TableRow key={agreement.id}>
+                              <TableCell className="text-sm">{agreement.familyId}</TableCell>
+                              <TableCell className="text-sm">{getStatusBadge(agreement.status, 'signature')}</TableCell>
+                              <TableCell className="text-sm">
+                                {agreement.signedAt 
+                                  ? format(new Date(agreement.signedAt), 'dd/MM/yyyy HH:mm') 
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {agreement.adminSignedAt 
+                                  ? format(new Date(agreement.adminSignedAt), 'dd/MM/yyyy HH:mm') 
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {agreement.notes || '-'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -946,45 +982,47 @@ const AdminAgreements = () => {
               {selectedAgreement.distribution.type === 'hibah' || 
                selectedAgreement.distribution.type === 'will' || 
                selectedAgreement.distribution.type === 'faraid' ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Beneficiaries</CardTitle>
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Beneficiaries</CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-2">
                     {selectedAgreement.distribution.beneficiaries && 
                      selectedAgreement.distribution.beneficiaries.length > 0 ? (
-                      <div className="border rounded-lg">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Family ID</TableHead>
-                              <TableHead>Percentage</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedAgreement.distribution.beneficiaries.map((beneficiary, index) => (
-                              <TableRow key={index}>
-                                <TableCell>{beneficiary.familyId}</TableCell>
-                                <TableCell>{beneficiary.percentage}%</TableCell>
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="max-h-[200px] overflow-y-auto">
+                          <Table>
+                            <TableHeader className="sticky top-0 bg-background">
+                              <TableRow>
+                                <TableHead>Family ID</TableHead>
+                                <TableHead>Percentage</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {selectedAgreement.distribution.beneficiaries.map((beneficiary, index) => (
+                                <TableRow key={index}>
+                                  <TableCell className="text-sm">{beneficiary.familyId}</TableCell>
+                                  <TableCell className="text-sm">{beneficiary.percentage}%</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-muted-foreground">
+                      <div className="text-center py-4 text-sm text-muted-foreground">
                         No beneficiaries found.
                       </div>
                     )}
                   </CardContent>
                 </Card>
               ) : selectedAgreement.distribution.type === 'waqf' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Organization</CardTitle>
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Organization</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="p-4 border rounded-lg">
+                  <CardContent className="pt-2">
+                    <div className="p-3 border rounded-lg text-sm">
                       {selectedAgreement.distribution.organization || 'No organization specified'}
                     </div>
                   </CardContent>
@@ -993,7 +1031,7 @@ const AdminAgreements = () => {
             </div>
           )}
           
-          <DialogFooter>
+          <DialogFooter className="bottom-0 z-10 bg-background pt-4 border-t mt-4">
             <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
               Close
             </Button>
