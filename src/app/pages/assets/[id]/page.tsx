@@ -484,8 +484,19 @@ export default function AssetDetailsPage() {
                             <Users className="h-4 w-4" />
                             <span className="font-medium">Signing Status</span>
                           </div>
-                          <div>
+                          <div className="flex items-center gap-2">
                             {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
+                            {assetDetails.distribution && (assetDetails.distribution as Distribution).id && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(`/api/agreement-pdf/${(assetDetails.distribution as Distribution).id}`, '_blank')}
+                                className="flex items-center gap-2"
+                              >
+                                <Download className="h-4 w-4" />
+                                View Agreement
+                              </Button>
+                            )}
                           </div>
                         </div>
 
