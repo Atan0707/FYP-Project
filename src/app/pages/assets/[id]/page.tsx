@@ -415,6 +415,20 @@ export default function AssetDetailsPage() {
                   </a>
                 </div>
               )}
+              {assetDetails.distribution?.id && (
+                <div className="col-span-2">
+                  <div className="text-sm text-muted-foreground">Agreement</div>
+                  <a
+                    href={`/api/agreement-pdf/${assetDetails.distribution.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center text-blue-600 hover:text-blue-800"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    View Agreement
+                  </a>
+                </div>
+              )}
               <div className="col-span-2">
                 <div className="text-sm text-muted-foreground">Created On</div>
                 <div className="font-medium">{format(new Date(assetDetails.createdAt), 'PPP')}</div>
@@ -486,17 +500,6 @@ export default function AssetDetailsPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             {getStatusBadge(getDistributionStatus(assetDetails.distribution))}
-                            {assetDetails.distribution && (assetDetails.distribution as Distribution).id && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => window.open(`/api/agreement-pdf/${(assetDetails.distribution as Distribution).id}`, '_blank')}
-                                className="flex items-center gap-2"
-                              >
-                                <Download className="h-4 w-4" />
-                                View Agreement
-                              </Button>
-                            )}
                           </div>
                         </div>
 
