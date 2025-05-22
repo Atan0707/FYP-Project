@@ -29,6 +29,7 @@ model User {
   relatedFamilies Family[] @relation("RelatedFamilies")
   assets    Asset[]
   pendingAssets PendingAsset[]
+  signatures FamilySignature[]
 }
 
 model Admin {
@@ -123,6 +124,8 @@ model Agreement {
 model FamilySignature {
   id          String   @id @default(cuid())
   familyId    String
+  signedBy    User     @relation(fields: [signedById], references: [id])
+  signedById  String
   status      String   @default("pending") // pending, signed, rejected
   signedAt    DateTime?
   notes       String?
@@ -133,4 +136,5 @@ model FamilySignature {
   updatedAt   DateTime @updatedAt
 
   @@index([agreementId])
+  @@index([signedById])
 }
