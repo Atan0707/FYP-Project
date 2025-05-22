@@ -22,8 +22,9 @@ const decodeGoogleStorageUrl = (url: string) => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
+  const filename = (await params).filename;
   try {
     // Initialize Google Cloud Storage
     const storage = new Storage({
@@ -32,7 +33,7 @@ export async function GET(
     });
 
     // Decode the filename from the URL parameter
-    const decodedFilename = decodeURIComponent(params.filename);
+    const decodedFilename = decodeURIComponent(filename);
     
     // Get bucket and object path
     const bucketInfo = decodeGoogleStorageUrl(decodedFilename);
