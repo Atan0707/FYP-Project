@@ -71,7 +71,6 @@ export async function GET(
     const asset = await prisma.asset.findFirst({
       where: {
         id: id,
-        userId: userId,
       },
       include: {
         distribution: {
@@ -165,37 +164,30 @@ async function checkPermission(userId: string, assetId: string) {
 
   if (ownedAsset) return true;
 
-  // Check if the user is a family member associated with this asset's distribution
-  const relatedFamily = await prisma.family.findFirst({
+  // Check if the user is related to the asset owner as a family member
+  const asset = await prisma.asset.findFirst({
+    where: { id: assetId },
+    select: { userId: true },
+  });
+
+  if (!asset) return false;
+
+  const familyRelation = await prisma.family.findFirst({
     where: {
-      userId,
       OR: [
-        // Check if user is directly related to the asset owner
+        // User is a family member of the asset owner
         {
-          relatedUserId: {
-            equals: userId,
-          },
+          userId: asset.userId,
+          relatedUserId: userId,
         },
-        // Check through asset's owner
+        // User has the asset owner as a family member
         {
-          id: {
-            in: await prisma.familySignature.findMany({
-              where: {
-                agreement: {
-                  distribution: {
-                    assetId,
-                  },
-                },
-              },
-              select: {
-                familyId: true,
-              },
-            }).then(sigs => sigs.map(sig => sig.familyId)),
-          },
+          userId: userId,
+          relatedUserId: asset.userId,
         },
       ],
     },
   });
 
-  return !!relatedFamily;
+  return !!familyRelation;
 } 

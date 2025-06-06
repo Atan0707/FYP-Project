@@ -4,6 +4,8 @@ import TerserPlugin from "terser-webpack-plugin";
 const nextConfig: NextConfig = {
   /* config options here */
   webpack: (config, { isServer, dev }) => {
+    // Only apply webpack config when not using Turbopack
+    // Turbopack is used in development when --turbopack flag is present
     if(!dev) {
       if (!isServer) {
         config.resolve.fallback = {
@@ -23,6 +25,13 @@ const nextConfig: NextConfig = {
       ];
     }
     return config;
+  },
+  // Turbopack experimental options (for development)
+  experimental: {
+    turbo: {
+      // Turbopack-specific configurations can go here
+      // For now, we'll let Turbopack handle crypto polyfills automatically
+    }
   }
 };
 

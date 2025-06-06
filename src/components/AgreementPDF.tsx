@@ -11,13 +11,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 12,
     marginBottom: 10,
     textAlign: 'center',
     fontFamily: 'Helvetica-Bold',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 12,
     marginBottom: 20,
     textAlign: 'center',
     color: '#666',
@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Helvetica-Bold',
     marginBottom: 5,
   },
@@ -107,8 +107,8 @@ export function AgreementPDF({ assetName, distributionType, agreements, createdA
       </View> */}
 
       <View style={styles.header}>
-        <Text style={styles.title}>Asset Distribution Agreement</Text>
-        <Text style={styles.subtitle}>Digital Signature Record</Text>
+        <Text style={styles.title}>Assets Distribution Agreement</Text>
+        {/* <Text style={styles.subtitle}>Digital Signature Record</Text> */}
       </View>
 
       <View style={styles.section}>
