@@ -57,6 +57,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import { contractService } from '@/services/contractService';
 
 interface Agreement {
   id: string;
@@ -107,13 +108,36 @@ const fetchAllAgreements = async () => {
 };
 
 const signAdminAgreement = async ({ distributionId, notes }: { distributionId: string; notes?: string }) => {
-  const response = await fetch(`/api/admin/agreements/distribution/${distributionId}/sign`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ notes }),
-  });
-  if (!response.ok) throw new Error('Failed to sign agreement');
-  return response.json();
+  try {
+    // Check if contract service is initialized
+    if (!contractService) {
+      throw new Error('Blockchain service is not initialized. Please check your environment configuration.');
+    }
+
+    // First, sign on the smart contract
+    const contractResponse = await contractService.adminSignAgreement(
+      distributionId, // Using distributionId as tokenId
+      'Admin', // You can replace this with actual admin name from your auth system
+      notes
+    );
+
+    if (!contractResponse.success) {
+      throw new Error(contractResponse.error || 'Failed to sign on blockchain');
+    }
+
+    // If contract signing is successful, proceed with API call
+    const response = await fetch(`/api/admin/agreements/distribution/${distributionId}/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    });
+
+    if (!response.ok) throw new Error('Failed to sign agreement');
+    return response.json();
+  } catch (error) {
+    console.error('Error in signAdminAgreement:', error);
+    throw error;
+  }
 };
 
 const AdminAgreements = () => {
@@ -208,13 +232,13 @@ const AdminAgreements = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminPendingAgreements'] });
       queryClient.invalidateQueries({ queryKey: ['adminAllAgreements'] });
-      toast.success('All agreements in this distribution have been signed successfully');
+      toast.success('Agreement signed successfully on blockchain and database');
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
       setNotes('');
     },
     onError: (error) => {
-      toast.error('Failed to sign agreements: ' + (error as Error).message);
+      toast.error('Failed to sign agreement: ' + (error instanceof Error ? error.message : 'Unknown error'));
     },
   });
 
