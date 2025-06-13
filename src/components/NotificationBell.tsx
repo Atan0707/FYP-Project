@@ -26,7 +26,7 @@ export function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'success':
-        return '✅';
+        return '✅'
       case 'error':
         return '❌';
       case 'warning':

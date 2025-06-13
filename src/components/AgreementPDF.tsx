@@ -1,4 +1,4 @@
-import { Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 
 // Create styles
@@ -7,8 +7,18 @@ const styles = StyleSheet.create({
     padding: 30,
     fontFamily: 'Helvetica',
   },
+  barcode: {
+    marginBottom: 20,
+  },
+  logo: {
+    width: 80,
+    height: 80,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
   header: {
     marginBottom: 20,
+    textAlign: 'center',
   },
   title: {
     fontSize: 12,
@@ -16,143 +26,146 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: 'Helvetica-Bold',
   },
-  subtitle: {
-    fontSize: 12,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#666',
-  },
-  section: {
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 5,
-  },
-  text: {
-    fontSize: 12,
-    marginBottom: 5,
-    lineHeight: 1.5,
-  },
-  signatureSection: {
-    marginTop: 30,
-  },
-  signatureBox: {
-    marginBottom: 20,
-    padding: 10,
-    borderRadius: 4,
-    border: '1px solid #ccc',
-  },
-  signatureLine: {
-    borderBottom: '1px solid black',
-    width: '60%',
-    marginBottom: 5,
-  },
-  signatureInfo: {
+  dutiText: {
     fontSize: 10,
-    color: '#666',
+    textAlign: 'right',
+    marginBottom: 20,
+  },
+  antara: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 40,
+    marginBottom: 40,
+  },
+  personInfo: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  personId: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  personNote: {
+    fontSize: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 40,
+  },
+  dan: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  organization: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 40,
+  },
+  dateSection: {
+    fontSize: 12,
+    textAlign: 'left',
+    marginTop: 40,
   },
   footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 30,
-    right: 30,
-    textAlign: 'center',
-  },
-  watermark: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%) rotate(-45deg)',
-    fontSize: 60,
-    color: 'rgba(200, 200, 200, 0.3)',
-    fontFamily: 'Helvetica-Bold',
+    fontSize: 10,
+    marginTop: 20,
   },
 });
+
+interface AgreementDetails {
+  id: string;
+  status: string;
+  signedAt?: string;
+  notes?: string;
+  familyMember?: {
+    id: string;
+    fullName: string;
+    relationship: string;
+    ic: string;
+  };
+}
 
 interface AgreementPDFProps {
   assetName: string;
   distributionType: string;
-  agreements: Array<{
-    id: string;
-    status: string;
-    signedAt?: string;
-    notes?: string;
-    familyMember?: {
-      id: string;
-      fullName: string;
-      relationship: string;
-      email?: string;
-    };
-  }>;
+  agreements: AgreementDetails[];
   createdAt: string;
+  benefactorName: string;
+  benefactorIC: string;
 }
 
-export function AgreementPDF({ assetName, distributionType, agreements, createdAt }: AgreementPDFProps) {
-  // Format the distribution type for display
-  const formattedType = distributionType.charAt(0).toUpperCase() + distributionType.slice(1);
-
-  // Sort agreements by status (signed first, then pending, then rejected)
-  const sortedAgreements = [...agreements].sort((a, b) => {
-    const statusOrder = { signed: 0, pending: 1, rejected: 2 };
-    return (statusOrder[a.status as keyof typeof statusOrder] || 1) - (statusOrder[b.status as keyof typeof statusOrder] || 1);
-  });
+export function AgreementPDF({ 
+  assetName, 
+  distributionType, 
+  agreements, 
+  createdAt,
+  benefactorName,
+  benefactorIC
+}: AgreementPDFProps) {
+  // Find the beneficiary (the person who signed)
+  const beneficiary = agreements.find(a => 
+    a.status === 'signed' || 
+    a.status === 'completed' || 
+    a.status === 'pending_admin'
+  )?.familyMember;
 
   return (
     <Page size="A4" style={styles.page}>
-      {/* Watermark */}
-      {/* <View style={styles.watermark}>
-        <Text>DIGITAL COPY</Text>
+      {/* Barcode Section */}
+      <View style={styles.barcode}>
+        {/* Add barcode image here */}
+      </View>
+
+      {/* Government Logo */}
+      {/* <View>
+        <Image style={styles.logo} src="./assets/logo.png" />
       </View> */}
 
+      {/* Duty Text */}
+      {/* <Text style={styles.dutiText}>Duti Setem Telah Dibayar</Text> */}
+
+      {/* Title */}
       <View style={styles.header}>
-        <Text style={styles.title}>Assets Distribution Agreement</Text>
-        {/* <Text style={styles.subtitle}>Digital Signature Record</Text> */}
+        <Text style={styles.title}>ASSETS DISTRIBUTIONS AGREEMENT</Text>
+        <Text style={styles.title}>YEAR {format(new Date(createdAt), 'yyyy')}</Text>
+        <Text style={styles.title}>{assetName.toUpperCase()}</Text>
+        <Text style={styles.title}>Distribution Type: {distributionType.toUpperCase()}</Text>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Asset Details</Text>
-        <Text style={styles.text}>Asset Name: {assetName}</Text>
-        <Text style={styles.text}>Distribution Type: {formattedType}</Text>
-        <Text style={styles.text}>Created On: {format(new Date(createdAt), 'PPP pp')}</Text>
-      </View>
+      {/* ANTARA Section */}
+      <Text style={styles.antara}>BETWEEN</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Signatures ({sortedAgreements.length})</Text>
-        {sortedAgreements.map((agreement) => (
-          <View key={agreement.id} style={styles.signatureBox}>
-            <Text style={styles.text}>
-              Name: {agreement.familyMember?.fullName || 'Unknown'}
-            </Text>
-            <Text style={styles.text}>
-              Relationship: {agreement.familyMember?.relationship || 'Unknown'}
-            </Text>
-            <Text style={styles.text}>
-              Status: {agreement.status.charAt(0).toUpperCase() + agreement.status.slice(1)}
-            </Text>
-            {agreement.signedAt && (
-              <Text style={styles.text}>
-                Signed On: {format(new Date(agreement.signedAt), 'PPP pp')}
-              </Text>
-            )}
-            {agreement.notes && (
-              <Text style={styles.text}>Notes: {agreement.notes}</Text>
-            )}
-            <View style={styles.signatureLine} />
-            <Text style={styles.signatureInfo}>Digital Signature</Text>
-          </View>
-        ))}
-      </View>
+      {/* Person Info - Owner/Benefactor */}
+      <Text style={styles.personInfo}>{benefactorName.toUpperCase()}</Text>
+      <Text style={styles.personId}>({benefactorIC})</Text>
+      <Text style={styles.personNote}>(Benefactor Name and IC Number)</Text>
 
+      {/* DAN Section */}
+      <Text style={styles.dan}>AND</Text>
+
+      {/* Organization */}
+      <Text style={styles.organization}>WILL & ESTATE MANAGEMENT SDN BHD</Text>
+
+      {/* Second DAN */}
+      <Text style={styles.dan}>AND</Text>
+
+      {/* Second Person - Beneficiary */}
+      <Text style={styles.personInfo}>{beneficiary?.fullName.toUpperCase() || 'BENEFICIARY NAME'}</Text>
+      <Text style={styles.personId}>({beneficiary?.ic || 'IC NUMBER'})</Text>
+      <Text style={styles.personNote}>(Beneficiary Name and IC Number)</Text>
+
+      {/* Date Section */}
+      <Text style={styles.dateSection}>
+        Date: {format(new Date(createdAt), 'dd MMMM yyyy')}
+      </Text>
+
+      {/* Footer Info */}
       <View style={styles.footer}>
-        <Text style={styles.text}>
-          This document was generated on {format(new Date(), 'PPP pp')}
-        </Text>
-        <Text style={styles.text}>
-          This is an official digital record of signatures collected through the system.
-          The authenticity of this document can be verified through the system.
-        </Text>
+        <Text>For the use of the Department:</Text>
+        <Text>File Code: {agreements[0]?.id || 'N/A'}</Text>
       </View>
     </Page>
   );

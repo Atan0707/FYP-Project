@@ -116,25 +116,12 @@ const signAdminAgreement = async ({ distributionId, notes }: { distributionId: s
   return response.json();
 };
 
-
-const rejectAdminAgreement = async ({ distributionId, reason }: { distributionId: string; reason: string }) => {
-  const response = await fetch(`/api/admin/agreements/distribution/${distributionId}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
-  });
-  if (!response.ok) throw new Error('Failed to reject agreement');
-  return response.json();
-};
-
 const AdminAgreements = () => {
   const queryClient = useQueryClient();
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
-  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [notes, setNotes] = useState('');
-  const [rejectReason, setRejectReason] = useState('');
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_admin' | 'signed' | 'rejected' | 'completed'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -231,48 +218,13 @@ const AdminAgreements = () => {
     },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: rejectAdminAgreement,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminPendingAgreements'] });
-      queryClient.invalidateQueries({ queryKey: ['adminAllAgreements'] });
-      toast.success('All agreements in this distribution have been rejected');
-      setIsRejectDialogOpen(false);
-      setSelectedAgreement(null);
-      setRejectReason('');
-    },
-    onError: (error) => {
-      toast.error('Failed to reject agreements: ' + (error as Error).message);
-    },
-  });
-
-  const handleSign = () => {
-    if (!selectedAgreement || !isConfirmed) return;
-    signMutation.mutate({
-      distributionId: selectedAgreement.distributionId,
-      notes: notes || undefined,
-    });
-  };
-
-  const handleReject = () => {
-    if (!selectedAgreement || !rejectReason || !isConfirmed) return;
-    rejectMutation.mutate({
-      distributionId: selectedAgreement.distributionId,
-      reason: rejectReason,
-    });
-  };
-
   // Reset state when dialogs close
   useEffect(() => {
     if (!isSignDialogOpen) {
       setIsConfirmed(false);
       setNotes('');
     }
-    if (!isRejectDialogOpen) {
-      setIsConfirmed(false);
-      setRejectReason('');
-    }
-  }, [isSignDialogOpen, isRejectDialogOpen]);
+  }, [isSignDialogOpen]);
 
   const getSigningProgress = (distribution: AssetDistribution) => {
     if (!distribution || !distribution.agreements) {
@@ -436,8 +388,6 @@ const AdminAgreements = () => {
 
   const pendingAdminCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'pending_admin').length;
   const signedCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'signed').length;
-  const rejectedCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'rejected').length;
-  const completedCount = allAgreements.filter((agreement: Agreement) => agreement.status === 'completed').length;
 
   return (
     <div className="container mx-auto py-10">
@@ -459,7 +409,7 @@ const AdminAgreements = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-secondary/50 p-4 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer" 
                  onClick={() => setStatusFilter('pending_admin')}>
               <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
@@ -475,22 +425,6 @@ const AdminAgreements = () => {
                 Signed Agreements
               </div>
               <div className="text-2xl font-bold text-green-800">{signedCount}</div>
-            </div>
-            <div className="bg-blue-50 p-4 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer" 
-                 onClick={() => setStatusFilter('completed')}>
-              <div className="text-sm font-medium text-blue-700 mb-1 flex items-center">
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Completed Agreements
-              </div>
-              <div className="text-2xl font-bold text-blue-800">{completedCount}</div>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors cursor-pointer" 
-                 onClick={() => setStatusFilter('rejected')}>
-              <div className="text-sm font-medium text-red-700 mb-1 flex items-center">
-                <XCircle className="mr-2 h-4 w-4" />
-                Rejected Agreements
-              </div>
-              <div className="text-2xl font-bold text-red-800">{rejectedCount}</div>
             </div>
           </div>
         </CardContent>
@@ -691,18 +625,6 @@ const AdminAgreements = () => {
                               <CheckCircle className="mr-1 h-4 w-4" />
                               Sign Agreement
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => {
-                                setSelectedAgreement(agreement);
-                                setIsRejectDialogOpen(true);
-                              }}
-                            >
-                              <XCircle className="mr-1 h-4 w-4" />
-                              Reject
-                            </Button>
                           </>
                         )}
                         <Button
@@ -785,7 +707,10 @@ const AdminAgreements = () => {
               Cancel
             </Button>
             <Button 
-              onClick={handleSign} 
+              onClick={() => signMutation.mutate({
+                distributionId: selectedAgreement?.distributionId || '',
+                notes: notes || undefined,
+              })} 
               className="bg-green-600 hover:bg-green-700"
               disabled={signMutation.isPending || !isConfirmed}
             >
@@ -796,76 +721,6 @@ const AdminAgreements = () => {
                 </>
               ) : (
                 'Sign Agreement'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent className="max-w-md sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Reject Agreement</DialogTitle>
-            <DialogDescription>
-              This will reject the agreement for this asset distribution. All users who have signed will be notified that the agreement has been rejected.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedAgreement && (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertTitle>Distribution Information</AlertTitle>
-              <AlertDescription>
-                <div className="mt-2 space-y-2 text-sm">
-                  <div><span className="font-medium">Asset:</span> {selectedAgreement.distribution.asset.name}</div>
-                  <div><span className="font-medium">Type:</span> <span className="capitalize">{selectedAgreement.distribution.type}</span></div>
-                  <div><span className="font-medium">Value:</span> RM {selectedAgreement.distribution.asset.value.toFixed(2)}</div>
-                  <div><span className="font-medium">Signatures:</span> {selectedAgreement.distribution.agreements.length} total</div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Reason for Rejection</label>
-              <Textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Add a reason for rejecting this agreement"
-                className="mt-1"
-              />
-            </div>
-            <div className="flex items-center space-x-2 pt-2">
-              <Checkbox 
-                id="confirm" 
-                checked={isConfirmed}
-                onCheckedChange={(checked) => setIsConfirmed(checked as boolean)}
-              />
-              <label
-                htmlFor="confirm"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                I confirm that I want to reject this agreement
-              </label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)} disabled={rejectMutation.isPending}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleReject} 
-              className="bg-red-600 hover:bg-red-700"
-              disabled={rejectMutation.isPending || !isConfirmed}
-            >
-              {rejectMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Rejecting...
-                </>
-              ) : (
-                'Reject Agreement'
               )}
             </Button>
           </DialogFooter>
