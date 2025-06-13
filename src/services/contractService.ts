@@ -73,6 +73,77 @@ class ContractService {
     }
   }
 
+  async createAgreement(
+    agreementId: string,
+    assetName: string,
+    assetType: string,
+    assetValue: number,
+    distributionType: string,
+    metadataURI: string
+  ): Promise<{ success: boolean; tokenId?: string; error?: string }> {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      // Call the contract's createAgreement function
+      const tx = await this.contract.createAgreement(
+        agreementId,
+        assetName,
+        assetType,
+        ethers.parseEther(assetValue.toString()), // Convert to wei
+        distributionType,
+        metadataURI
+      );
+
+      // Wait for the transaction to be mined
+      const receipt = await tx.wait();
+
+      // Get the tokenId from the AgreementCreated event
+      const event = receipt?.logs.find(
+        (log: ethers.Log) => this.contract.interface.parseLog(log)?.name === 'AgreementCreated'
+      );
+
+      const parsedLog = event ? this.contract.interface.parseLog(event) : null;
+      const tokenId = parsedLog?.args?.tokenId?.toString();
+
+      return { 
+        success: true,
+        tokenId
+      };
+    } catch (error) {
+      console.error('Error creating agreement:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      };
+    }
+  }
+
+  async addSigner(
+    tokenId: string,
+    signerName: string,
+    signerIC: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      // Call the contract's addSigner function
+      const tx = await this.contract.addSigner(tokenId, signerName, signerIC);
+      await tx.wait();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding signer:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      };
+    }
+  }
+
   async getAgreementDetails(tokenId: string) {
     try {
       if (!this.contract) {

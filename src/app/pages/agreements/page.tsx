@@ -60,6 +60,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { contractService } from '@/services/contractService';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus } from 'lucide-react';
 
 interface Agreement {
   id: string;
@@ -133,11 +142,23 @@ export default function AgreementsPage() {
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Form state for creating agreement
+  const [newAgreement, setNewAgreement] = useState({
+    agreementId: '',
+    assetName: '',
+    assetType: '',
+    assetValue: '',
+    distributionType: '',
+    signerName: '',
+    signerIC: '',
+  });
 
   // Queries
   const { data: pendingAgreements = [], isLoading: isPendingLoading, refetch: refetchPending } = useQuery({
@@ -205,6 +226,72 @@ export default function AgreementsPage() {
     },
   });
 
+  // Create Agreement Mutation
+  const createAgreementMutation = useMutation({
+    mutationFn: async (data: {
+      agreementId: string;
+      assetName: string;
+      assetType: string;
+      assetValue: number;
+      distributionType: string;
+      signerName: string;
+      signerIC: string;
+    }) => {
+      if (!contractService) {
+        throw new Error('Contract service not initialized');
+      }
+
+      // First create the agreement
+      const result = await contractService.createAgreement(
+        data.agreementId,
+        data.assetName,
+        data.assetType,
+        data.assetValue,
+        data.distributionType,
+        'ipfs://' // TODO: Add actual IPFS metadata URI
+      );
+
+      if (!result.success || !result.tokenId) {
+        throw new Error(result.error || 'Failed to create agreement');
+      }
+
+      // Then add the signer
+      const signerResult = await contractService.addSigner(
+        result.tokenId,
+        data.signerName,
+        data.signerIC
+      );
+
+      if (!signerResult.success) {
+        throw new Error(signerResult.error || 'Failed to add signer');
+      }
+
+      return result.tokenId;
+    },
+    onSuccess: async () => {
+      // Refetch both queries to update the UI
+      await Promise.all([
+        refetchPending(),
+        refetchMyAgreements()
+      ]);
+      
+      queryClient.invalidateQueries({ queryKey: ['pendingAgreements'] });
+      queryClient.invalidateQueries({ queryKey: ['myAgreements'] });
+      
+      const message = `Agreement created successfully`;
+      toast.success(message);
+      addNotification(message, 'success');
+      
+      setIsCreateDialogOpen(false);
+      resetNewAgreementForm();
+    },
+    onError: (error) => {
+      const message = 'Failed to create agreement: ' + (error as Error).message;
+      toast.error(message);
+      addNotification(message, 'error');
+    },
+  });
+
   const handleSign = () => {
     if (!selectedAgreement) return;
     signMutation.mutate({
@@ -218,6 +305,33 @@ export default function AgreementsPage() {
     rejectMutation.mutate({
       id: selectedAgreement.id,
       notes: notes || undefined,
+    });
+  };
+
+  const handleCreateAgreement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const assetValue = parseFloat(newAgreement.assetValue);
+    if (isNaN(assetValue)) {
+      toast.error('Please enter a valid asset value');
+      return;
+    }
+
+    createAgreementMutation.mutate({
+      ...newAgreement,
+      assetValue,
+    });
+  };
+
+  const resetNewAgreementForm = () => {
+    setNewAgreement({
+      agreementId: '',
+      assetName: '',
+      assetType: '',
+      assetValue: '',
+      distributionType: '',
+      signerName: '',
+      signerIC: '',
     });
   };
 
@@ -468,6 +582,13 @@ export default function AgreementsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Agreements</h1>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create Agreement
+          </Button>
           <NotificationBell />
         </div>
       </div>
@@ -936,6 +1057,126 @@ export default function AgreementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Agreement Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create New Agreement</DialogTitle>
+            <DialogDescription>
+              Fill in the details to create a new agreement and add a signer.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateAgreement}>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="agreementId">Agreement ID</Label>
+                <Input
+                  id="agreementId"
+                  value={newAgreement.agreementId}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, agreementId: e.target.value }))}
+                  placeholder="AGR-001"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assetName">Asset Name</Label>
+                <Input
+                  id="assetName"
+                  value={newAgreement.assetName}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, assetName: e.target.value }))}
+                  placeholder="My House"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assetType">Asset Type</Label>
+                <Input
+                  id="assetType"
+                  value={newAgreement.assetType}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, assetType: e.target.value }))}
+                  placeholder="Real Estate"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assetValue">Asset Value (RM)</Label>
+                <Input
+                  id="assetValue"
+                  type="number"
+                  value={newAgreement.assetValue}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, assetValue: e.target.value }))}
+                  placeholder="500000"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="distributionType">Distribution Type</Label>
+                <Select
+                  value={newAgreement.distributionType}
+                  onValueChange={(value) => setNewAgreement(prev => ({ ...prev, distributionType: value }))}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select distribution type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="will">Will</SelectItem>
+                    <SelectItem value="hibah">Hibah</SelectItem>
+                    <SelectItem value="waqf">Waqf</SelectItem>
+                    <SelectItem value="faraid">Faraid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="signerName">Signer Name</Label>
+                <Input
+                  id="signerName"
+                  value={newAgreement.signerName}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, signerName: e.target.value }))}
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="signerIC">Signer IC</Label>
+                <Input
+                  id="signerIC"
+                  value={newAgreement.signerIC}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, signerIC: e.target.value }))}
+                  placeholder="123456"
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsCreateDialogOpen(false);
+                  resetNewAgreementForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createAgreementMutation.isPending}
+              >
+                {createAgreementMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Agreement'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
