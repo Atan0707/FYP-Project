@@ -348,14 +348,31 @@ export default function AssetDetailsPage() {
       setTransactionState('creating-agreement');
       updateProgressStep(0, 'pending');
 
+      // First create the distribution and agreement in the database
+      const response = await fetch('/api/asset-distribution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: selectedType,
+          notes: notes,
+          assetId: assetDetails!.id,
+          beneficiaries: selectedType === 'hibah' ? [{ familyId: selectedBeneficiaryId, percentage: 100 }] : undefined,
+          organization: selectedType === 'waqf' ? organization : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create distribution');
+      }
+
+      const distribution = await response.json();
+      const agreementId = distribution.agreement.id; // Use the database-generated ID
+
       // Create a provider and signer
       const provider = new ethers.JsonRpcProvider(rpcUrl);
       const signer = new ethers.Wallet(privateKey!, provider);
 
-      // Generate a unique agreement ID
-      const agreementId = `AGREEMENT-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-
-      // Create the agreement on the blockchain
+      // Create the agreement on the blockchain using the database ID
       const tx = await createAgreement(
         signer,
         agreementId,

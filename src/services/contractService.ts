@@ -144,6 +144,53 @@ class ContractService {
     }
   }
 
+  async getTokenIdFromAgreementId(
+    agreementId: string
+  ): Promise<{ success: boolean; tokenId?: string; error?: string }> {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      // Call the contract's getTokenIdFromAgreementId function
+      const tokenId = await this.contract.getTokenIdFromAgreementId(agreementId);
+      
+      return { 
+        success: true,
+        tokenId: tokenId.toString()
+      };
+    } catch (error) {
+      console.error('Error getting token ID:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      };
+    }
+  }
+
+  async signAgreement(
+    tokenId: string,
+    signerIC: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!this.contract) {
+        throw new Error('Contract not initialized');
+      }
+
+      // Call the contract's signAgreement function
+      const tx = await this.contract.signAgreement(tokenId, signerIC);
+      await tx.wait();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error signing agreement:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      };
+    }
+  }
+
   async getAgreementDetails(tokenId: string) {
     try {
       if (!this.contract) {
