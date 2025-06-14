@@ -594,7 +594,7 @@ export default function AssetDetailsPage() {
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground">Document</div>
                   <a
-                    href={`/api/download/${encodeURIComponent(assetDetails.pdfFile.split('/').pop() || '')}`}
+                    href={`/api/download/${encodeURIComponent(assetDetails.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-blue-600 hover:text-blue-800"
