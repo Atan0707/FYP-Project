@@ -272,15 +272,17 @@ export default function AssetDetailsPage() {
     },
   });
 
-  // Fetch family members for hibah
+  // Fetch family members for distribution types that need signers
   const { data: familyMembers = [] } = useQuery<FamilyMember[]>({
     queryKey: ['familyMembers'],
     queryFn: async () => {
       const response = await fetch('/api/family');
       if (!response.ok) throw new Error('Failed to fetch family members');
-      return response.json();
+      const data = await response.json();
+      console.log('Fetched family members:', data);
+      return data;
     },
-    enabled: selectedType === 'hibah',
+    enabled: selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf',
   });
 
   // Create distribution mutation
@@ -418,9 +420,22 @@ export default function AssetDetailsPage() {
           name: member.fullName,
           ic: member.relatedUserId
         }));
+      } else if (selectedType === 'waqf') {
+        // For waqf, we need to add all family members as signers
+        signersToAdd = familyMembers.map(member => ({
+          name: member.fullName,
+          ic: member.relatedUserId
+        }));
       }
 
       console.log('Signers to add:', signersToAdd); // Debug log
+      
+      // Check if we have signers to add
+      if (signersToAdd.length === 0) {
+        console.log('No signers to add. This might be because no family members were found.');
+        toast.warning('No family members found to add as signers. Please add family members first.');
+        throw new Error('No signers to add');
+      }
 
       // Add each signer individually
       for (const signerData of signersToAdd) {
