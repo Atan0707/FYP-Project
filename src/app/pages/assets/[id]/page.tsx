@@ -33,6 +33,7 @@ interface FamilyMember {
   fullName: string;
   relationship: string;
   relatedUserId: string;
+  ic: string;
 }
 
 interface Beneficiary {
@@ -412,19 +413,19 @@ export default function AssetDetailsPage() {
         if (beneficiary) {
           signersToAdd.push({
             name: beneficiary.fullName,
-            ic: beneficiary.relatedUserId
+            ic: beneficiary.ic
           });
         }
       } else if (selectedType === 'faraid' || selectedType === 'will') {
         signersToAdd = familyMembers.map(member => ({
           name: member.fullName,
-          ic: member.relatedUserId
+          ic: member.ic
         }));
       } else if (selectedType === 'waqf') {
         // For waqf, we need to add all family members as signers
         signersToAdd = familyMembers.map(member => ({
           name: member.fullName,
-          ic: member.relatedUserId
+          ic: member.ic
         }));
       }
 
