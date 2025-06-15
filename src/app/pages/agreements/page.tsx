@@ -400,7 +400,7 @@ export default function AgreementsPage() {
   const filteredMyAgreements = useMemo(() => {
     let filtered = [...myAgreements];
     
-    // Apply search filter
+    //  search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(agreement => 
@@ -409,12 +409,12 @@ export default function AgreementsPage() {
       );
     }
     
-    // Apply status filter
+    //  status filter
     if (filterStatus) {
       filtered = filtered.filter(agreement => agreement.status === filterStatus);
     }
     
-    // Apply sorting
+    //  sorting
     filtered.sort((a, b) => {
       let comparison = 0;
       
@@ -449,7 +449,7 @@ export default function AgreementsPage() {
       agreement.distribution.type,
       agreement.distribution.asset.value.toString(),
       agreement.status,
-      format(new Date(agreement.updatedAt), 'yyyy-MM-dd')
+      format(new Date(agreement.updatedAt), 'yyyy-MM-dd') // boleh tukar sini ke createdAt
     ]);
     
     const csvContent = [
