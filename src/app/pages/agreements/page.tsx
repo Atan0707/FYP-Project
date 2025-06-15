@@ -170,6 +170,17 @@ export default function AgreementsPage() {
         throw new Error(result.error || 'Failed to sign agreement');
       }
 
+      // After successful blockchain signing, update the database
+      const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: notes || '' }),
+      });
+
+      if (!dbUpdateResponse.ok) {
+        throw new Error('Failed to update database after signing');
+      }
+
       return result;
     },
     onSuccess: async () => {
