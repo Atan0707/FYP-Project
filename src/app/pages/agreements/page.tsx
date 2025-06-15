@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Card,
@@ -131,6 +131,11 @@ export default function AgreementsPage() {
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [signerIC, setSignerIC] = useState('');
+
+
+  useEffect(() => {
+    console.log("Selected Agreement", selectedAgreement);
+  }, [selectedAgreement]);
 
   // Queries
   const { data: pendingAgreements = [], isLoading: isPendingLoading, refetch: refetchPending } = useQuery({
