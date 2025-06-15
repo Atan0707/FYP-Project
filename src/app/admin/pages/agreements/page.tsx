@@ -58,7 +58,6 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { contractService } from '@/services/contractService';
-import { getCurrentAdmin } from '@/lib/auth';
 
 interface Agreement {
   id: string;
@@ -115,16 +114,6 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
       throw new Error('Blockchain service is not initialized. Please check your environment configuration.');
     }
 
-    // Get the current admin
-    const admin = await getCurrentAdmin();
-    
-    // Check if admin exists
-    if (!admin) {
-      throw new Error('Admin account not found. Please log in again.');
-    }
-    
-    const adminName = admin.username;
-
     // First, get the tokenId from the agreementId using the contract service
     console.log('Agreement ID:', agreementId);
     const tokenIdResponse = await contractService.getTokenIdFromAgreementId(agreementId);
@@ -134,10 +123,18 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
       throw new Error(tokenIdResponse.error || 'Failed to get token ID from agreement ID');
     }
 
+    // Get admin info from API first to get the admin username
+    const adminResponse = await fetch('/api/admin/profile');
+    if (!adminResponse.ok) {
+      throw new Error('Admin not authenticated or session expired. Please log in again.');
+    }
+    const adminData = await adminResponse.json();
+    const adminName = adminData.username;
+
     // Now sign on the smart contract using the tokenId
     const contractResponse = await contractService.adminSignAgreement(
       tokenIdResponse.tokenId,
-      adminName, // Using the dynamically retrieved admin name
+      adminName, // Using the admin name from API
       notes
     );
 
