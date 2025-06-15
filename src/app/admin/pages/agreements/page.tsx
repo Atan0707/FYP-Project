@@ -107,17 +107,34 @@ const fetchAllAgreements = async () => {
   return response.json();
 };
 
-const signAdminAgreement = async ({ distributionId, notes }: { distributionId: string; notes?: string }) => {
+const signAdminAgreement = async ({ distributionId, notes, agreementId }: { distributionId: string; notes?: string; agreementId: string }) => {
   try {
     // Check if contract service is initialized
     if (!contractService) {
       throw new Error('Blockchain service is not initialized. Please check your environment configuration.');
     }
 
-    // First, sign on the smart contract
+    // First, get the tokenId from the agreementId using the contract service
+    console.log('Agreement ID:', agreementId);
+    const tokenIdResponse = await contractService.getTokenIdFromAgreementId(agreementId);
+    console.log('Token ID Response:', tokenIdResponse);
+    
+    if (!tokenIdResponse.success || !tokenIdResponse.tokenId) {
+      throw new Error(tokenIdResponse.error || 'Failed to get token ID from agreement ID');
+    }
+
+    // Get admin info from API first to get the admin username
+    const adminResponse = await fetch('/api/admin/profile');
+    if (!adminResponse.ok) {
+      throw new Error('Admin not authenticated or session expired. Please log in again.');
+    }
+    const adminData = await adminResponse.json();
+    const adminName = adminData.username;
+
+    // Now sign on the smart contract using the tokenId
     const contractResponse = await contractService.adminSignAgreement(
-      distributionId, // Using distributionId as tokenId
-      'Admin', // You can replace this with actual admin name from your auth system
+      tokenIdResponse.tokenId,
+      adminName, // Using the admin name from API
       notes
     );
 
@@ -152,9 +169,9 @@ const AdminAgreements = () => {
 
   // useEffect(() => {
   //   const data  = fetchAllAgreements();
-  //   // console.log(data)
+  //   console.log("All agreements", data)
   //   const data2 = fetchPendingAdminAgreements();
-  //   console.log(data2)
+  //   console.log("Pending admin agreements", data2)
   // })
 
   // Queries
@@ -238,7 +255,19 @@ const AdminAgreements = () => {
       setNotes('');
     },
     onError: (error) => {
-      toast.error('Failed to sign agreement: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('Admin account not found')) {
+        toast.error('Admin account not found. Please log in again.', {
+          duration: 5000,
+          action: {
+            label: 'Login',
+            onClick: () => window.location.href = '/admin/login',
+          },
+        });
+      } else {
+        toast.error('Failed to sign agreement: ' + errorMessage);
+      }
     },
   });
 
@@ -276,6 +305,10 @@ const AdminAgreements = () => {
       progress,
     };
   };
+
+  useEffect(() => {
+    console.log("Selected agreement", selectedAgreement)
+  }, [selectedAgreement])
 
   const getStatusBadge = (status: string, context: 'signature' | 'agreement' = 'agreement') => {
     switch (status) {
@@ -734,6 +767,7 @@ const AdminAgreements = () => {
               onClick={() => signMutation.mutate({
                 distributionId: selectedAgreement?.distributionId || '',
                 notes: notes || undefined,
+                agreementId: selectedAgreement?.id || '',
               })} 
               className="bg-green-600 hover:bg-green-700"
               disabled={signMutation.isPending || !isConfirmed}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ interface FamilyMember {
   fullName: string;
   relationship: string;
   relatedUserId: string;
+  ic: string;
 }
 
 interface Beneficiary {
@@ -69,6 +71,7 @@ interface Agreement {
   status: string;
   signedAt?: string;
   notes?: string;
+  signedById?: string;
   familyMember?: {
     id: string;
     fullName: string;
@@ -81,6 +84,10 @@ interface User {
   id: string;
   name: string;
   email: string;
+  ic?: string;
+  phone?: string;
+  address?: string;
+  photo?: string;
 }
 
 const distributionTypes = [
@@ -272,43 +279,20 @@ export default function AssetDetailsPage() {
     },
   });
 
-  // Fetch family members for hibah
+  // Fetch family members for distribution types that need signers
   const { data: familyMembers = [] } = useQuery<FamilyMember[]>({
     queryKey: ['familyMembers'],
     queryFn: async () => {
       const response = await fetch('/api/family');
       if (!response.ok) throw new Error('Failed to fetch family members');
-      return response.json();
+      const data = await response.json();
+      console.log('Fetched family members:', data);
+      return data;
     },
-    enabled: selectedType === 'hibah',
+    enabled: selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf',
   });
 
-  // Create distribution mutation
-  const createDistribution = useMutation({
-    mutationFn: async (data: Distribution) => {
-      const response = await fetch('/api/asset-distribution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assetId: params.id,
-          ...data,
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to create distribution');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asset', params.id] });
-      toast.success('Distribution type set successfully');
-      // Reset form
-      setNotes('');
-      setOrganization('');
-      setSelectedBeneficiaryId('');
-    },
-    onError: (error) => {
-      toast.error('Failed to set distribution type: ' + error.message);
-    },
-  });
+  // We'll handle distribution creation directly in the handleSubmit function
 
   const handleDistributionSelect = (type: string) => {
     setSelectedType(type);
@@ -348,7 +332,7 @@ export default function AssetDetailsPage() {
       setTransactionState('creating-agreement');
       updateProgressStep(0, 'pending');
 
-      // First create the distribution and agreement in the database
+      // First create the distribution and agreement in the database to get an ID
       const response = await fetch('/api/asset-distribution', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -362,11 +346,11 @@ export default function AssetDetailsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create distribution');
+        throw new Error('Failed to create distribution in database');
       }
 
       const distribution = await response.json();
-      const agreementId = distribution.agreement.id; // Use the database-generated ID
+      const agreementId = distribution.agreement.id; // Get the database-generated ID
 
       // Create a provider and signer
       const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -405,22 +389,52 @@ export default function AssetDetailsPage() {
       // Prepare signers based on the distribution type
       let signersToAdd: Array<{ name: string; ic: string }> = [];
 
+      // First add the current user as a signer if they have the required data
+      if (currentUser && currentUser.name && currentUser.ic) {
+        signersToAdd.push({
+          name: currentUser.name,
+          ic: currentUser.ic
+        });
+      } else {
+        console.warn('Current user data is incomplete or missing, cannot add as signer');
+      }
+
+      // Then add family members based on distribution type
       if (selectedType === 'hibah' && selectedBeneficiaryId) {
         const beneficiary = familyMembers.find(m => m.id === selectedBeneficiaryId);
         if (beneficiary) {
           signersToAdd.push({
             name: beneficiary.fullName,
-            ic: beneficiary.relatedUserId
+            ic: beneficiary.ic
           });
         }
       } else if (selectedType === 'faraid' || selectedType === 'will') {
-        signersToAdd = familyMembers.map(member => ({
-          name: member.fullName,
-          ic: member.relatedUserId
-        }));
+        signersToAdd = [
+          ...signersToAdd,
+          ...familyMembers.map(member => ({
+            name: member.fullName,
+            ic: member.ic
+          }))
+        ];
+      } else if (selectedType === 'waqf') {
+        // For waqf, we need to add all family members as signers
+        signersToAdd = [
+          ...signersToAdd,
+          ...familyMembers.map(member => ({
+            name: member.fullName,
+            ic: member.ic
+          }))
+        ];
       }
 
       console.log('Signers to add:', signersToAdd); // Debug log
+      
+      // Check if we have signers to add
+      if (signersToAdd.length === 0) {
+        console.log('No signers to add. This might be because no family members were found.');
+        toast.warning('No family members found to add as signers. Please add family members first.');
+        throw new Error('No signers to add');
+      }
 
       // Add each signer individually
       for (const signerData of signersToAdd) {
@@ -455,34 +469,19 @@ export default function AssetDetailsPage() {
       updateProgressStep(1, 'completed');
       setTransactionState('saving');
       updateProgressStep(2, 'pending');
-
-      // Create the distribution in the database
-      const data: Distribution = {
-        type: selectedType,
-        status: 'pending',
-        id: ''
-      };
-
-      // Add type-specific data
-      switch (selectedType) {
-        case 'waqf':
-          if (organization) data.organization = organization;
-          if (notes) data.notes = notes;
-          break;
-        case 'faraid':
-          if (notes) data.notes = notes;
-          break;
-        case 'hibah':
-          data.beneficiaries = [{ id: selectedBeneficiaryId, percentage: 100 }];
-          if (notes) data.notes = notes;
-          break;
-        case 'will':
-          data.notes = notes;
-          break;
-      }
-
-      createDistribution.mutate(data);
+      
+      // The distribution is already created in the database, so we just need to
+      // invalidate the query to refresh the UI with the new data
+      queryClient.invalidateQueries({ queryKey: ['asset', params.id] });
       updateProgressStep(2, 'completed');
+      
+      // Reset form
+      setNotes('');
+      setOrganization('');
+      setSelectedBeneficiaryId('');
+      
+      // Show success message
+      toast.success('Distribution type set successfully');
       
       // Keep the dialog open for a moment to show completion
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -579,7 +578,7 @@ export default function AssetDetailsPage() {
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground">Document</div>
                   <a
-                    href={`/api/download/${encodeURIComponent(assetDetails.pdfFile.split('/').pop() || '')}`}
+                    href={`/api/download/${encodeURIComponent(assetDetails.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-blue-600 hover:text-blue-800"
@@ -652,10 +651,11 @@ export default function AssetDetailsPage() {
                                 const nameB = b.familyMember?.fullName || b.firstName || '';
                                 return nameA.localeCompare(nameB);
                               })
-                              .map((beneficiary: Beneficiary) => (
-                                <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
+                              .map((beneficiary: Beneficiary, index: number) => (
+                                <div key={beneficiary.id || `beneficiary-${index}`} className="flex items-center gap-2 mb-2">
                                   <span className="font-medium">
-                                    {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
+                                    {beneficiary.familyMember?.fullName || beneficiary.firstName || 'Unknown'} 
+                                    {beneficiary.familyMember?.relationship && ` (${beneficiary.familyMember.relationship})`}
                                   </span>
                                   <span className="text-gray-600">- {beneficiary.percentage}%</span>
                                 </div>
@@ -703,15 +703,12 @@ export default function AssetDetailsPage() {
                                       {agreement.familyMember.fullName}
                                       <span className="text-muted-foreground ml-1">
                                         {(() => {
-                                          // Debug output to help diagnose the issue
-                                          console.log('Comparing user info:', {
-                                            currentUserEmail: currentUser?.email,
-                                            familyMemberName: agreement.familyMember.fullName,
-                                          });
+                                          // Check if this signature belongs to the current user
+                                          // by comparing the signedById with current user's ID
+                                          const isCurrentUser = currentUser && 
+                                            agreement.signedById === currentUser.id;
                                           
-                                          // For the "you" display, we can check if the current user's full name matches the family member's name
-                                          // This is a more reliable approach than comparing IDs
-                                          return currentUser && agreement.familyMember.fullName === currentUser.name
+                                          return isCurrentUser
                                             ? "(you)" 
                                             : `(${agreement.familyMember.relationship})`;
                                         })()}
@@ -861,7 +858,7 @@ export default function AssetDetailsPage() {
                     <Button
                       onClick={handleSubmit}
                       className="w-full"
-                      disabled={createDistribution.isPending || transactionState !== 'idle'}
+                      disabled={transactionState !== 'idle'}
                     >
                       {transactionState !== 'idle' && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -878,52 +875,84 @@ export default function AssetDetailsPage() {
 
       <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <div className="space-y-6 py-6">
-            <h3 className="text-lg font-medium">Creating Agreement On-Chain</h3>
-            <div className="space-y-4">
+          <div className="space-y-6 py-4">
+            <DialogTitle className="text-center text-xl font-semibold">Creating Agreement</DialogTitle>
+            <div className="space-y-6">
               {progressSteps.map((step, index) => (
                 <div key={index} className="flex items-center gap-3">
-                  {step.status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {step.status === 'completed' && (
-                    <svg
-                      className="h-4 w-4 text-green-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  )}
-                  {step.status === 'error' && (
-                    <svg
-                      className="h-4 w-4 text-destructive"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  )}
-                  <span className={cn(
-                    "text-sm",
-                    step.status === 'completed' && "text-muted-foreground",
-                    step.status === 'error' && "text-destructive"
+                  <div className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
+                    step.status === 'pending' && "border-primary bg-primary/10",
+                    step.status === 'completed' && "border-green-500 bg-green-50",
+                    step.status === 'error' && "border-destructive bg-destructive/10"
                   )}>
-                    {step.step}
-                  </span>
+                    {step.status === 'pending' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                    {step.status === 'completed' && (
+                      <svg
+                        className="h-5 w-5 text-green-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                    {step.status === 'error' && (
+                      <svg
+                        className="h-5 w-5 text-destructive"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className={cn(
+                      "font-medium",
+                      step.status === 'completed' && "text-green-600",
+                      step.status === 'error' && "text-destructive"
+                    )}>
+                      {step.step}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {step.status === 'pending' && "In progress..."}
+                      {step.status === 'completed' && "Completed successfully"}
+                      {step.status === 'error' && "Failed - please try again"}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
+            
+            {progressSteps.every(step => step.status === 'completed') && (
+              <div className="mt-6 text-center">
+                <p className="text-green-600 font-medium">All steps completed successfully!</p>
+              </div>
+            )}
+            
+            {progressSteps.some(step => step.status === 'error') && (
+              <div className="mt-6">
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={() => setIsProgressDialogOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

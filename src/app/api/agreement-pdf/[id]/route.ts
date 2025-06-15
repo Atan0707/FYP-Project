@@ -20,7 +20,7 @@ interface AgreementDetails {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify user authentication
@@ -35,7 +35,7 @@ export async function GET(
     console.log('Fetching distribution data...');
     // Get the distribution and its agreements
     const distribution = await prisma.assetDistribution.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       include: {
         asset: {
           include: {
@@ -51,7 +51,7 @@ export async function GET(
     });
 
     if (!distribution) {
-      console.log('Distribution not found:', params.id);
+      console.log('Distribution not found:', (await params).id);
       return NextResponse.json(
         { error: 'Distribution not found' },
         { status: 404 }
@@ -143,7 +143,7 @@ export async function GET(
       return new NextResponse(pdfBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `inline; filename="agreement-${params.id}.pdf"`,
+          'Content-Disposition': `inline; filename="agreement-${(await params).id}.pdf"`,
         },
       });
     } catch (pdfError) {

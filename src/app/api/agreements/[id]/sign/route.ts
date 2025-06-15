@@ -16,12 +16,26 @@ export async function POST(
     }
 
     const { notes } = await request.json();
-    const signatureId = (await params).id;
+    const agreementId = (await params).id;
 
-    // Find the family signature and its related agreement
+    // Find the user's family IDs
+    const familyIds = (await prisma.family.findMany({
+      where: { userId },
+      select: { id: true },
+    })).map(f => f.id);
+
+    if (familyIds.length === 0) {
+      return NextResponse.json(
+        { error: 'No family members found for this user' },
+        { status: 404 }
+      );
+    }
+
+    // Find the pending signature for this agreement and user's family
     const signature = await prisma.familySignature.findFirst({
       where: {
-        id: signatureId,
+        agreementId: agreementId,
+        familyId: { in: familyIds },
         status: 'pending',
       },
       include: {
@@ -45,28 +59,14 @@ export async function POST(
       );
     }
 
-    // Make sure the user owns this family member
-    const family = await prisma.family.findFirst({
-      where: {
-        id: signature.familyId,
-        userId,
-      },
-    });
-
-    if (!family) {
-      return NextResponse.json(
-        { error: 'You are not authorized to sign this agreement' },
-        { status: 403 }
-      );
-    }
-
     // Update the signature
     const updatedSignature = await prisma.familySignature.update({
-      where: { id: signatureId },
+      where: { id: signature.id },
       data: {
         status: 'signed',
         signedAt: new Date(),
         notes,
+        signedById: userId,
       },
       include: {
         agreement: {

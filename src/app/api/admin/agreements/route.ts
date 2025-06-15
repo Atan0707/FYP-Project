@@ -65,15 +65,13 @@ export async function GET() {
         updatedAt: signature.updatedAt,
       }));
       
-      // Return the first signature/agreement with the full distribution data
+      // Return the agreement data with the full distribution data
       return {
-        ...convertedAgreements[0] || {
-          id: agreement.id,
-          status: status,
-          distributionId: distribution.id,
-          createdAt: agreement.createdAt,
-          updatedAt: agreement.updatedAt,
-        },
+        id: agreement.id, // Use agreement ID instead of signature ID
+        status: status,
+        distributionId: distribution.id,
+        createdAt: agreement.createdAt,
+        updatedAt: agreement.updatedAt,
         distribution: {
           ...distribution,
           // Include all converted agreements for backward compatibility

@@ -29,6 +29,30 @@ export async function getCurrentUser() {
   }
 }
 
+export async function getCurrentAdmin() {
+  const cookieStore = await cookies();
+  const adminId = cookieStore.get('adminId')?.value;
+  
+  if (!adminId) {
+    return null;
+  }
+
+  try {
+    const admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+      select: {
+        id: true,
+        username: true,
+      },
+    });
+    
+    return admin;
+  } catch (error) {
+    console.error('Error fetching admin:', error);
+    return null;
+  }
+}
+
 // Configure your auth providers here
 export const authOptions: AuthOptions = {
   // Add your auth configuration

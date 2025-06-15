@@ -105,11 +105,13 @@ export async function POST(request: Request) {
                   {
                     familyId: allFamilyMembers.find(member => member.userId === userId)?.id || '',
                     status: 'pending',
+                    signedById: userId,
                   },
                   // Create signatures for family members (excluding owner)
                   ...familyMembersWithoutOwner.map((familyMember) => ({
                     familyId: familyMember.id,
                     status: 'pending',
+                    signedById: familyMember.relatedUserId || userId,
                   })),
                 ],
               },

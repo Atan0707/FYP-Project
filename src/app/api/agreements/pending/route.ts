@@ -50,7 +50,7 @@ export async function GET() {
       
       // Create a formatted agreement with the old structure
       return {
-        id: signature.id,
+        id: agreement.id,
         familyId: signature.familyId,
         status: signature.status,
         signedAt: signature.signedAt,
@@ -61,11 +61,12 @@ export async function GET() {
         distribution: {
           ...distribution,
           agreements: agreement.signatures.map(sig => ({
-            id: sig.id,
+            id: agreement.id,
             familyId: sig.familyId,
             status: sig.status,
             signedAt: sig.signedAt,
             notes: sig.notes,
+            signedById: sig.signedById,
             adminSignedAt: agreement.adminSignedAt,
             distributionId: distribution.id,
             createdAt: sig.createdAt,
