@@ -69,6 +69,7 @@ interface Agreement {
   status: string;
   signedAt?: string;
   notes?: string;
+  signedById?: string;
   distributionId: string;
   createdAt: string;
   updatedAt: string;

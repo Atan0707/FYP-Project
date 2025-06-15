@@ -71,6 +71,7 @@ interface Agreement {
   status: string;
   signedAt?: string;
   notes?: string;
+  signedById?: string;
   familyMember?: {
     id: string;
     fullName: string;
@@ -650,10 +651,11 @@ export default function AssetDetailsPage() {
                                 const nameB = b.familyMember?.fullName || b.firstName || '';
                                 return nameA.localeCompare(nameB);
                               })
-                              .map((beneficiary: Beneficiary) => (
-                                <div key={beneficiary.id} className="flex items-center gap-2 mb-2">
+                              .map((beneficiary: Beneficiary, index: number) => (
+                                <div key={beneficiary.id || `beneficiary-${index}`} className="flex items-center gap-2 mb-2">
                                   <span className="font-medium">
-                                    {beneficiary.familyMember?.fullName || 'Unknown'} ({beneficiary.familyMember?.relationship || 'Unknown'})
+                                    {beneficiary.familyMember?.fullName || beneficiary.firstName || 'Unknown'} 
+                                    {beneficiary.familyMember?.relationship && ` (${beneficiary.familyMember.relationship})`}
                                   </span>
                                   <span className="text-gray-600">- {beneficiary.percentage}%</span>
                                 </div>
@@ -701,15 +703,12 @@ export default function AssetDetailsPage() {
                                       {agreement.familyMember.fullName}
                                       <span className="text-muted-foreground ml-1">
                                         {(() => {
-                                          // Debug output to help diagnose the issue
-                                          console.log('Comparing user info:', {
-                                            currentUserEmail: currentUser?.email,
-                                            familyMemberName: agreement.familyMember.fullName,
-                                          });
+                                          // Check if this signature belongs to the current user
+                                          // by comparing the signedById with current user's ID
+                                          const isCurrentUser = currentUser && 
+                                            agreement.signedById === currentUser.id;
                                           
-                                          // For the "you" display, we can check if the current user's full name matches the family member's name
-                                          // This is a more reliable approach than comparing IDs
-                                          return currentUser && agreement.familyMember.fullName === currentUser.name
+                                          return isCurrentUser
                                             ? "(you)" 
                                             : `(${agreement.familyMember.relationship})`;
                                         })()}

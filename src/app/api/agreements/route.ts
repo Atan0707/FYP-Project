@@ -65,6 +65,7 @@ export async function GET() {
             status: sig.status,
             signedAt: sig.signedAt,
             notes: sig.notes,
+            signedById: sig.signedById,
             adminSignedAt: agreement.adminSignedAt,
             distributionId: distribution.id,
             createdAt: sig.createdAt,

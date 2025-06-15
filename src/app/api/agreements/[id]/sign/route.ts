@@ -66,6 +66,7 @@ export async function POST(
         status: 'signed',
         signedAt: new Date(),
         notes,
+        signedById: userId,
       },
       include: {
         agreement: {
