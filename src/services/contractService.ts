@@ -59,9 +59,15 @@ class ContractService {
         throw new Error('Contract not initialized');
       }
 
-      // Call the contract's adminSignAgreement function
-      const tx = await this.contract.adminSignAgreement(tokenId, adminName, notes || '');
+      // Call the contract's adminSignAgreement function with just tokenId and adminName
+      const tx = await this.contract.adminSignAgreement(tokenId, adminName);
       await tx.wait();
+
+      // If notes are provided, add them in a separate transaction
+      if (notes && notes.trim() !== '') {
+        const notesTx = await this.contract.addNotes(tokenId, notes);
+        await notesTx.wait();
+      }
 
       return { success: true };
     } catch (error) {
