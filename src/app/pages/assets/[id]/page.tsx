@@ -25,6 +25,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
@@ -894,52 +895,84 @@ export default function AssetDetailsPage() {
 
       <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <div className="space-y-6 py-6">
-            <h3 className="text-lg font-medium">Creating Agreement On-Chain</h3>
-            <div className="space-y-4">
+          <div className="space-y-6 py-4">
+            <DialogTitle className="text-center text-xl font-semibold">Creating Agreement</DialogTitle>
+            <div className="space-y-6">
               {progressSteps.map((step, index) => (
                 <div key={index} className="flex items-center gap-3">
-                  {step.status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {step.status === 'completed' && (
-                    <svg
-                      className="h-4 w-4 text-green-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  )}
-                  {step.status === 'error' && (
-                    <svg
-                      className="h-4 w-4 text-destructive"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  )}
-                  <span className={cn(
-                    "text-sm",
-                    step.status === 'completed' && "text-muted-foreground",
-                    step.status === 'error' && "text-destructive"
+                  <div className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
+                    step.status === 'pending' && "border-primary bg-primary/10",
+                    step.status === 'completed' && "border-green-500 bg-green-50",
+                    step.status === 'error' && "border-destructive bg-destructive/10"
                   )}>
-                    {step.step}
-                  </span>
+                    {step.status === 'pending' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                    {step.status === 'completed' && (
+                      <svg
+                        className="h-5 w-5 text-green-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                    {step.status === 'error' && (
+                      <svg
+                        className="h-5 w-5 text-destructive"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className={cn(
+                      "font-medium",
+                      step.status === 'completed' && "text-green-600",
+                      step.status === 'error' && "text-destructive"
+                    )}>
+                      {step.step}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {step.status === 'pending' && "In progress..."}
+                      {step.status === 'completed' && "Completed successfully"}
+                      {step.status === 'error' && "Failed - please try again"}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
+            
+            {progressSteps.every(step => step.status === 'completed') && (
+              <div className="mt-6 text-center">
+                <p className="text-green-600 font-medium">All steps completed successfully!</p>
+              </div>
+            )}
+            
+            {progressSteps.some(step => step.status === 'error') && (
+              <div className="mt-6">
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={() => setIsProgressDialogOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
