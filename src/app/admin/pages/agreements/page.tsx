@@ -58,6 +58,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { contractService } from '@/services/contractService';
+import { getCurrentAdmin } from '@/lib/auth';
 
 interface Agreement {
   id: string;
@@ -114,6 +115,16 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
       throw new Error('Blockchain service is not initialized. Please check your environment configuration.');
     }
 
+    // Get the current admin
+    const admin = await getCurrentAdmin();
+    
+    // Check if admin exists
+    if (!admin) {
+      throw new Error('Admin account not found. Please log in again.');
+    }
+    
+    const adminName = admin.username;
+
     // First, get the tokenId from the agreementId using the contract service
     console.log('Agreement ID:', agreementId);
     const tokenIdResponse = await contractService.getTokenIdFromAgreementId(agreementId);
@@ -126,7 +137,7 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
     // Now sign on the smart contract using the tokenId
     const contractResponse = await contractService.adminSignAgreement(
       tokenIdResponse.tokenId,
-      'Admin', // You can replace this with actual admin name from your auth systemgit
+      adminName, // Using the dynamically retrieved admin name
       notes
     );
 
@@ -247,7 +258,19 @@ const AdminAgreements = () => {
       setNotes('');
     },
     onError: (error) => {
-      toast.error('Failed to sign agreement: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('Admin account not found')) {
+        toast.error('Admin account not found. Please log in again.', {
+          duration: 5000,
+          action: {
+            label: 'Login',
+            onClick: () => window.location.href = '/admin/login',
+          },
+        });
+      } else {
+        toast.error('Failed to sign agreement: ' + errorMessage);
+      }
     },
   });
 
