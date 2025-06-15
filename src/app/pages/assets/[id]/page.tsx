@@ -297,7 +297,7 @@ export default function AssetDetailsPage() {
           ...data,
         }),
       });
-      if (!response.ok) throw new Error('Failed to create distribution');
+      if (!response.ok) throw new Error('Failed to create distribution: ' + response.statusText);
       return response.json();
     },
     onSuccess: () => {
