@@ -8,18 +8,25 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Download, Users, AlertCircle, UserCircle2 } from 'lucide-react';
+import { ArrowLeft, Download, Users, AlertCircle, UserCircle2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from "@/components/ui/separator";
+import { ethers, Log } from 'ethers';
+import { createAgreement, addSigner } from '@/lib/agreement';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface FamilyMember {
   id: string;
@@ -149,6 +156,15 @@ export default function AssetDetailsPage() {
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY;
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+  const [transactionState, setTransactionState] = useState<'idle' | 'creating-agreement' | 'adding-signers' | 'saving'>('idle');
+  const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
+  const [progressSteps, setProgressSteps] = useState<{ step: string; status: 'pending' | 'completed' | 'error' }[]>([
+    { step: 'Creating agreement on blockchain', status: 'pending' },
+    { step: 'Adding signers to agreement', status: 'pending' },
+    { step: 'Saving distribution details', status: 'pending' },
+  ]);
 
   // Fetch current user data
   useEffect(() => {
@@ -159,6 +175,8 @@ export default function AssetDetailsPage() {
           const userData = await response.json();
           console.log('Current user data:', userData);
           setCurrentUser(userData);
+          // console.log('Private key:', privateKey);
+          // console.log('RPC URL:', rpcUrl);
         } else {
           console.error('Failed to fetch user data:', response.status);
         }
@@ -169,6 +187,8 @@ export default function AssetDetailsPage() {
     
     fetchCurrentUser();
   }, []);
+  
+  
 
   // Fetch asset details
   const { data: assetDetails, isLoading } = useQuery<Asset>({
@@ -298,7 +318,15 @@ export default function AssetDetailsPage() {
     setSelectedBeneficiaryId('');
   };
 
-  const handleSubmit = () => {
+  const updateProgressStep = (stepIndex: number, status: 'pending' | 'completed' | 'error') => {
+    setProgressSteps(steps => 
+      steps.map((step, index) => 
+        index === stepIndex ? { ...step, status } : step
+      )
+    );
+  };
+
+  const handleSubmit = async () => {
     if (!selectedType) {
       toast.error('Please select a distribution type');
       return;
@@ -315,31 +343,177 @@ export default function AssetDetailsPage() {
       return;
     }
 
-    const data: Distribution = { 
-      type: selectedType,
-      status: 'pending',
-      id: '' // This will be set by the server
-    };
+    try {
+      setIsProgressDialogOpen(true);
+      setTransactionState('creating-agreement');
+      updateProgressStep(0, 'pending');
 
-    // Add type-specific data
-    switch (selectedType) {
-      case 'waqf':
-        if (organization) data.organization = organization;
-        if (notes) data.notes = notes;
-        break;
-      case 'faraid':
-        if (notes) data.notes = notes;
-        break;
-      case 'hibah':
-        data.beneficiaries = [{ id: selectedBeneficiaryId, percentage: 100 }];
-        if (notes) data.notes = notes;
-        break;
-      case 'will':
-        data.notes = notes;
-        break;
+      // First create the distribution and agreement in the database
+      const response = await fetch('/api/asset-distribution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: selectedType,
+          notes: notes,
+          assetId: assetDetails!.id,
+          beneficiaries: selectedType === 'hibah' ? [{ familyId: selectedBeneficiaryId, percentage: 100 }] : undefined,
+          organization: selectedType === 'waqf' ? organization : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create distribution');
+      }
+
+      const distribution = await response.json();
+      const agreementId = distribution.agreement.id; // Use the database-generated ID
+
+      // Create a provider and signer
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const signer = new ethers.Wallet(privateKey!, provider);
+
+      // Create the agreement on the blockchain using the database ID
+      const tx = await createAgreement(
+        signer,
+        agreementId,
+        assetDetails!.name,
+        assetDetails!.type,
+        assetDetails!.value,
+        selectedType,
+        'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreier5qlxlholbixx2vkgnp3ics2u7cvhmnmtkgeoovfdporvh35feu'
+      );
+
+      // Find the AgreementCreated event and get the tokenId
+      const agreementCreatedEvent = tx.logs.find(
+        (log: Log) => log.topics[0] === ethers.id(
+          "AgreementCreated(uint256,string,address,string)"
+        )
+      );
+
+      if (!agreementCreatedEvent) {
+        throw new Error('Failed to get tokenId from transaction receipt');
+      }
+
+      // Get the tokenId from the event (it's the first indexed parameter)
+      const tokenId = Number(agreementCreatedEvent.topics[1]);
+      console.log('Token ID:', tokenId); // Debug log
+
+      updateProgressStep(0, 'completed');
+      setTransactionState('adding-signers');
+      updateProgressStep(1, 'pending');
+
+      // Prepare signers based on the distribution type
+      let signersToAdd: Array<{ name: string; ic: string }> = [];
+
+      if (selectedType === 'hibah' && selectedBeneficiaryId) {
+        const beneficiary = familyMembers.find(m => m.id === selectedBeneficiaryId);
+        if (beneficiary) {
+          signersToAdd.push({
+            name: beneficiary.fullName,
+            ic: beneficiary.relatedUserId
+          });
+        }
+      } else if (selectedType === 'faraid' || selectedType === 'will') {
+        signersToAdd = familyMembers.map(member => ({
+          name: member.fullName,
+          ic: member.relatedUserId
+        }));
+      }
+
+      console.log('Signers to add:', signersToAdd); // Debug log
+
+      // Add each signer individually
+      for (const signerData of signersToAdd) {
+        try {
+          console.log('Adding signer:', signerData); // Debug log
+          const receipt = await addSigner(
+            signer,
+            tokenId,
+            signerData.name,
+            signerData.ic
+          );
+
+          // Find the SignerAdded event
+          const signerAddedEvent = receipt.logs.find(
+            (log: Log) => log.topics[0] === ethers.id(
+              "SignerAdded(uint256,string,string)"
+            )
+          );
+
+          if (!signerAddedEvent) {
+            throw new Error(`Failed to add signer ${signerData.name}`);
+          }
+
+          console.log('Signer added successfully:', signerData.name); // Debug log
+        } catch (error) {
+          console.error('Error adding signer:', signerData.name, error);
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      updateProgressStep(1, 'completed');
+      setTransactionState('saving');
+      updateProgressStep(2, 'pending');
+
+      // Create the distribution in the database
+      const data: Distribution = {
+        type: selectedType,
+        status: 'pending',
+        id: ''
+      };
+
+      // Add type-specific data
+      switch (selectedType) {
+        case 'waqf':
+          if (organization) data.organization = organization;
+          if (notes) data.notes = notes;
+          break;
+        case 'faraid':
+          if (notes) data.notes = notes;
+          break;
+        case 'hibah':
+          data.beneficiaries = [{ id: selectedBeneficiaryId, percentage: 100 }];
+          if (notes) data.notes = notes;
+          break;
+        case 'will':
+          data.notes = notes;
+          break;
+      }
+
+      createDistribution.mutate(data);
+      updateProgressStep(2, 'completed');
+      
+      // Keep the dialog open for a moment to show completion
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setIsProgressDialogOpen(false);
+      setTransactionState('idle');
+    } catch (error) {
+      console.error('Error creating distribution:', error);
+      // Find the current step and mark it as error
+      const currentStepIndex = progressSteps.findIndex(step => step.status === 'pending');
+      if (currentStepIndex !== -1) {
+        updateProgressStep(currentStepIndex, 'error');
+      }
+      toast.error('Failed to create distribution: ' + (error as Error).message);
+      // Keep the dialog open to show the error state
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      setIsProgressDialogOpen(false);
+      setTransactionState('idle');
     }
+  };
 
-    createDistribution.mutate(data);
+  const getSubmitButtonText = () => {
+    switch (transactionState) {
+      case 'creating-agreement':
+        return 'Creating Agreement on Blockchain...';
+      case 'adding-signers':
+        return 'Adding Signers...';
+      case 'saving':
+        return 'Saving Distribution...';
+      default:
+        return 'Submit Distribution';
+    }
   };
 
   if (isLoading) {
@@ -687,9 +861,12 @@ export default function AssetDetailsPage() {
                     <Button
                       onClick={handleSubmit}
                       className="w-full"
-                      disabled={createDistribution.isPending}
+                      disabled={createDistribution.isPending || transactionState !== 'idle'}
                     >
-                      {createDistribution.isPending ? 'Submitting...' : 'Submit Distribution'}
+                      {transactionState !== 'idle' && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      {getSubmitButtonText()}
                     </Button>
                   )}
                 </div>
@@ -698,6 +875,58 @@ export default function AssetDetailsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <div className="space-y-6 py-6">
+            <h3 className="text-lg font-medium">Creating Agreement On-Chain</h3>
+            <div className="space-y-4">
+              {progressSteps.map((step, index) => (
+                <div key={index} className="flex items-center gap-3">
+                  {step.status === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {step.status === 'completed' && (
+                    <svg
+                      className="h-4 w-4 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                  {step.status === 'error' && (
+                    <svg
+                      className="h-4 w-4 text-destructive"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  )}
+                  <span className={cn(
+                    "text-sm",
+                    step.status === 'completed' && "text-muted-foreground",
+                    step.status === 'error' && "text-destructive"
+                  )}>
+                    {step.step}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -3,7 +3,13 @@ import TerserPlugin from "terser-webpack-plugin";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  experimental: {
+    turbo: {
+    }
+  },
   webpack: (config, { isServer, dev }) => {
+    // Only apply webpack config when not using Turbopack
+    // Turbopack is used in development when --turbopack flag is present
     if(!dev) {
       if (!isServer) {
         config.resolve.fallback = {
@@ -24,6 +30,8 @@ const nextConfig: NextConfig = {
     }
     return config;
   }
+  // Turbopack experimental options (for development)
+  
 };
 
 export default nextConfig;

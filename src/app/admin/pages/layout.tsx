@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings, LogOut, FileText } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, FileText, Gavel } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { adminLogout } from "../actions";
@@ -69,7 +69,7 @@ export default function AdminLayout({
       label: "Assets Approval",
       href: "/admin/pages/assets-approval",
       icon: (
-        <FileText className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <Gavel className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
     {

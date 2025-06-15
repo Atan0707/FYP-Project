@@ -60,6 +60,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { contractService } from '@/services/contractService';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus } from 'lucide-react';
 
 interface Agreement {
   id: string;
@@ -106,16 +115,6 @@ const fetchMyAgreements = async () => {
   return response.json();
 };
 
-const signAgreement = async ({ id, notes }: { id: string; notes?: string }) => {
-  const response = await fetch(`/api/agreements/${id}/sign`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ notes }),
-  });
-  if (!response.ok) throw new Error('Failed to sign agreement');
-  return response.json();
-};
-
 const rejectAgreement = async ({ id, notes }: { id: string; notes?: string }) => {
   const response = await fetch(`/api/agreements/${id}/reject`, {
     method: 'POST',
@@ -133,11 +132,23 @@ export default function AgreementsPage() {
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [notes, setNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [signerIC, setSignerIC] = useState('');
+
+  // Form state for creating agreement
+  const [newAgreement, setNewAgreement] = useState({
+    agreementId: '',
+    assetName: '',
+    assetType: '',
+    assetValue: '',
+    distributionType: '',
+    signers: [{ name: '', ic: '' }]
+  });
 
   // Queries
   const { data: pendingAgreements = [], isLoading: isPendingLoading, refetch: refetchPending } = useQuery({
@@ -152,9 +163,28 @@ export default function AgreementsPage() {
 
   // Mutations
   const signMutation = useMutation({
-    mutationFn: signAgreement,
+    mutationFn: async ({ agreementId, signerIC }: { agreementId: string; signerIC: string }) => {
+      if (!contractService) {
+        throw new Error('Contract service not initialized');
+      }
+
+      // First get the tokenId from the agreementId
+      const tokenResult = await contractService.getTokenIdFromAgreementId(agreementId);
+      console.log('Token result:', tokenResult);
+      if (!tokenResult.success || !tokenResult.tokenId) {
+        throw new Error(tokenResult.error || 'Failed to get token ID');
+      }
+
+      // Then sign the agreement with the tokenId
+      const result = await contractService.signAgreement(tokenResult.tokenId, signerIC);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to sign agreement');
+      }
+
+      return result;
+    },
     onSuccess: async () => {
-      // Force refetch both queries to ensure data is up-to-date
+      // Refetch both queries to update the UI
       await Promise.all([
         refetchPending(),
         refetchMyAgreements()
@@ -170,6 +200,7 @@ export default function AgreementsPage() {
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
       setNotes('');
+      setSignerIC('');
     },
     onError: (error) => {
       const message = 'Failed to sign agreement: ' + (error as Error).message;
@@ -205,11 +236,89 @@ export default function AgreementsPage() {
     },
   });
 
+  // Create Agreement Mutation
+  const createAgreementMutation = useMutation({
+    mutationFn: async (data: {
+      agreementId: string;
+      assetName: string;
+      assetType: string;
+      assetValue: number;
+      distributionType: string;
+      signers: Array<{ name: string; ic: string }>;
+    }) => {
+      if (!contractService) {
+        throw new Error('Contract service not initialized');
+      }
+      console.log('Creating agreement with data:', data);
+      console.log('Number of signers:', data.signers.length);
+      console.log('Signers:', data.signers);
+
+      // First create the agreement
+      const result = await contractService.createAgreement(
+        data.agreementId,
+        data.assetName,
+        data.assetType,
+        data.assetValue,
+        data.distributionType,
+        'ipfs://' // TODO: Add actual IPFS metadata URI
+      );
+
+      if (!result.success || !result.tokenId) {
+        throw new Error(result.error || 'Failed to create agreement');
+      }
+
+      // Then add all signers
+      console.log('Adding signers for token:', result.tokenId);
+      for (const signer of data.signers) {
+        console.log('Adding signer:', signer);
+        const signerResult = await contractService.addSigner(
+          result.tokenId,
+          signer.name,
+          signer.ic
+        );
+
+        if (!signerResult.success) {
+          throw new Error(signerResult.error || 'Failed to add signer');
+        }
+      }
+
+      return result.tokenId;
+    },
+    onSuccess: async () => {
+      // Refetch both queries to update the UI
+      await Promise.all([
+        refetchPending(),
+        refetchMyAgreements()
+      ]);
+      
+      queryClient.invalidateQueries({ queryKey: ['pendingAgreements'] });
+      queryClient.invalidateQueries({ queryKey: ['myAgreements'] });
+      
+      const message = `Agreement created successfully`;
+      toast.success(message);
+      addNotification(message, 'success');
+      
+      setIsCreateDialogOpen(false);
+      resetNewAgreementForm();
+    },
+    onError: (error) => {
+      const message = 'Failed to create agreement: ' + (error as Error).message;
+      toast.error(message);
+      addNotification(message, 'error');
+    },
+  });
+
   const handleSign = () => {
     if (!selectedAgreement) return;
+    
+    if (!signerIC) {
+      toast.error('Please enter your IC number');
+      return;
+    }
+
     signMutation.mutate({
-      id: selectedAgreement.id,
-      notes: notes || undefined,
+      agreementId: selectedAgreement.id,
+      signerIC,
     });
   };
 
@@ -218,6 +327,53 @@ export default function AgreementsPage() {
     rejectMutation.mutate({
       id: selectedAgreement.id,
       notes: notes || undefined,
+    });
+  };
+
+  const handleCreateAgreement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const assetValue = parseFloat(newAgreement.assetValue);
+    if (isNaN(assetValue)) {
+      toast.error('Please enter a valid asset value');
+      return;
+    }
+
+    if (newAgreement.signers.length === 0) {
+      toast.error('Please add at least one signer');
+      return;
+    }
+
+    if (newAgreement.signers.some(signer => !signer.name || !signer.ic)) {
+      toast.error('Please fill in all signer details');
+      return;
+    }
+
+    // Log the data before mutation
+    console.log('Agreement data before mutation:', {
+      ...newAgreement,
+      assetValue,
+      signers: newAgreement.signers
+    });
+
+    createAgreementMutation.mutate({
+      agreementId: newAgreement.agreementId,
+      assetName: newAgreement.assetName,
+      assetType: newAgreement.assetType,
+      assetValue,
+      distributionType: newAgreement.distributionType,
+      signers: newAgreement.signers
+    });
+  };
+
+  const resetNewAgreementForm = () => {
+    setNewAgreement({
+      agreementId: '',
+      assetName: '',
+      assetType: '',
+      assetValue: '',
+      distributionType: '',
+      signers: [{ name: '', ic: '' }]
     });
   };
 
@@ -449,6 +605,30 @@ export default function AgreementsPage() {
     setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
   };
 
+  // Add and remove signer functions
+  const addSigner = () => {
+    setNewAgreement(prev => ({
+      ...prev,
+      signers: [...prev.signers, { name: '', ic: '' }]
+    }));
+  };
+
+  const removeSigner = (index: number) => {
+    setNewAgreement(prev => ({
+      ...prev,
+      signers: prev.signers.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateSigner = (index: number, field: 'name' | 'ic', value: string) => {
+    setNewAgreement(prev => ({
+      ...prev,
+      signers: prev.signers.map((signer, i) => 
+        i === index ? { ...signer, [field]: value } : signer
+      )
+    }));
+  };
+
   if (isPendingLoading || isMyLoading) {
     return (
       <div className="container mx-auto py-10">
@@ -468,6 +648,13 @@ export default function AgreementsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Agreements</h1>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create Agreement
+          </Button>
           <NotificationBell />
         </div>
       </div>
@@ -771,6 +958,21 @@ export default function AgreementsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label htmlFor="signerIC">IC Number <span className="text-red-500">*</span></Label>
+              <Input
+                id="signerIC"
+                value={signerIC}
+                onChange={(e) => setSignerIC(e.target.value)}
+                placeholder="Enter your IC number"
+                required
+              />
+              {signerIC.length === 0 && (
+                <p className="text-sm text-red-500 mt-1">
+                  IC number is required to sign the agreement
+                </p>
+              )}
+            </div>
+            <div>
               <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
                 id="notes"
@@ -781,10 +983,20 @@ export default function AgreementsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSignDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsSignDialogOpen(false);
+                setSignerIC('');
+                setNotes('');
+              }}
+            >
               Cancel
             </Button>
-            <Button onClick={handleSign} disabled={signMutation.isPending}>
+            <Button
+              onClick={handleSign}
+              disabled={signMutation.isPending || !signerIC}
+            >
               {signMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -936,6 +1148,158 @@ export default function AgreementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Agreement Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create New Agreement</DialogTitle>
+            <DialogDescription>
+              Fill in the details to create a new agreement and add signers.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateAgreement}>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="agreementId">Agreement ID</Label>
+                <Input
+                  id="agreementId"
+                  value={newAgreement.agreementId}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, agreementId: e.target.value }))}
+                  placeholder="AGR-001"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assetName">Asset Name</Label>
+                <Input
+                  id="assetName"
+                  value={newAgreement.assetName}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, assetName: e.target.value }))}
+                  placeholder="My House"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assetType">Asset Type</Label>
+                <Input
+                  id="assetType"
+                  value={newAgreement.assetType}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, assetType: e.target.value }))}
+                  placeholder="Real Estate"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="assetValue">Asset Value (RM)</Label>
+                <Input
+                  id="assetValue"
+                  type="number"
+                  value={newAgreement.assetValue}
+                  onChange={(e) => setNewAgreement(prev => ({ ...prev, assetValue: e.target.value }))}
+                  placeholder="500000"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="distributionType">Distribution Type</Label>
+                <Select
+                  value={newAgreement.distributionType}
+                  onValueChange={(value) => setNewAgreement(prev => ({ ...prev, distributionType: value }))}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select distribution type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="will">Will</SelectItem>
+                    <SelectItem value="hibah">Hibah</SelectItem>
+                    <SelectItem value="waqf">Waqf</SelectItem>
+                    <SelectItem value="faraid">Faraid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label>Signers</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addSigner}
+                    className="h-8"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Signer
+                  </Button>
+                </div>
+                
+                {newAgreement.signers.map((signer, index) => (
+                  <div key={index} className="space-y-2 p-4 border rounded-lg relative">
+                    <div className="absolute right-2 top-2">
+                      {index > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeSigner(index)}
+                          className="h-8 text-destructive hover:text-destructive"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div>
+                      <Label>Name</Label>
+                      <Input
+                        value={signer.name}
+                        onChange={(e) => updateSigner(index, 'name', e.target.value)}
+                        placeholder="John Doe"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>IC Number</Label>
+                      <Input
+                        value={signer.ic}
+                        onChange={(e) => updateSigner(index, 'ic', e.target.value)}
+                        placeholder="123456"
+                        required
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsCreateDialogOpen(false);
+                  resetNewAgreementForm();
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createAgreementMutation.isPending}
+              >
+                {createAgreementMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Agreement'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

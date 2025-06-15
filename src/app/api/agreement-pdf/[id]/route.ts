@@ -14,6 +14,7 @@ interface AgreementDetails {
     id: string;
     fullName: string;
     relationship: string;
+    ic: string;
   };
 }
 
@@ -36,7 +37,11 @@ export async function GET(
     const distribution = await prisma.assetDistribution.findUnique({
       where: { id: params.id },
       include: {
-        asset: true,
+        asset: {
+          include: {
+            user: true, // Include the asset owner (benefactor)
+          },
+        },
         agreement: {
           include: {
             signatures: true,
@@ -89,6 +94,7 @@ export async function GET(
           id: familyMember.id,
           fullName: familyMember.fullName,
           relationship: familyMember.relationship,
+          ic: familyMember.ic,
         } : undefined
       };
     }) || [];
@@ -118,6 +124,8 @@ export async function GET(
             distributionType: distribution.type,
             agreements: agreementsWithDetails,
             createdAt: distribution.createdAt.toISOString(),
+            benefactorName: distribution.asset.user.fullName,
+            benefactorIC: distribution.asset.user.ic,
           })
         )
       );
