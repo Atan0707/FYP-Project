@@ -107,17 +107,26 @@ const fetchAllAgreements = async () => {
   return response.json();
 };
 
-const signAdminAgreement = async ({ distributionId, notes }: { distributionId: string; notes?: string }) => {
+const signAdminAgreement = async ({ distributionId, notes, agreementId }: { distributionId: string; notes?: string; agreementId: string }) => {
   try {
     // Check if contract service is initialized
     if (!contractService) {
       throw new Error('Blockchain service is not initialized. Please check your environment configuration.');
     }
 
-    // First, sign on the smart contract
+    // First, get the tokenId from the agreementId using the contract service
+    console.log('Agreement ID:', agreementId);
+    const tokenIdResponse = await contractService.getTokenIdFromAgreementId(agreementId);
+    console.log('Token ID Response:', tokenIdResponse);
+    
+    if (!tokenIdResponse.success || !tokenIdResponse.tokenId) {
+      throw new Error(tokenIdResponse.error || 'Failed to get token ID from agreement ID');
+    }
+
+    // Now sign on the smart contract using the tokenId
     const contractResponse = await contractService.adminSignAgreement(
-      distributionId, // Using distributionId as tokenId
-      'Admin', // You can replace this with actual admin name from your auth system
+      tokenIdResponse.tokenId,
+      'Admin', // You can replace this with actual admin name from your auth systemgit
       notes
     );
 
@@ -152,9 +161,9 @@ const AdminAgreements = () => {
 
   // useEffect(() => {
   //   const data  = fetchAllAgreements();
-  //   // console.log(data)
+  //   console.log("All agreements", data)
   //   const data2 = fetchPendingAdminAgreements();
-  //   console.log(data2)
+  //   console.log("Pending admin agreements", data2)
   // })
 
   // Queries
@@ -276,6 +285,10 @@ const AdminAgreements = () => {
       progress,
     };
   };
+
+  useEffect(() => {
+    console.log("Selected agreement", selectedAgreement)
+  }, [selectedAgreement])
 
   const getStatusBadge = (status: string, context: 'signature' | 'agreement' = 'agreement') => {
     switch (status) {
@@ -734,6 +747,7 @@ const AdminAgreements = () => {
               onClick={() => signMutation.mutate({
                 distributionId: selectedAgreement?.distributionId || '',
                 notes: notes || undefined,
+                agreementId: selectedAgreement?.id || '',
               })} 
               className="bg-green-600 hover:bg-green-700"
               disabled={signMutation.isPending || !isConfirmed}
