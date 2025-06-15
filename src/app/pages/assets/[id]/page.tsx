@@ -83,6 +83,10 @@ interface User {
   id: string;
   name: string;
   email: string;
+  ic?: string;
+  phone?: string;
+  address?: string;
+  photo?: string;
 }
 
 const distributionTypes = [
@@ -384,6 +388,17 @@ export default function AssetDetailsPage() {
       // Prepare signers based on the distribution type
       let signersToAdd: Array<{ name: string; ic: string }> = [];
 
+      // First add the current user as a signer if they have the required data
+      if (currentUser && currentUser.name && currentUser.ic) {
+        signersToAdd.push({
+          name: currentUser.name,
+          ic: currentUser.ic
+        });
+      } else {
+        console.warn('Current user data is incomplete or missing, cannot add as signer');
+      }
+
+      // Then add family members based on distribution type
       if (selectedType === 'hibah' && selectedBeneficiaryId) {
         const beneficiary = familyMembers.find(m => m.id === selectedBeneficiaryId);
         if (beneficiary) {
@@ -393,16 +408,22 @@ export default function AssetDetailsPage() {
           });
         }
       } else if (selectedType === 'faraid' || selectedType === 'will') {
-        signersToAdd = familyMembers.map(member => ({
-          name: member.fullName,
-          ic: member.ic
-        }));
+        signersToAdd = [
+          ...signersToAdd,
+          ...familyMembers.map(member => ({
+            name: member.fullName,
+            ic: member.ic
+          }))
+        ];
       } else if (selectedType === 'waqf') {
         // For waqf, we need to add all family members as signers
-        signersToAdd = familyMembers.map(member => ({
-          name: member.fullName,
-          ic: member.ic
-        }));
+        signersToAdd = [
+          ...signersToAdd,
+          ...familyMembers.map(member => ({
+            name: member.fullName,
+            ic: member.ic
+          }))
+        ];
       }
 
       console.log('Signers to add:', signersToAdd); // Debug log
