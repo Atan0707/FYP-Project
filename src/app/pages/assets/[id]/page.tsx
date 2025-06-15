@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -287,32 +287,7 @@ export default function AssetDetailsPage() {
     enabled: selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf',
   });
 
-  // Create distribution mutation
-  const createDistribution = useMutation({
-    mutationFn: async (data: Distribution) => {
-      const response = await fetch('/api/asset-distribution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          assetId: params.id,
-          ...data,
-        }),
-      });
-      if (!response.ok) throw new Error('Failed to create distribution: ' + response.statusText);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['asset', params.id] });
-      toast.success('Distribution type set successfully');
-      // Reset form
-      setNotes('');
-      setOrganization('');
-      setSelectedBeneficiaryId('');
-    },
-    onError: (error) => {
-      toast.error('Failed to set distribution type: ' + error.message);
-    },
-  });
+  // We'll handle distribution creation directly in the handleSubmit function
 
   const handleDistributionSelect = (type: string) => {
     setSelectedType(type);
@@ -352,7 +327,7 @@ export default function AssetDetailsPage() {
       setTransactionState('creating-agreement');
       updateProgressStep(0, 'pending');
 
-      // First create the distribution and agreement in the database
+      // First create the distribution and agreement in the database to get an ID
       const response = await fetch('/api/asset-distribution', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -366,11 +341,11 @@ export default function AssetDetailsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create distribution');
+        throw new Error('Failed to create distribution in database');
       }
 
       const distribution = await response.json();
-      const agreementId = distribution.agreement.id; // Use the database-generated ID
+      const agreementId = distribution.agreement.id; // Get the database-generated ID
 
       // Create a provider and signer
       const provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -472,34 +447,19 @@ export default function AssetDetailsPage() {
       updateProgressStep(1, 'completed');
       setTransactionState('saving');
       updateProgressStep(2, 'pending');
-
-      // Create the distribution in the database
-      const data: Distribution = {
-        type: selectedType,
-        status: 'pending',
-        id: ''
-      };
-
-      // Add type-specific data
-      switch (selectedType) {
-        case 'waqf':
-          if (organization) data.organization = organization;
-          if (notes) data.notes = notes;
-          break;
-        case 'faraid':
-          if (notes) data.notes = notes;
-          break;
-        case 'hibah':
-          data.beneficiaries = [{ id: selectedBeneficiaryId, percentage: 100 }];
-          if (notes) data.notes = notes;
-          break;
-        case 'will':
-          data.notes = notes;
-          break;
-      }
-
-      createDistribution.mutate(data);
+      
+      // The distribution is already created in the database, so we just need to
+      // invalidate the query to refresh the UI with the new data
+      queryClient.invalidateQueries({ queryKey: ['asset', params.id] });
       updateProgressStep(2, 'completed');
+      
+      // Reset form
+      setNotes('');
+      setOrganization('');
+      setSelectedBeneficiaryId('');
+      
+      // Show success message
+      toast.success('Distribution type set successfully');
       
       // Keep the dialog open for a moment to show completion
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -878,7 +838,7 @@ export default function AssetDetailsPage() {
                     <Button
                       onClick={handleSubmit}
                       className="w-full"
-                      disabled={createDistribution.isPending || transactionState !== 'idle'}
+                      disabled={transactionState !== 'idle'}
                     >
                       {transactionState !== 'idle' && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
