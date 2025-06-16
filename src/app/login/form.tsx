@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useRouter } from 'next/navigation';
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -26,6 +28,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 export default function LoginForm() {
   const [error, setError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -36,6 +39,9 @@ export default function LoginForm() {
   });
 
   async function onSubmit(values: FormValues) {
+    setError('');
+    setIsLoading(true);
+    
     try {
       const formData = new FormData();
       Object.entries(values).forEach(([key, value]) => {
@@ -43,14 +49,29 @@ export default function LoginForm() {
       });
 
       const result = await login(formData);
+      
       if (result.error) {
         setError(result.error);
+        toast.error("Login failed", {
+          description: result.error,
+          duration: 5000
+        });
       } else {
-        router.push('/pages/dashboard');
+        toast.success("Login successful");
+        // Small delay to show the success toast before redirecting
+        setTimeout(() => {
+          router.push('/pages/dashboard');
+        }, 1000);
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
+      toast.error("Login failed", {
+        description: "Something went wrong. Please try again.",
+        duration: 5000
+      });
       console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -64,7 +85,7 @@ export default function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="your.email@example.com" {...field} />
+                <Input type="email" placeholder="your.email@example.com" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -78,7 +99,7 @@ export default function LoginForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="Enter your password" {...field} />
+                <Input type="password" placeholder="Enter your password" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -89,8 +110,15 @@ export default function LoginForm() {
           <div className="text-red-500 text-sm">{error}</div>
         )}
 
-        <Button type="submit" className="w-full">
-          Log In
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Logging in...
+            </>
+          ) : (
+            "Log In"
+          )}
         </Button>
       </form>
     </Form>
