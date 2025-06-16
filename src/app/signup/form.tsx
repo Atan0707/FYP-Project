@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useRouter } from 'next/navigation';
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
@@ -31,8 +33,18 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Function to convert string to Title Case
+const toTitleCase = (str: string): string => {
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export default function SignUpForm() {
   const [error, setError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const router = useRouter();
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -46,21 +58,39 @@ export default function SignUpForm() {
   });
 
   async function onSubmit(values: FormValues) {
+    setError('');
+    setIsLoading(true);
+    
     try {
       const formData = new FormData();
-      Object.entries(values).forEach(([key, value]) => {
-        formData.append(key, value);
-      });
+      
+      // Convert fullName to Title Case
+      const titleCaseName = toTitleCase(values.fullName);
+      
+      // Add all form values to formData, with fullName in Title Case
+      formData.append('fullName', titleCaseName);
+      formData.append('email', values.email);
+      formData.append('ic', values.ic);
+      formData.append('phone', values.phone);
+      formData.append('password', values.password);
 
       const result = await signUp(formData);
       if (result.error) {
         setError(result.error);
+        toast.error("Sign up failed");
       } else {
-        router.push('/login');
+        toast.success("Account created successfully");
+        // Small delay to show the success toast before redirecting
+        setTimeout(() => {
+          router.push('/login');
+        }, 1000);
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
+      toast.error("Sign up failed");
       console.error('Signup error:', error);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -74,7 +104,7 @@ export default function SignUpForm() {
             <FormItem>
               <FormLabel>Full Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your full name" {...field} />
+                <Input placeholder="Enter your full name" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -88,7 +118,7 @@ export default function SignUpForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="your.email@example.com" {...field} />
+                <Input type="email" placeholder="your.email@example.com" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -102,7 +132,7 @@ export default function SignUpForm() {
             <FormItem>
               <FormLabel>IC Number</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your IC number" {...field} />
+                <Input placeholder="Enter your IC number" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -116,7 +146,7 @@ export default function SignUpForm() {
             <FormItem>
               <FormLabel>Phone Number</FormLabel>
               <FormControl>
-                <Input type="tel" placeholder="Enter your phone number" {...field} />
+                <Input type="tel" placeholder="Enter your phone number" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -130,7 +160,7 @@ export default function SignUpForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="Create a strong password" {...field} />
+                <Input type="password" placeholder="Create a strong password" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -141,8 +171,15 @@ export default function SignUpForm() {
           <div className="text-red-500 text-sm">{error}</div>
         )}
 
-        <Button type="submit" className="w-full">
-          Sign Up
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Signing up...
+            </>
+          ) : (
+            "Sign Up"
+          )}
         </Button>
       </form>
     </Form>

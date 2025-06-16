@@ -52,10 +52,7 @@ export default function LoginForm() {
       
       if (result.error) {
         setError(result.error);
-        toast.error("Login failed", {
-          description: result.error,
-          duration: 5000
-        });
+        toast.error("Login failed");
       } else {
         toast.success("Login successful");
         // Small delay to show the success toast before redirecting
@@ -65,10 +62,7 @@ export default function LoginForm() {
       }
     } catch (error) {
       setError('Something went wrong. Please try again.');
-      toast.error("Login failed", {
-        description: "Something went wrong. Please try again.",
-        duration: 5000
-      });
+      toast.error("Login failed");
       console.error('Login error:', error);
     } finally {
       setIsLoading(false);
