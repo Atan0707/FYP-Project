@@ -10,21 +10,21 @@ async function main() {
       email: 'atan@gmail.com',
       password: 'atan1234',
       fullName: 'Atan',
-      ic: '01',
+      ic: '010101010101',
       phone: '0123456789',
     },
     {
       email: 'jamal@gmail.com',
       password: 'jamal1234',
       fullName: 'Jamal',
-      ic: '02',
+      ic: '020202020202',
       phone: '0123456789',
     },
     {
       email: 'zain@gmail.com',
       password: 'zain1234',
       fullName: 'Zain',
-      ic: '03',
+      ic: '030303030303',
     },
   ];
 
