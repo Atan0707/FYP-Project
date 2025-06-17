@@ -25,6 +25,7 @@ async function main() {
       password: 'zain1234',
       fullName: 'Zain',
       ic: '030303030303',
+      phone: '0123456789',
     },
   ];
 

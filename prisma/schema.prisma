@@ -111,6 +111,7 @@ model Agreement {
   status        String   @default("pending") // pending, in_progress, pending_admin, completed, rejected
   adminSignedAt DateTime?
   adminNotes    String?
+  transactionHash String?
   // Reference to the asset distribution
   distribution  AssetDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
   distributionId String  @unique
