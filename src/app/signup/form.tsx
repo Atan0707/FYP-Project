@@ -22,7 +22,36 @@ import { Loader2 } from "lucide-react";
 const formSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   email: z.string().email("Invalid email address"),
-  ic: z.string().min(1, "IC number is required"),
+  ic: z.string()
+    .min(1, "IC number is required")
+    .refine(
+      (value) => {
+        // Malaysian IC format: YYMMDD-PB-###G (12 digits with or without dashes)
+        const cleanedValue = value.replace(/-/g, '');
+        
+        // Check if it's 12 digits
+        if (!/^\d{12}$/.test(cleanedValue)) return false;
+        
+        // Extract date part (first 6 digits)
+        const year = parseInt(cleanedValue.substring(0, 2));
+        const month = parseInt(cleanedValue.substring(2, 4));
+        const day = parseInt(cleanedValue.substring(4, 6));
+        
+        // Validate date
+        const currentYear = new Date().getFullYear() % 100;
+        const century = year > currentYear ? 1900 : 2000;
+        const fullYear = century + year;
+        
+        const date = new Date(fullYear, month - 1, day);
+        const isValidDate = date.getFullYear() === fullYear && 
+                            date.getMonth() === month - 1 && 
+                            date.getDate() === day;
+        
+        // Month should be between 1-12, day should be valid for the month
+        return month >= 1 && month <= 12 && isValidDate;
+      },
+      "Please enter a valid Malaysian IC number"
+    ),
   phone: z.string().min(1, "Phone number is required"),
   password: z.string()
     .min(8, "Password must be at least 8 characters")
@@ -134,6 +163,9 @@ export default function SignUpForm() {
               <FormControl>
                 <Input placeholder="Enter your IC number" {...field} disabled={isLoading} />
               </FormControl>
+              <div className="text-xs text-muted-foreground">
+                Enter your Malaysian IC number (with or without dashes)
+              </div>
               <FormMessage />
             </FormItem>
           )}
