@@ -136,7 +136,12 @@ export async function GET(
       
       formattedDistribution = {
         ...distribution,
-        agreements
+        agreements,
+        agreement: distribution.agreement ? {
+          id: distribution.agreement.id,
+          status: distribution.agreement.status,
+          transactionHash: distribution.agreement.transactionHash
+        } : undefined
       };
     }
     

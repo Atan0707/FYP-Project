@@ -52,6 +52,11 @@ interface Distribution {
   beneficiaries?: Beneficiary[];
   organization?: string;
   agreements?: Agreement[];
+  agreement?: {
+    id: string;
+    status: string;
+    transactionHash?: string;
+  };
 }
 
 interface Asset {
@@ -204,6 +209,19 @@ export default function AssetDetailsPage() {
       const response = await fetch(`/api/asset/${params.id}`);
       if (!response.ok) throw new Error('Failed to fetch asset');
       const data = await response.json();
+      
+      // If we have a distribution with an agreement, fetch the agreement details
+      if (data.distribution?.id) {
+        try {
+          const agreementResponse = await fetch(`/api/agreements/${data.distribution.id}`);
+          if (agreementResponse.ok) {
+            const agreementData = await agreementResponse.json();
+            data.distribution.agreement = agreementData;
+          }
+        } catch (error) {
+          console.error('Error fetching agreement details:', error);
+        }
+      }
       
       // Fetch family member details for agreements
       if (data.distribution?.agreements?.length > 0) {
@@ -366,6 +384,21 @@ export default function AssetDetailsPage() {
         selectedType,
         'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreier5qlxlholbixx2vkgnp3ics2u7cvhmnmtkgeoovfdporvh35feu'
       );
+
+      // Store the transaction hash in the database
+      const transactionHash = tx.hash;
+      console.log('Transaction Hash:', transactionHash);
+      
+      // Update the agreement with the transaction hash
+      const updateResponse = await fetch(`/api/agreements/${agreementId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactionHash }),
+      });
+      
+      if (!updateResponse.ok) {
+        console.warn('Failed to update agreement with transaction hash');
+      }
 
       // Find the AgreementCreated event and get the tokenId
       const agreementCreatedEvent = tx.logs.find(
@@ -599,6 +632,24 @@ export default function AssetDetailsPage() {
                   >
                     <Download className="mr-2 h-4 w-4" />
                     View Agreement
+                  </a>
+                </div>
+              )}
+              {assetDetails.distribution?.agreement?.transactionHash && (
+                <div className="col-span-2">
+                  <div className="text-sm text-muted-foreground">Blockchain Transaction</div>
+                  <a
+                    href={`https://sepolia.scrollscan.com/tx/${assetDetails.distribution.agreement.transactionHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center text-blue-600 hover:text-blue-800 truncate"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                      <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path>
+                      <line x1="16" y1="8" x2="2" y2="22"></line>
+                      <line x1="17.5" y1="15" x2="9" y2="15"></line>
+                    </svg>
+                    View on Scrollscan
                   </a>
                 </div>
               )}
