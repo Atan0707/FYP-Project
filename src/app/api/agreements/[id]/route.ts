@@ -4,11 +4,11 @@ import { prisma } from '@/lib/prisma';
 // GET endpoint to fetch a specific agreement
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const agreement = await prisma.agreement.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       include: {
         distribution: {
           include: {
@@ -49,14 +49,14 @@ export async function GET(
 // PATCH endpoint to update an agreement
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const data = await request.json();
     
     // Update the agreement with the provided data
     const updatedAgreement = await prisma.agreement.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: {
         ...data,
       },
