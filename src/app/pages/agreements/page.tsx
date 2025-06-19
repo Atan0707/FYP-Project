@@ -70,6 +70,7 @@ interface Agreement {
   signedAt?: string;
   notes?: string;
   signedById?: string;
+  transactionHash?: string;
   distributionId: string;
   createdAt: string;
   updatedAt: string;
@@ -171,11 +172,14 @@ export default function AgreementsPage() {
         throw new Error(result.error || 'Failed to sign agreement');
       }
 
-      // After successful blockchain signing, update the database
+      // After successful blockchain signing, update the database with transaction hash
       const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: notes || '' }),
+        body: JSON.stringify({ 
+          notes: notes || '',
+          transactionHash: result.transactionHash 
+        }),
       });
 
       if (!dbUpdateResponse.ok) {
@@ -295,17 +299,39 @@ export default function AgreementsPage() {
     return 'pending';
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, transactionHash?: string) => {
+    const BadgeComponent = ({ children, variant, className }: { 
+      children: React.ReactNode; 
+      variant?: "success" | "default" | "secondary" | "destructive" | "outline" | null; 
+      className?: string 
+    }) => {
+      if (transactionHash && (status === 'signed' || status === 'completed')) {
+        return (
+          <a
+            href={`https://sepolia.scrollscan.com/tx/${transactionHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block transition-transform hover:scale-105"
+          >
+            <Badge variant={variant} className={`${className} cursor-pointer hover:shadow-md`}>
+              {children}
+            </Badge>
+          </a>
+        );
+      }
+      return <Badge variant={variant} className={className}>{children}</Badge>;
+    };
+
     switch (status) {
       case 'pending':
         return (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="secondary" className="flex items-center gap-1">
+                <BadgeComponent variant="secondary" className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   <span>Pending</span>
-                </Badge>
+                </BadgeComponent>
               </TooltipTrigger>
               <TooltipContent>
                 <p>This agreement is waiting for signatures</p>
@@ -318,13 +344,13 @@ export default function AgreementsPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
+                <BadgeComponent variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
                   <CheckCircle className="h-3 w-3" />
                   <span>Signed</span>
-                </Badge>
+                </BadgeComponent>
               </TooltipTrigger>
               <TooltipContent>
-                <p>This agreement has been signed</p>
+                <p>{transactionHash ? 'Click to view transaction on blockchain' : 'This agreement has been signed'}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -334,10 +360,10 @@ export default function AgreementsPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="destructive" className="flex items-center gap-1">
+                <BadgeComponent variant="destructive" className="flex items-center gap-1">
                   <XCircle className="h-3 w-3" />
                   <span>Rejected</span>
-                </Badge>
+                </BadgeComponent>
               </TooltipTrigger>
               <TooltipContent>
                 <p>This agreement has been rejected</p>
@@ -350,10 +376,10 @@ export default function AgreementsPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="default" className="flex items-center gap-1">
+                <BadgeComponent variant="default" className="flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   <span>In Progress</span>
-                </Badge>
+                </BadgeComponent>
               </TooltipTrigger>
               <TooltipContent>
                 <p>This agreement is in progress</p>
@@ -366,13 +392,13 @@ export default function AgreementsPage() {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
+                <BadgeComponent variant="success" className="bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-1">
                   <CheckCircle className="h-3 w-3" />
                   <span>Completed</span>
-                </Badge>
+                </BadgeComponent>
               </TooltipTrigger>
               <TooltipContent>
-                <p>This agreement has been completed</p>
+                <p>{transactionHash ? 'Click to view transaction on blockchain' : 'This agreement has been completed'}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -576,7 +602,7 @@ export default function AgreementsPage() {
                             </CardDescription>
                           </div>
                           <div>
-                            {getStatusBadge(agreement.status)}
+                            {getStatusBadge(agreement.status, agreement.transactionHash)}
                           </div>
                         </div>
                       </CardHeader>
@@ -735,7 +761,7 @@ export default function AgreementsPage() {
                             </CardDescription>
                           </div>
                           <div>
-                            {getStatusBadge(agreement.status)}
+                            {getStatusBadge(agreement.status, agreement.transactionHash)}
                           </div>
                         </div>
                       </CardHeader>
@@ -956,7 +982,7 @@ export default function AgreementsPage() {
                     )}
                   </div>
                   <div>
-                    {getStatusBadge(selectedAgreement.status)}
+                    {getStatusBadge(selectedAgreement.status, selectedAgreement.transactionHash)}
                   </div>
                 </div>
               </div>

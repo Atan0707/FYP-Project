@@ -130,6 +130,7 @@ model FamilySignature {
   status      String   @default("pending") // pending, signed, rejected
   signedAt    DateTime?
   notes       String?
+  transactionHash String?
   // Reference to the agreement
   agreement   Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
   agreementId String

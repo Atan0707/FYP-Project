@@ -9,6 +9,7 @@ interface FormattedAgreement {
   status: string;
   signedAt: Date | null;
   notes: string | null;
+  transactionHash?: string | null;
   adminSignedAt: Date | null;
   distributionId: string;
   createdAt: Date;
@@ -125,6 +126,7 @@ export async function GET(
             status: signature.status,
             signedAt: signature.signedAt,
             notes: signature.notes,
+            transactionHash: signature.transactionHash,
             adminSignedAt: agreement.adminSignedAt,
             distributionId: distribution.id,
             createdAt: signature.createdAt,

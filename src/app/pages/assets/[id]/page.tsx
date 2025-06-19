@@ -77,6 +77,7 @@ interface Agreement {
   signedAt?: string;
   notes?: string;
   signedById?: string;
+  transactionHash?: string;
   familyMember?: {
     id: string;
     fullName: string;
@@ -140,23 +141,41 @@ const getDistributionStatus = (distribution: Distribution) => {
   return 'pending';
 };
 
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'pending':
-      return <Badge variant="secondary">Pending Signatures</Badge>;
-    case 'in_progress':
-      return <Badge variant="default">Signing in Progress</Badge>;
-    case 'completed':
-      return <Badge variant="success">Completed</Badge>;
-    case 'rejected':
-      return <Badge variant="destructive">Rejected</Badge>;
-    case 'signed':
-      return <Badge variant="success">Signed</Badge>;
-    case 'pending_admin':
-      return <Badge variant="success">Pending Admin</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
+const getStatusBadge = (status: string, transactionHash?: string) => {
+  const getBadgeComponent = () => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="secondary">Pending Signatures</Badge>;
+      case 'in_progress':
+        return <Badge variant="default">Signing in Progress</Badge>;
+      case 'completed':
+        return <Badge variant="success">Completed</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      case 'signed':
+        return <Badge variant="success">Signed</Badge>;
+      case 'pending_admin':
+        return <Badge variant="success">Pending Admin</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  // If there's a transaction hash and the status indicates a signed transaction, make it clickable
+  if (transactionHash && (status === 'signed' || status === 'completed' || status === 'pending_admin')) {
+    return (
+      <a
+        href={`https://sepolia.scrollscan.com/tx/${transactionHash}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block transition-opacity hover:opacity-80"
+      >
+        {getBadgeComponent()}
+      </a>
+    );
   }
+
+  return getBadgeComponent();
 };
 
 export default function AssetDetailsPage() {
@@ -783,7 +802,7 @@ export default function AssetDetailsPage() {
                                     </Tooltip>
                                   </TooltipProvider>
                                 )}
-                                {getStatusBadge(agreement.status)}
+                                {getStatusBadge(agreement.status, agreement.transactionHash)}
                               </div>
                             </div>
                           ))}

@@ -15,8 +15,15 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { notes } = await request.json();
+    const { notes, transactionHash } = await request.json();
     const agreementId = (await params).id;
+
+    console.log('Sign agreement request:', {
+      userId,
+      agreementId,
+      notes,
+      transactionHash: transactionHash ? 'present' : 'missing'
+    });
 
     // Find the user's family IDs
     const familyIds = (await prisma.family.findMany({
@@ -60,51 +67,77 @@ export async function POST(
     }
 
     // Update the signature
+    console.log('Updating signature with data:', {
+      id: signature.id,
+      status: 'signed',
+      signedAt: new Date(),
+      notes,
+      transactionHash,
+      signedById: userId,
+    });
+
     const updatedSignature = await prisma.familySignature.update({
       where: { id: signature.id },
       data: {
         status: 'signed',
         signedAt: new Date(),
         notes,
+        transactionHash,
         signedById: userId,
-      },
-      include: {
-        agreement: {
-          include: {
-            distribution: {
-              include: {
-                asset: true,
-              },
-            },
-            signatures: true,
-          },
-        },
       },
     });
 
+    // Get updated agreement with all signatures to check completion status
+    const updatedAgreement = await prisma.agreement.findUnique({
+      where: { id: signature.agreementId },
+      include: {
+        distribution: {
+          include: {
+            asset: true,
+          },
+        },
+        signatures: true,
+      },
+    });
+
+    if (!updatedAgreement) {
+      throw new Error('Agreement not found after update');
+    }
+
     // Check if all signatures are now signed
-    const allSignatures = updatedSignature.agreement.signatures;
+    const allSignatures = updatedAgreement.signatures;
     const allSigned = allSignatures.every((sig: FamilySignature) => sig.status === 'signed');
 
     if (allSigned) {
       // Update the agreement status to pending_admin
       await prisma.agreement.update({
-        where: { id: updatedSignature.agreement.id },
+        where: { id: updatedAgreement.id },
         data: { status: 'pending_admin' },
       });
 
       // Update the distribution status to pending_admin
       await prisma.assetDistribution.update({
-        where: { id: updatedSignature.agreement.distribution.id },
+        where: { id: updatedAgreement.distribution.id },
         data: { status: 'pending_admin' },
       });
     }
 
-    return NextResponse.json(updatedSignature);
+    return NextResponse.json({
+      ...updatedSignature,
+      agreement: updatedAgreement
+    });
   } catch (error) {
     console.error('Error signing agreement:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }
