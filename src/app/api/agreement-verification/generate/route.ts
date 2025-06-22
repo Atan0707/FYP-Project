@@ -7,6 +7,33 @@ function generateVerificationCode(): string {
   return Math.floor(10000 + Math.random() * 90000).toString();
 }
 
+// Malaysian IC validation function
+// function validateMalaysianIC(ic: string): boolean {
+//   // Remove dashes if present
+//   const cleanedValue = ic.replace(/-/g, '');
+  
+//   // Check if it's 12 digits
+//   if (!/^\d{12}$/.test(cleanedValue)) return false;
+  
+//   // Extract date part (first 6 digits)
+//   const year = parseInt(cleanedValue.substring(0, 2));
+//   const month = parseInt(cleanedValue.substring(2, 4));
+//   const day = parseInt(cleanedValue.substring(4, 6));
+  
+//   // Validate date
+//   const currentYear = new Date().getFullYear() % 100;
+//   const century = year > currentYear ? 1900 : 2000;
+//   const fullYear = century + year;
+  
+//   const date = new Date(fullYear, month - 1, day);
+//   const isValidDate = date.getFullYear() === fullYear && 
+//                       date.getMonth() === month - 1 && 
+//                       date.getDate() === day;
+  
+//   // Month should be between 1-12, day should be valid for the month
+//   return month >= 1 && month <= 12 && isValidDate;
+// }
+
 // Function to send verification email
 async function sendVerificationEmail(email: string, code: string, fullName: string, assetName: string) {
   try {
@@ -44,11 +71,20 @@ Islamic Inheritance System Team`
 
 export async function POST(request: Request) {
   try {
-    const { agreementId } = await request.json();
+    const { agreementId, signerIC } = await request.json();
 
     if (!agreementId) {
       return NextResponse.json({ error: 'Agreement ID is required' }, { status: 400 });
     }
+
+    if (!signerIC) {
+      return NextResponse.json({ error: 'IC number is required' }, { status: 400 });
+    }
+
+    // // Validate IC format
+    // if (!validateMalaysianIC(signerIC)) {
+    //   return NextResponse.json({ error: 'Invalid IC number format. Please enter a valid Malaysian IC number.' }, { status: 400 });
+    // }
 
     // Get user from cookies
     const cookieStore = await cookies();
@@ -64,8 +100,18 @@ export async function POST(request: Request) {
         id: true,
         fullName: true,
         email: true,
+        ic: true,
       },
     });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Validate that the provided IC matches the user's IC
+    if (user.ic !== signerIC) {
+      return NextResponse.json({ error: 'IC number does not match your registered IC number.' }, { status: 400 });
+    }
 
     // Verify the agreement exists and user has access to it
     const agreement = await prisma.familySignature.findFirst({

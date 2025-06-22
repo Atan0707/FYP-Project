@@ -166,11 +166,11 @@ export default function AgreementsPage() {
 
   // Mutations
   const generateVerificationMutation = useMutation({
-    mutationFn: async (agreementId: string) => {
+    mutationFn: async ({ agreementId, signerIC }: { agreementId: string; signerIC: string }) => {
       const response = await fetch('/api/agreement-verification/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agreementId }),
+        body: JSON.stringify({ agreementId, signerIC }),
       });
       if (!response.ok) {
         const error = await response.json();
@@ -181,10 +181,12 @@ export default function AgreementsPage() {
     onSuccess: () => {
       setIsVerificationCodeSent(true);
       setVerificationTimer(600); // 10 minutes countdown
+      setIsVerificationStep(true); // Move this here - only show verification step on success
       toast.success('Verification code sent to your email');
     },
     onError: (error) => {
       toast.error('Failed to send verification code: ' + (error as Error).message);
+      // Don't show verification step on error
     },
   });
 
@@ -315,8 +317,10 @@ export default function AgreementsPage() {
 
     // First step: Generate verification code
     if (!isVerificationStep) {
-      generateVerificationMutation.mutate(selectedAgreement.id);
-      setIsVerificationStep(true);
+      generateVerificationMutation.mutate({
+        agreementId: selectedAgreement.id,
+        signerIC,
+      });
       return;
     }
 
@@ -334,7 +338,10 @@ export default function AgreementsPage() {
 
   const handleResendVerificationCode = () => {
     if (!selectedAgreement) return;
-    generateVerificationMutation.mutate(selectedAgreement.id);
+    generateVerificationMutation.mutate({
+      agreementId: selectedAgreement.id,
+      signerIC,
+    });
   };
 
   const handleReject = () => {
