@@ -383,7 +383,9 @@ export default function AssetDetailsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create distribution in database');
+        const errorText = await response.text();
+        console.error('Distribution creation failed:', response.status, errorText);
+        throw new Error(`Failed to create distribution: ${response.status} - ${errorText}`);
       }
 
       const distribution = await response.json();

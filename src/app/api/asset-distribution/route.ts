@@ -74,23 +74,51 @@ export async function POST(request: Request) {
       },
     });
 
-    if (allFamilyMembers.length === 0) {
-      return new NextResponse('No family members found', { status: 400 });
-    }
-
     // Filter out the asset owner from family members to avoid duplicate agreements
     const familyMembersWithoutOwner = allFamilyMembers.filter(
       member => member.userId !== userId && member.relatedUserId === userId
     );
 
+    console.log('Found family members:', allFamilyMembers.length);
+    console.log('Family members to sign (excluding owner):', familyMembersWithoutOwner.length);
+
     // Start a transaction to create distribution and agreements
     const result = await prisma.$transaction(async (tx) => {
+      // If there are no family members, we need to create a temporary family record for the owner
+      let ownerFamilyId = '';
+      
+      if (allFamilyMembers.length === 0) {
+        // Get the current user's details
+        const currentUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { fullName: true, ic: true, phone: true },
+        });
+        
+        if (!currentUser) {
+          throw new Error('Current user not found');
+        }
+        
+        // Create a family record for the owner
+        const ownerFamily = await tx.family.create({
+          data: {
+            fullName: currentUser.fullName,
+            ic: currentUser.ic,
+            relationship: 'Owner',
+            phone: currentUser.phone || '',
+            userId: userId,
+            isRegistered: true,
+          },
+        });
+        
+        ownerFamilyId = ownerFamily.id;
+      }
+
       // Create the asset distribution
       const distribution = await tx.assetDistribution.create({
         data: {
           type: body.type,
           notes: body.notes,
-          status: 'in_progress',
+          status: allFamilyMembers.length === 0 ? 'pending' : 'in_progress', // Set to pending if no family members
           beneficiaries: body.beneficiaries,
           organization: body.organization,
           assetId: body.assetId,
@@ -98,9 +126,16 @@ export async function POST(request: Request) {
           agreement: {
             create: {
               status: 'pending',
-              // Create family signatures for each family member
+              // Create family signatures
               signatures: {
-                create: [
+                create: allFamilyMembers.length === 0 ? [
+                  // Create signature for the owner only if no family members
+                  {
+                    familyId: ownerFamilyId,
+                    status: 'pending',
+                    signedById: userId,
+                  }
+                ] : [
                   // Create signature for the asset owner
                   {
                     familyId: allFamilyMembers.find(member => member.userId === userId)?.id || '',
@@ -133,7 +168,12 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error creating asset distribution:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    // Log more detailed error information
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    return new NextResponse(`Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`, { status: 500 });
   }
 }
 
