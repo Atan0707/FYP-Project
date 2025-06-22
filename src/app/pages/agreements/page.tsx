@@ -133,7 +133,10 @@ export default function AgreementsPage() {
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [signerIC, setSignerIC] = useState('');
-
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isVerificationStep, setIsVerificationStep] = useState(false);
+  const [isVerificationCodeSent, setIsVerificationCodeSent] = useState(false);
+  const [verificationTimer, setVerificationTimer] = useState(0);
 
   useEffect(() => {
     console.log("Selected Agreement", selectedAgreement);
@@ -150,7 +153,72 @@ export default function AgreementsPage() {
     queryFn: fetchMyAgreements,
   });
 
+  // Timer effect for verification countdown
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (verificationTimer > 0) {
+      interval = setInterval(() => {
+        setVerificationTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [verificationTimer]);
+
   // Mutations
+  const generateVerificationMutation = useMutation({
+    mutationFn: async ({ agreementId, signerIC }: { agreementId: string; signerIC: string }) => {
+      const response = await fetch('/api/agreement-verification/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agreementId, signerIC }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate verification code');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsVerificationCodeSent(true);
+      setVerificationTimer(600); // 10 minutes countdown
+      setIsVerificationStep(true); // Move this here - only show verification step on success
+      toast.success('Verification code sent to your email');
+    },
+    onError: (error) => {
+      toast.error('Failed to send verification code: ' + (error as Error).message);
+      // Don't show verification step on error
+    },
+  });
+
+  const verifyCodeMutation = useMutation({
+    mutationFn: async ({ agreementId, verificationCode }: { agreementId: string; verificationCode: string }) => {
+      const response = await fetch('/api/agreement-verification/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agreementId, verificationCode }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to verify code');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsVerificationStep(false);
+      toast.success('Verification successful! Proceeding with signing...');
+      // Proceed with the actual signing
+      if (selectedAgreement) {
+        signMutation.mutate({
+          agreementId: selectedAgreement.id,
+          signerIC,
+        });
+      }
+    },
+    onError: (error) => {
+      toast.error((error as Error).message);
+    },
+  });
+
   const signMutation = useMutation({
     mutationFn: async ({ agreementId, signerIC }: { agreementId: string; signerIC: string }) => {
       if (!contractService) {
@@ -172,15 +240,14 @@ export default function AgreementsPage() {
         throw new Error(result.error || 'Failed to sign agreement');
       }
 
-      // After successful blockchain signing, update the database with transaction hash
-      const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          notes: notes || '',
-          transactionHash: result.transactionHash 
-        }),
-      });
+              // After successful blockchain signing, update the database with transaction hash
+        const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            transactionHash: result.transactionHash 
+          }),
+        });
 
       if (!dbUpdateResponse.ok) {
         throw new Error('Failed to update database after signing');
@@ -204,7 +271,6 @@ export default function AgreementsPage() {
       
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
-      setNotes('');
       setSignerIC('');
     },
     onError: (error) => {
@@ -249,7 +315,30 @@ export default function AgreementsPage() {
       return;
     }
 
-    signMutation.mutate({
+    // First step: Generate verification code
+    if (!isVerificationStep) {
+      generateVerificationMutation.mutate({
+        agreementId: selectedAgreement.id,
+        signerIC,
+      });
+      return;
+    }
+
+    // Second step: Verify the code
+    if (!verificationCode) {
+      toast.error('Please enter the verification code');
+      return;
+    }
+
+    verifyCodeMutation.mutate({
+      agreementId: selectedAgreement.id,
+      verificationCode,
+    });
+  };
+
+  const handleResendVerificationCode = () => {
+    if (!selectedAgreement) return;
+    generateVerificationMutation.mutate({
       agreementId: selectedAgreement.id,
       signerIC,
     });
@@ -823,64 +912,131 @@ export default function AgreementsPage() {
       </Tabs>
 
       {/* Sign Dialog */}
-      <Dialog open={isSignDialogOpen} onOpenChange={setIsSignDialogOpen}>
+      <Dialog open={isSignDialogOpen} onOpenChange={(open) => {
+        setIsSignDialogOpen(open);
+        if (!open) {
+          // Reset all states when dialog closes
+          setIsVerificationStep(false);
+          setIsVerificationCodeSent(false);
+          setVerificationCode('');
+          setSignerIC('');
+          setVerificationTimer(0);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign Agreement</DialogTitle>
+            <DialogTitle>
+              {isVerificationStep ? 'Verify Your Identity' : 'Sign Agreement'}
+            </DialogTitle>
             <DialogDescription>
-              You are about to sign the agreement for{' '}
-              <span className="font-medium">{selectedAgreement?.distribution.asset.name}</span>.
-              This action cannot be undone.
+              {isVerificationStep ? (
+                <>
+                  A verification code has been sent to your email. Please enter the code to proceed with signing the agreement for{' '}
+                  <span className="font-medium">{selectedAgreement?.distribution.asset.name}</span>.
+                </>
+              ) : (
+                <>
+                  You are about to sign the agreement for{' '}
+                  <span className="font-medium">{selectedAgreement?.distribution.asset.name}</span>.
+                  This action cannot be undone.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="signerIC">IC Number <span className="text-red-500">*</span></Label>
-              <Input
-                id="signerIC"
-                value={signerIC}
-                onChange={(e) => setSignerIC(e.target.value)}
-                placeholder="Enter your IC number"
-                required
-              />
-              {signerIC.length === 0 && (
-                <p className="text-sm text-red-500 mt-1">
-                  IC number is required to sign the agreement
-                </p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                placeholder="Add any notes or comments about this agreement"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
+            {!isVerificationStep ? (
+              <>
+                <div>
+                  <Label htmlFor="signerIC">IC Number <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="signerIC"
+                    value={signerIC}
+                    onChange={(e) => setSignerIC(e.target.value)}
+                    placeholder="Enter your IC number"
+                    required
+                  />
+                  {signerIC.length === 0 && (
+                    <p className="text-sm text-red-500 mt-1">
+                      IC number is required to sign the agreement
+                    </p>
+                  )}
+                </div>
+
+              </>
+            ) : (
+              <div>
+                <Label htmlFor="verificationCode">Verification Code <span className="text-red-500">*</span></Label>
+                <Input
+                  id="verificationCode"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="Enter 5-digit verification code"
+                  maxLength={5}
+                  required
+                />
+                {isVerificationCodeSent && verificationTimer > 0 && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    Code expires in {Math.floor(verificationTimer / 60)}:{(verificationTimer % 60).toString().padStart(2, '0')}
+                  </p>
+                )}
+                {verificationTimer === 0 && isVerificationCodeSent && (
+                  <div className="mt-2">
+                    <p className="text-sm text-red-500 mb-2">Verification code has expired.</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResendVerificationCode}
+                      disabled={generateVerificationMutation.isPending}
+                    >
+                      {generateVerificationMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Resend Code'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
                 setIsSignDialogOpen(false);
-                setSignerIC('');
-                setNotes('');
               }}
             >
               Cancel
             </Button>
             <Button
               onClick={handleSign}
-              disabled={signMutation.isPending || !signerIC}
+              disabled={
+                (!isVerificationStep && (!signerIC || signMutation.isPending || generateVerificationMutation.isPending)) ||
+                (isVerificationStep && (!verificationCode || verifyCodeMutation.isPending || signMutation.isPending))
+              }
             >
-              {signMutation.isPending ? (
+              {generateVerificationMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Sending Code...
+                </>
+              ) : verifyCodeMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : signMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Signing...
                 </>
+              ) : isVerificationStep ? (
+                'Verify & Sign'
               ) : (
-                'Sign Agreement'
+                'Send Verification Code'
               )}
             </Button>
           </DialogFooter>

@@ -25,7 +25,7 @@ async function sendVerificationEmail(email: string, code: string, fullName: stri
 
 Thank you for registering with the Islamic Inheritance System.
 
-Your verification code is: **${code}**
+Your verification code is: ${code}
 
 This code will expire in 1 hour. Please enter this code on the verification page to complete your registration.
 
