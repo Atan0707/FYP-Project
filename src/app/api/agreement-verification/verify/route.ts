@@ -12,19 +12,17 @@ export async function POST(request: Request) {
 
     // Get user from cookies
     const cookieStore = await cookies();
-    const userCookie = cookieStore.get('user');
+    const userId = cookieStore.get('userId')?.value;
     
-    if (!userCookie) {
+    if (!userId) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
     }
-
-    const user = JSON.parse(userCookie.value);
 
     // Find the verification record
     const verification = await prisma.temporaryAgreementVerification.findFirst({
       where: {
         agreementId,
-        userId: user.id,
+        userId: userId,
         verificationCode,
         expiresAt: {
           gt: new Date() // Not expired
