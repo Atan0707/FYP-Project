@@ -40,6 +40,21 @@ model Admin {
   updatedAt DateTime @updatedAt
 }
 
+// Temporary model for email verification during signup
+model TemporaryUser {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  fullName      String
+  ic            String   @unique
+  phone         String
+  verificationCode String
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  @@index([email])
+  @@index([verificationCode])
+}
+
 model Family {
   id            String   @id @default(cuid())
   fullName      String
