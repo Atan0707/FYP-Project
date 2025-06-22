@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
-
-const prisma = new PrismaClient();
 
 // Function to generate 5-digit verification code
 function generateVerificationCode(): string {
@@ -54,19 +52,26 @@ export async function POST(request: Request) {
 
     // Get user from cookies
     const cookieStore = await cookies();
-    const userCookie = cookieStore.get('user');
+    const userId = cookieStore.get('userId')?.value;
     
-    if (!userCookie) {
+    if (!userId) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 });
     }
 
-    const user = JSON.parse(userCookie.value);
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+      },
+    });
 
     // Verify the agreement exists and user has access to it
     const agreement = await prisma.familySignature.findFirst({
       where: {
         agreementId,
-        signedById: user.id,
+        signedById: userId,
         status: 'pending'
       },
       include: {
@@ -90,7 +95,7 @@ export async function POST(request: Request) {
     const existingVerification = await prisma.temporaryAgreementVerification.findFirst({
       where: {
         agreementId,
-        userId: user.id
+        userId: userId
       }
     });
 
@@ -112,8 +117,8 @@ export async function POST(request: Request) {
     await prisma.temporaryAgreementVerification.create({
       data: {
         agreementId,
-        userId: user.id,
-        email: user.email,
+        userId: userId,
+        email: user?.email || '',
         verificationCode,
         expiresAt,
       },
@@ -121,9 +126,9 @@ export async function POST(request: Request) {
 
     // Send verification email
     await sendVerificationEmail(
-      user.email, 
+      user?.email || '', 
       verificationCode, 
-      user.fullName, 
+      user?.fullName || '', 
       agreement.agreement.distribution.asset.name
     );
 
@@ -134,8 +139,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error generating verification code:', error);
     return NextResponse.json({ 
-      error: 'Failed to generate verification code',
-      details: String(error)
+      error: 'Failed to generate verification code: ' + String(error)
     }, { status: 500 });
   }
 } 

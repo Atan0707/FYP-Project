@@ -238,15 +238,14 @@ export default function AgreementsPage() {
         throw new Error(result.error || 'Failed to sign agreement');
       }
 
-      // After successful blockchain signing, update the database with transaction hash
-      const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          notes: notes || '',
-          transactionHash: result.transactionHash 
-        }),
-      });
+              // After successful blockchain signing, update the database with transaction hash
+        const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            transactionHash: result.transactionHash 
+          }),
+        });
 
       if (!dbUpdateResponse.ok) {
         throw new Error('Failed to update database after signing');
@@ -270,7 +269,6 @@ export default function AgreementsPage() {
       
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
-      setNotes('');
       setSignerIC('');
     },
     onError: (error) => {
@@ -915,7 +913,6 @@ export default function AgreementsPage() {
           setIsVerificationCodeSent(false);
           setVerificationCode('');
           setSignerIC('');
-          setNotes('');
           setVerificationTimer(0);
         }
       }}>
@@ -957,15 +954,7 @@ export default function AgreementsPage() {
                     </p>
                   )}
                 </div>
-                <div>
-                  <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Add any notes or comments about this agreement"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
+
               </>
             ) : (
               <div>
