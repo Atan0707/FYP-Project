@@ -35,6 +35,33 @@ import { getAvailableRelationships } from '@/lib/relationships';
 // Get available relationships
 const relationships = getAvailableRelationships();
 
+// Malaysian IC validation function
+const validateMalaysianIC = (ic: string): boolean => {
+  // Remove dashes if present
+  const cleanedValue = ic.replace(/-/g, '');
+  
+  // Check if it's 12 digits
+  if (!/^\d{12}$/.test(cleanedValue)) return false;
+  
+  // Extract date part (first 6 digits)
+  const year = parseInt(cleanedValue.substring(0, 2));
+  const month = parseInt(cleanedValue.substring(2, 4));
+  const day = parseInt(cleanedValue.substring(4, 6));
+  
+  // Validate date
+  const currentYear = new Date().getFullYear() % 100;
+  const century = year > currentYear ? 1900 : 2000;
+  const fullYear = century + year;
+  
+  const date = new Date(fullYear, month - 1, day);
+  const isValidDate = date.getFullYear() === fullYear && 
+                      date.getMonth() === month - 1 && 
+                      date.getDate() === day;
+  
+  // Month should be between 1-12, day should be valid for the month
+  return month >= 1 && month <= 12 && isValidDate;
+};
+
 interface Family {
   id: string;
   fullName: string;
@@ -221,6 +248,12 @@ export default function FamilyPage() {
       return;
     }
 
+    // Validate Malaysian IC
+    if (!validateMalaysianIC(searchIC)) {
+      toast.error('Please enter a valid Malaysian IC number');
+      return;
+    }
+
     try {
       const user = await searchUser(searchIC);
       if (user) {
@@ -282,6 +315,12 @@ export default function FamilyPage() {
     // Validate required fields
     if (!fullName || !ic || !phone) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+    
+    // Validate Malaysian IC
+    if (!validateMalaysianIC(ic)) {
+      toast.error('Please enter a valid Malaysian IC number');
       return;
     }
     
@@ -370,15 +409,20 @@ export default function FamilyPage() {
               ) : (
                 <>
                   {!editingFamily && !showForm && !showConfirmation && (
-                    <div className="flex gap-2 mb-4">
-                      <Input
-                        placeholder="Enter IC number"
-                        value={searchIC}
-                        onChange={(e) => setSearchIC(e.target.value)}
-                      />
-                      <Button type="button" onClick={handleSearch}>
-                        <Search className="h-4 w-4" />
-                      </Button>
+                    <div className="flex flex-col gap-2 mb-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter IC number"
+                          value={searchIC}
+                          onChange={(e) => setSearchIC(e.target.value)}
+                        />
+                        <Button type="button" onClick={handleSearch}>
+                          <Search className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Enter your Malaysian IC number (with or without dashes)
+                      </div>
                     </div>
                   )}
                   {showConfirmation && foundUser && (
@@ -456,6 +500,9 @@ export default function FamilyPage() {
                             defaultValue={editingFamily?.ic || searchIC}
                             required
                           />
+                          <div className="text-xs text-muted-foreground">
+                            Enter your Malaysian IC number (with or without dashes)
+                          </div>
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="relationship">Relationship</Label>

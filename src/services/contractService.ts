@@ -177,7 +177,7 @@ class ContractService {
   async signAgreement(
     tokenId: string,
     signerIC: string
-  ): Promise<{ success: boolean; error?: string }> {
+  ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
     try {
       if (!this.contract) {
         throw new Error('Contract not initialized');
@@ -187,7 +187,10 @@ class ContractService {
       const tx = await this.contract.signAgreement(tokenId, signerIC);
       await tx.wait();
 
-      return { success: true };
+      return { 
+        success: true,
+        transactionHash: tx.hash
+      };
     } catch (error) {
       console.error('Error signing agreement:', error);
       return { 

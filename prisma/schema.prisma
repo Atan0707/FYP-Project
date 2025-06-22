@@ -40,6 +40,21 @@ model Admin {
   updatedAt DateTime @updatedAt
 }
 
+// Temporary model for email verification during signup
+model TemporaryUser {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  fullName      String
+  ic            String   @unique
+  phone         String
+  verificationCode String
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  @@index([email])
+  @@index([verificationCode])
+}
+
 model Family {
   id            String   @id @default(cuid())
   fullName      String
@@ -111,6 +126,7 @@ model Agreement {
   status        String   @default("pending") // pending, in_progress, pending_admin, completed, rejected
   adminSignedAt DateTime?
   adminNotes    String?
+  transactionHash String?
   // Reference to the asset distribution
   distribution  AssetDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
   distributionId String  @unique
@@ -129,6 +145,7 @@ model FamilySignature {
   status      String   @default("pending") // pending, signed, rejected
   signedAt    DateTime?
   notes       String?
+  transactionHash String?
   // Reference to the agreement
   agreement   Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
   agreementId String
