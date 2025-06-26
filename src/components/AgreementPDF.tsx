@@ -6,223 +6,297 @@ const styles = StyleSheet.create({
   page: {
     padding: 30,
     fontFamily: 'Helvetica',
+    fontSize: 11,
   },
-  barcode: {
-    marginBottom: 20,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  header: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  title: {
-    fontSize: 12,
-    marginBottom: 10,
-    textAlign: 'center',
-    fontFamily: 'Helvetica-Bold',
-  },
-  dutiText: {
-    fontSize: 10,
-    textAlign: 'right',
-    marginBottom: 20,
-  },
-  antara: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 40,
-    marginBottom: 40,
-  },
-  personInfo: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  personId: {
-    fontSize: 10,
+  // Header styles
+  governmentHeader: {
     textAlign: 'center',
     marginBottom: 30,
+    borderBottomWidth: 2,
+    borderBottomStyle: 'solid',
+    borderBottomColor: '#000',
+    paddingBottom: 15,
   },
-  personNote: {
-    fontSize: 8,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginBottom: 40,
-  },
-  dan: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  organization: {
-    fontSize: 12,
-    textAlign: 'center',
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 40,
-  },
-  dateSection: {
-    fontSize: 12,
-    textAlign: 'left',
-    marginTop: 40,
-  },
-  footer: {
-    fontSize: 10,
-    marginTop: 20,
-  },
-  // New styles for asset details page
-  pageTitle: {
+  governmentTitle: {
     fontSize: 16,
     fontFamily: 'Helvetica-Bold',
-    textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 5,
   },
-  sectionTitle: {
+  departmentTitle: {
     fontSize: 14,
     fontFamily: 'Helvetica-Bold',
+    marginBottom: 5,
+  },
+  subDepartment: {
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  // Document identification
+  documentInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderTopStyle: 'solid',
+    borderBottomStyle: 'solid',
+    borderTopColor: '#ccc',
+    borderBottomColor: '#ccc',
+  },
+  docNumber: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+  },
+  docDate: {
+    fontSize: 10,
+  },
+  // Agreement title
+  agreementTitle: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  // Party information
+  partySection: {
+    marginBottom: 25,
+  },
+  partyHeader: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
     marginBottom: 15,
-    marginTop: 20,
+    textTransform: 'uppercase',
+  },
+  partyInfo: {
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#f8f9fa',
+    borderLeftWidth: 3,
+    borderLeftStyle: 'solid',
+    borderLeftColor: '#0066cc',
+  },
+  partyName: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 3,
+  },
+  partyDetail: {
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  partyRole: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: '#666',
+  },
+  // Asset information
+  assetSection: {
+    marginBottom: 25,
+    padding: 15,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#ddd',
+    backgroundColor: '#fafafa',
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 15,
+    textTransform: 'uppercase',
+    borderBottomWidth: 1,
+    borderBottomStyle: 'solid',
+    borderBottomColor: '#ccc',
+    paddingBottom: 5,
   },
   detailRow: {
     flexDirection: 'row',
     marginBottom: 8,
   },
   detailLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Helvetica-Bold',
-    width: 150,
+    width: 120,
+    color: '#333',
   },
   detailValue: {
-    fontSize: 11,
+    fontSize: 10,
     flex: 1,
   },
-  // Agreement details styles
-  agreementCard: {
+  // Distribution information
+  distributionSection: {
+    marginBottom: 25,
+    padding: 15,
     borderWidth: 1,
     borderStyle: 'solid',
-    borderColor: '#000',
-    padding: 15,
-    marginBottom: 20,
+    borderColor: '#ddd',
   },
-  agreementHeader: {
+  distributionType: {
     fontSize: 12,
     fontFamily: 'Helvetica-Bold',
-    marginBottom: 10,
     textAlign: 'center',
+    marginBottom: 15,
+    padding: 8,
+    backgroundColor: '#e3f2fd',
+    textTransform: 'uppercase',
   },
-  statusBadge: {
-    fontSize: 10,
-    padding: 5,
-    borderRadius: 3,
-    textAlign: 'center',
-    marginBottom: 10,
+  // Beneficiary table
+  beneficiarySection: {
+    marginBottom: 25,
   },
-  statusSigned: {
-    backgroundColor: '#dcfce7',
-    color: '#166534',
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f5f5f5',
+    padding: 8,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#ccc',
   },
-  statusPending: {
-    backgroundColor: '#fef3c7',
-    color: '#92400e',
-  },
-  statusRejected: {
-    backgroundColor: '#fee2e2',
-    color: '#991b1b',
-  },
-  notesSection: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#f9fafb',
-  },
-  notesTitle: {
+  tableHeaderCell: {
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
-    marginBottom: 5,
-  },
-  notesText: {
-    fontSize: 10,
-    lineHeight: 1.4,
-  },
-  // Signing section styles
-  signingSection: {
-    marginTop: 40,
-    marginBottom: 30,
-  },
-  signingTitle: {
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 20,
     textAlign: 'center',
   },
-  signerBlock: {
-    marginBottom: 20,
+  tableRow: {
+    flexDirection: 'row',
+    padding: 8,
     borderBottomWidth: 1,
     borderBottomStyle: 'solid',
-    borderBottomColor: '#ccc',
-    paddingBottom: 15,
+    borderBottomColor: '#ddd',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderLeftStyle: 'solid',
+    borderRightStyle: 'solid',
+    borderLeftColor: '#ccc',
+    borderRightColor: '#ccc',
   },
-  signerLabel: {
+  tableCell: {
+    fontSize: 9,
+    textAlign: 'center',
+  },
+  // Status badges
+  statusBadge: {
+    fontSize: 9,
+    padding: 4,
+    borderRadius: 3,
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  statusSigned: {
+    backgroundColor: '#d4edda',
+    color: '#155724',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#c3e6cb',
+  },
+  statusPending: {
+    backgroundColor: '#fff3cd',
+    color: '#856404',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#ffeaa7',
+  },
+  statusCompleted: {
+    backgroundColor: '#d1ecf1',
+    color: '#0c5460',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#bee5eb',
+  },
+  // Terms and conditions
+  termsSection: {
+    marginBottom: 25,
+    padding: 15,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#ddd',
+  },
+  termItem: {
+    fontSize: 10,
+    marginBottom: 8,
+    lineHeight: 1.4,
+  },
+  termNumber: {
+    fontFamily: 'Helvetica-Bold',
+  },
+  // Signature section
+  signatureSection: {
+    marginTop: 30,
+  },
+  signatureTitle: {
     fontSize: 12,
     fontFamily: 'Helvetica-Bold',
-    marginBottom: 15,
+    textAlign: 'center',
+    marginBottom: 25,
+    textTransform: 'uppercase',
+  },
+  signatureBlock: {
+    marginBottom: 25,
+    padding: 15,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: '#ddd',
+  },
+  signatureRole: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    color: '#0066cc',
   },
   signatureInfo: {
-    marginBottom: 3,
+    marginBottom: 8,
+  },
+  signatureRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
   },
   signatureLabel: {
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
-    marginBottom: 3,
+    width: 100,
   },
   signatureValue: {
     fontSize: 10,
-    marginLeft: 20,
-    marginBottom: 3,
-  },
-  signatureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 3,
-  },
-  signatureLabelInline: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    width: 120,
-  },
-  signatureValueInline: {
-    fontSize: 10,
     flex: 1,
   },
-  signatureSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  signatureLine: {
+    borderBottomWidth: 1,
+    borderBottomStyle: 'solid',
+    borderBottomColor: '#000',
+    width: 200,
+    height: 30,
+  },
+  // Footer
+  footer: {
+    marginTop: 30,
+    padding: 15,
+    borderTopWidth: 2,
+    borderTopStyle: 'solid',
+    borderTopColor: '#000',
+    backgroundColor: '#f8f9fa',
+  },
+  footerText: {
+    fontSize: 9,
+    textAlign: 'center',
     marginBottom: 3,
-    marginLeft: 90, // Indent to align with the signature text
   },
-  signatureSubLabel: {
+  // Watermark/Official stamp area
+  officialSection: {
+    marginTop: 20,
+    padding: 20,
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: '#0066cc',
+    backgroundColor: '#f0f8ff',
+  },
+  officialText: {
     fontSize: 10,
+    textAlign: 'center',
     fontFamily: 'Helvetica-Bold',
-    width: 120,
-  },
-  signerName: {
-    fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
-    marginTop: 5,
-  },
-  sectionTitleSignature: {
-    fontSize: 10  ,
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 15,
-    marginTop: 10,
-  },
-  detailLabelSignature: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    width: 150,
-    marginBottom: 10,
   },
 });
 
@@ -231,11 +305,13 @@ interface AgreementDetails {
   status: string;
   signedAt?: string;
   notes?: string;
+  transactionHash?: string;
   familyMember?: {
     id: string;
     fullName: string;
     relationship: string;
     ic: string;
+    phone?: string;
   };
 }
 
@@ -246,6 +322,9 @@ interface AgreementPDFProps {
   createdAt: string;
   benefactorName: string;
   benefactorIC: string;
+  assetValue?: number;
+  assetDescription?: string;
+  agreementId?: string;
 }
 
 export function AgreementPDF({ 
@@ -254,336 +333,331 @@ export function AgreementPDF({
   agreements, 
   createdAt,
   benefactorName,
-  benefactorIC
+  benefactorIC,
+  assetValue,
+  assetDescription,
+  agreementId
 }: AgreementPDFProps) {
-  // Find the beneficiary (the person who signed)
-  const beneficiary = agreements.find(a => 
-    a.status === 'signed' || 
-    a.status === 'completed' || 
-    a.status === 'pending_admin'
-  )?.familyMember;
+  const agreementNumber = agreementId?.slice(-8).toUpperCase() || 'AGR' + new Date().getFullYear();
+  const beneficiaries = agreements.filter(a => a.familyMember);
+  const isCompleted = agreements.some(a => a.status === 'completed');
 
   const getStatusStyle = (status: string) => {
     switch (status) {
       case 'signed':
-      case 'completed':
         return { ...styles.statusBadge, ...styles.statusSigned };
+      case 'completed':
+        return { ...styles.statusBadge, ...styles.statusCompleted };
       case 'pending':
       case 'pending_admin':
         return { ...styles.statusBadge, ...styles.statusPending };
-      case 'rejected':
-        return { ...styles.statusBadge, ...styles.statusRejected };
       default:
         return styles.statusBadge;
     }
   };
 
+  const getDistributionTypeDisplay = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'waqf': return 'WAKAF (ENDOWMENT)';
+      case 'faraid': return 'FARAID (ISLAMIC INHERITANCE)';
+      case 'hibah': return 'HIBAH (GIFT)';
+      case 'will': return 'WASIAT (WILL)';
+      default: return type.toUpperCase();
+    }
+  };
+
   return (
     <>
-      {/* Cover Page */}
+      {/* Main Agreement Page */}
       <Page size="A4" style={styles.page}>
-        {/* Barcode Section */}
-        <View style={styles.barcode}>
-          {/* Add barcode image here */}
+        {/* Government Header */}
+        <View style={styles.governmentHeader}>
+          <Text style={styles.governmentTitle}>KERAJAAN MALAYSIA</Text>
+          <Text style={styles.governmentTitle}>GOVERNMENT OF MALAYSIA</Text>
+          <Text style={styles.departmentTitle}>JABATAN HARTA PUSAKA</Text>
+          <Text style={styles.subDepartment}>Department of Estate Management</Text>
         </View>
 
-        {/* Government Logo */}
-        {/* <View>
-          <Image style={styles.logo} src="./assets/logo.png" />
-        </View> */}
-
-        {/* Duty Text */}
-        {/* <Text style={styles.dutiText}>Duti Setem Telah Dibayar</Text> */}
-
-        {/* Title */}
-        <View style={styles.header}>
-          <Text style={styles.title}>ASSETS DISTRIBUTIONS AGREEMENT</Text>
-          <Text style={styles.title}>YEAR {format(new Date(createdAt), 'yyyy')}</Text>
-          <Text style={styles.title}>{assetName.toUpperCase()}</Text>
-          <Text style={styles.title}>Distribution Type: {distributionType.toUpperCase()}</Text>
+        {/* Document Information */}
+        <View style={styles.documentInfo}>
+          <Text style={styles.docNumber}>
+            Rujukan: WEM/{agreementNumber}/{format(new Date(createdAt), 'yyyy')}
+          </Text>
+          <Text style={styles.docDate}>
+            Tarikh: {format(new Date(createdAt), 'dd MMMM yyyy')}
+          </Text>
         </View>
 
-        {/* ANTARA Section */}
-        <Text style={styles.antara}>BETWEEN</Text>
-
-        {/* Person Info - Owner/Benefactor */}
-        <Text style={styles.personInfo}>{benefactorName.toUpperCase()}</Text>
-        <Text style={styles.personId}>({benefactorIC})</Text>
-        <Text style={styles.personNote}>(Benefactor Name and IC Number)</Text>
-
-        {/* DAN Section */}
-        <Text style={styles.dan}>AND</Text>
-
-        {/* Organization */}
-        <Text style={styles.organization}>WILL & ESTATE MANAGEMENT SDN BHD</Text>
-
-        {/* Second DAN */}
-        <Text style={styles.dan}>AND</Text>
-
-        {/* Second Person - Beneficiary */}
-        <Text style={styles.personInfo}>{beneficiary?.fullName.toUpperCase() || 'BENEFICIARY NAME'}</Text>
-        <Text style={styles.personId}>({beneficiary?.ic || 'IC NUMBER'})</Text>
-        <Text style={styles.personNote}>(Beneficiary Name and IC Number)</Text>
-
-        {/* Date Section */}
-        <Text style={styles.dateSection}>
-          Date: {format(new Date(createdAt), 'dd MMMM yyyy')}
+        {/* Agreement Title */}
+        <Text style={styles.agreementTitle}>
+          PERJANJIAN PENGAGIHAN HARTA
+        </Text>
+        <Text style={styles.agreementTitle}>
+          ASSET DISTRIBUTION AGREEMENT
         </Text>
 
-        {/* Footer Info */}
-        <View style={styles.footer}>
-          <Text>For the use of the Department:</Text>
-          <Text>File Code: {agreements[0]?.id || 'N/A'}</Text>
-        </View>
-      </Page>
-
-      Asset Details Page
-      <Page size="A4" style={styles.page}>
-        <Text style={styles.pageTitle}>ASSET DETAILS</Text>
-        
-        <Text style={styles.sectionTitle}>Asset Information</Text>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Asset Name:</Text>
-          <Text style={styles.detailValue}>{assetName}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Distribution Type:</Text>
-          <Text style={styles.detailValue}>{distributionType}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Agreement Created:</Text>
-          <Text style={styles.detailValue}>{format(new Date(createdAt), 'dd MMMM yyyy, HH:mm')}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Total Agreements:</Text>
-          <Text style={styles.detailValue}>{agreements.length}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>Benefactor Information</Text>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Full Name:</Text>
-          <Text style={styles.detailValue}>{benefactorName}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>IC Number:</Text>
-          <Text style={styles.detailValue}>{benefactorIC}</Text>
-        </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Pending Agreements:</Text>
-          <Text style={styles.detailValue}>
-            {agreements.filter(a => a.status === 'pending' || a.status === 'pending_admin').length}
+        {/* Distribution Type */}
+        <View style={styles.distributionSection}>
+          <Text style={styles.distributionType}>
+            {getDistributionTypeDisplay(distributionType)}
           </Text>
         </View>
-        
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Rejected Agreements:</Text>
-          <Text style={styles.detailValue}>
-            {agreements.filter(a => a.status === 'rejected').length}
-          </Text>
-        </View>
-      </Page>
 
-            {/* Agreement Details Pages
-      <Page size="A4" style={styles.page}>
-        <Text style={styles.pageTitle}>AGREEMENT DETAILS</Text>
-        
-        {agreements.map((agreement, index) => (
-          <View key={agreement.id} style={styles.agreementCard}>
-            <Text style={styles.agreementHeader}>
-              Agreement #{index + 1} - {agreement.familyMember?.fullName || 'Unknown'}
-            </Text>
-            
-            <View style={getStatusStyle(agreement.status)}>
-              <Text>Status: {agreement.status.toUpperCase()}</Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Family Member:</Text>
-              <Text style={styles.detailValue}>{agreement.familyMember?.fullName || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>IC Number:</Text>
-              <Text style={styles.detailValue}>{agreement.familyMember?.ic || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Relationship:</Text>
-              <Text style={styles.detailValue}>{agreement.familyMember?.relationship || 'N/A'}</Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Agreement ID:</Text>
-              <Text style={styles.detailValue}>{agreement.id}</Text>
-            </View>
-            
-            {agreement.signedAt && (
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Signed At:</Text>
-                <Text style={styles.detailValue}>
-                  {format(new Date(agreement.signedAt), 'dd MMMM yyyy, HH:mm')}
-                </Text>
-              </View>
-            )}
-            
-            {agreement.notes && (
-              <View style={styles.notesSection}>
-                <Text style={styles.notesTitle}>Notes:</Text>
-                <Text style={styles.notesText}>{agreement.notes}</Text>
-              </View>
-            )}
+        {/* Parties Section */}
+        <View style={styles.partySection}>
+          <Text style={styles.partyHeader}>PIHAK-PIHAK YANG TERLIBAT / PARTIES INVOLVED</Text>
+          
+          {/* Benefactor */}
+          <View style={styles.partyInfo}>
+            <Text style={styles.partyName}>{benefactorName.toUpperCase()}</Text>
+            <Text style={styles.partyDetail}>No. K/P: {benefactorIC}</Text>
+            <Text style={styles.partyRole}>(PEMBERI HARTA / GRANTOR)</Text>
           </View>
-        ))}
-      </Page> */}
 
-      {/* Signatures Page - Show all family members */}
+          {/* Government */}
+          <View style={styles.partyInfo}>
+            <Text style={styles.partyName}>JABATAN HARTA PUSAKA MALAYSIA</Text>
+            <Text style={styles.partyDetail}>Department of Estate Management Malaysia</Text>
+            <Text style={styles.partyRole}>(PIHAK KERAJAAN / GOVERNMENT AUTHORITY)</Text>
+          </View>
+
+          {/* Beneficiaries */}
+          {beneficiaries.map((agreement, index) => (
+            <View key={agreement.id} style={styles.partyInfo}>
+              <Text style={styles.partyName}>{agreement.familyMember?.fullName.toUpperCase()}</Text>
+              <Text style={styles.partyDetail}>No. K/P: {agreement.familyMember?.ic}</Text>
+              <Text style={styles.partyDetail}>Hubungan: {agreement.familyMember?.relationship}</Text>
+              <Text style={styles.partyRole}>(PENERIMA HARTA / BENEFICIARY {index + 1})</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Asset Information */}
+        <View style={styles.assetSection}>
+          <Text style={styles.sectionTitle}>MAKLUMAT HARTA / ASSET INFORMATION</Text>
+          
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Nama Harta:</Text>
+            <Text style={styles.detailValue}>{assetName}</Text>
+          </View>
+          
+          {assetValue && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Nilai Harta:</Text>
+              <Text style={styles.detailValue}>RM {assetValue.toLocaleString()}</Text>
+            </View>
+          )}
+          
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Jenis Pengagihan:</Text>
+            <Text style={styles.detailValue}>{getDistributionTypeDisplay(distributionType)}</Text>
+          </View>
+          
+          {assetDescription && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Penerangan:</Text>
+              <Text style={styles.detailValue}>{assetDescription}</Text>
+            </View>
+          )}
+          
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Tarikh Perjanjian:</Text>
+            <Text style={styles.detailValue}>{format(new Date(createdAt), 'dd MMMM yyyy')}</Text>
+          </View>
+        </View>
+
+        {/* Beneficiaries Table */}
+        <View style={styles.beneficiarySection}>
+          <Text style={styles.sectionTitle}>SENARAI PENERIMA / BENEFICIARIES LIST</Text>
+          
+          {/* Table Header */}
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, { width: '5%' }]}>Bil.</Text>
+            <Text style={[styles.tableHeaderCell, { width: '30%' }]}>Nama</Text>
+            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>No. K/P</Text>
+            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Hubungan</Text>
+            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Status</Text>
+          </View>
+          
+          {/* Table Rows */}
+          {beneficiaries.map((agreement, index) => (
+            <View key={agreement.id} style={styles.tableRow}>
+              <Text style={[styles.tableCell, { width: '5%' }]}>{index + 1}</Text>
+              <Text style={[styles.tableCell, { width: '30%' }]}>
+                {agreement.familyMember?.fullName}
+              </Text>
+              <Text style={[styles.tableCell, { width: '20%' }]}>
+                {agreement.familyMember?.ic}
+              </Text>
+              <Text style={[styles.tableCell, { width: '20%' }]}>
+                {agreement.familyMember?.relationship}
+              </Text>
+              <View style={[{ width: '25%' }, { alignItems: 'center' }]}>
+                <View style={getStatusStyle(agreement.status)}>
+                  <Text>{agreement.status.toUpperCase()}</Text>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+      </Page>
+
+      {/* Terms and Signatures Page */}
       <Page size="A4" style={styles.page}>
-        {/* <Text style={styles.pageTitle}>SIGNATURES</Text> */}
-        
-        {/* Formal Agreement Text */}
-        <Text style={styles.sectionTitleSignature}>
-          PADA MENYAKSIKAN HAL DI ATAS, pihak-pihak kepada Perjanjian ini telah menurunkan di sini tandatangan-tandatangan dan meteri-meteri mereka pada haribulan dan tahun yang mula tertulis di atas.
-        </Text>
-        
-        <View style={styles.signingSection}>
+        {/* Terms and Conditions */}
+        <View style={styles.termsSection}>
+          <Text style={styles.sectionTitle}>TERMA DAN SYARAT / TERMS AND CONDITIONS</Text>
+          
+          <Text style={styles.termItem}>
+            <Text style={styles.termNumber}>1. </Text>
+            Perjanjian ini dibuat mengikut undang-undang Malaysia dan peraturan yang berkaitan dengan pengagihan harta.
+          </Text>
+          
+          <Text style={styles.termItem}>
+            <Text style={styles.termNumber}>2. </Text>
+            Semua pihak yang terlibat bersetuju untuk mematuhi syarat-syarat yang ditetapkan dalam perjanjian ini.
+          </Text>
+          
+          <Text style={styles.termItem}>
+            <Text style={styles.termNumber}>3. </Text>
+            Pengagihan harta akan dilaksanakan setelah mendapat kelulusan daripada pihak berkuasa yang berkaitan.
+          </Text>
+          
+          <Text style={styles.termItem}>
+            <Text style={styles.termNumber}>4. </Text>
+            Sebarang perubahan kepada perjanjian ini mesti mendapat persetujuan bertulis daripada semua pihak.
+          </Text>
+          
+          <Text style={styles.termItem}>
+            <Text style={styles.termNumber}>5. </Text>
+            Perjanjian ini berkuat kuasa setelah ditandatangani oleh semua pihak yang berkaitan.
+          </Text>
+        </View>
+
+        {/* Signature Section */}
+        <View style={styles.signatureSection}>
+          <Text style={styles.signatureTitle}>TANDATANGAN / SIGNATURES</Text>
+          
           {/* Family Member Signatures */}
-          {agreements
-            .filter(agreement => agreement.familyMember) // Only show if family member exists
-            .map((agreement) => (
-              <View key={agreement.id} style={styles.signerBlock}>
-                <Text style={styles.detailLabelSignature}>
-                  AHLI KELUARGA:
-                </Text>
-                
-                <View style={styles.signatureInfo}>
-                  {(agreement.status === 'signed' || agreement.status === 'completed') && agreement.signedAt ? (
-                    <>
-                      <View style={styles.signatureRow}>
-                        <Text style={styles.signatureLabelInline}>Tandatangan oleh:</Text>
-                        <Text style={styles.signatureValueInline}>
-                          {agreement.familyMember?.fullName.toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={styles.signatureRow}>
-                        <Text style={styles.signatureLabelInline}>Pada:</Text>
-                        <Text style={styles.signatureValueInline}>
-                          {format(new Date(agreement.signedAt), 'dd-MM-yyyy HH:mm:ss')}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <View style={styles.signatureRow}>
-                        <Text style={styles.signatureLabelInline}>Tandatangan oleh:</Text>
-                        <Text style={styles.signatureValueInline}>
-                          ___________________________
-                        </Text>
-                      </View>
-                      <View style={styles.signatureRow}>
-                        <Text style={styles.signatureLabelInline}>Pada:</Text>
-                        <Text style={styles.signatureValueInline}>
-                          ___________________________
-                        </Text>
-                      </View>
-                    </>
+          {beneficiaries.map((agreement) => (
+            <View key={agreement.id} style={styles.signatureBlock}>
+              <Text style={styles.signatureRole}>PENERIMA HARTA / BENEFICIARY</Text>
+              
+              {agreement.signedAt ? (
+                <View>
+                  <View style={styles.signatureRow}>
+                    <Text style={styles.signatureLabel}>Nama:</Text>
+                    <Text style={styles.signatureValue}>
+                      {agreement.familyMember?.fullName.toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.signatureRow}>
+                    <Text style={styles.signatureLabel}>Tandatangan:</Text>
+                    <Text style={styles.signatureValue}>
+                      (Ditandatangani secara digital pada {format(new Date(agreement.signedAt), 'dd/MM/yyyy HH:mm')})
+                    </Text>
+                  </View>
+                  {agreement.transactionHash && (
+                    <View style={styles.signatureRow}>
+                      <Text style={styles.signatureLabel}>Tx Hash:</Text>
+                      <Text style={styles.signatureValue}>{agreement.transactionHash}</Text>
+                    </View>
                   )}
                 </View>
-
-                <View style={styles.signatureRow}>
-                  <Text style={styles.signatureLabelInline}>Nama:</Text>
-                  <Text style={styles.signerName}>
-                    {agreement.familyMember?.fullName.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-            ))
-          }
-
-          {/* Admin/Government Signature */}
-          <View style={styles.signerBlock}>
-            <Text style={styles.detailLabelSignature}>
-              KERAJAAN:
-            </Text>
-            
-            <View style={styles.signatureInfo}>
-              {agreements.some(a => a.status === 'completed') ? (
-                <>
-                  <View style={styles.signatureRow}>
-                    <Text style={styles.signatureLabelInline}>Tandatangan oleh:</Text>
-                    <Text style={styles.signatureValueInline}>
-                      ADMIN KERAJAAN
-                    </Text>
-                  </View>
-                  <View style={styles.signatureRow}>
-                    <Text style={styles.signatureLabelInline}>Pada:</Text>
-                    <Text style={styles.signatureValueInline}>
-                      {format(new Date(), 'dd-MM-yyyy HH:mm:ss')}
-                    </Text>
-                  </View>
-                </>
               ) : (
-                <>
+                <View>
                   <View style={styles.signatureRow}>
-                    <Text style={styles.signatureLabelInline}>Tandatangan oleh:</Text>
-                    <Text style={styles.signatureValueInline}>
-                      {/* ___________________________ */}
+                    <Text style={styles.signatureLabel}>Nama:</Text>
+                    <Text style={styles.signatureValue}>
+                      {agreement.familyMember?.fullName.toUpperCase()}
                     </Text>
                   </View>
                   <View style={styles.signatureRow}>
-                    <Text style={styles.signatureLabelInline}>Pada:</Text>
-                    <Text style={styles.signatureValueInline}>
-                      {/* ___________________________ */}
-                    </Text>
+                    <Text style={styles.signatureLabel}>Tandatangan:</Text>
+                    <View style={styles.signatureLine} />
                   </View>
-                </>
+                  <View style={styles.signatureRow}>
+                    <Text style={styles.signatureLabel}>Tarikh:</Text>
+                    <Text style={styles.signatureValue}>_________________</Text>
+                  </View>
+                </View>
               )}
             </View>
+          ))}
 
-            <View style={styles.signatureRow}>
-              <Text style={styles.signatureLabelInline}>Nama:</Text>
-              <Text style={styles.signerName}>
-                ADMIN KERAJAAN
-              </Text>
-            </View>
-          </View>
-
-          {/* Guarantor Signature */}
-          <View style={styles.signerBlock}>
-            <Text style={styles.detailLabelSignature}>
-              PENJAMIN:
-            </Text>
+          {/* Government Official Signature */}
+          <View style={styles.signatureBlock}>
+            <Text style={styles.signatureRole}>PEGAWAI KERAJAAN / GOVERNMENT OFFICIAL</Text>
             
-            <View style={styles.signatureInfo}>
-              <View style={styles.signatureRow}>
-                <Text style={styles.signatureLabelInline}>Tandatangan oleh:</Text>
-                <Text style={styles.signatureValueInline}>
-                  {/* ___________________________ */}
-                </Text>
+            {isCompleted ? (
+              <View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Nama:</Text>
+                  <Text style={styles.signatureValue}>PEGAWAI JABATAN HARTA PUSAKA</Text>
+                </View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Tandatangan:</Text>
+                  <Text style={styles.signatureValue}>
+                    (Disahkan secara digital pada {format(new Date(), 'dd/MM/yyyy HH:mm')})
+                  </Text>
+                </View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Jawatan:</Text>
+                  <Text style={styles.signatureValue}>Penolong Pengarah, Jabatan Harta Pusaka</Text>
+                </View>
               </View>
-              <View style={styles.signatureRow}>
-                <Text style={styles.signatureLabelInline}>Pada:</Text>
-                <Text style={styles.signatureValueInline}>
-                  {/* ___________________________ */}
-                </Text>
+            ) : (
+              <View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Nama:</Text>
+                  <Text style={styles.signatureValue}>_________________________________</Text>
+                </View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Tandatangan:</Text>
+                  <View style={styles.signatureLine} />
+                </View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Tarikh:</Text>
+                  <Text style={styles.signatureValue}>_________________</Text>
+                </View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Cop Rasmi:</Text>
+                  <View style={styles.signatureLine} />
+                </View>
               </View>
-            </View>
-
-            <View style={styles.signatureRow}>
-              <Text style={styles.signatureLabelInline}>Nama:</Text>
-              <Text style={styles.signerName}>
-                {/* ___________________________ */}
-              </Text>
-            </View>
+            )}
           </View>
         </View>
+
+        {/* Official Section */}
+        <View style={styles.officialSection}>
+          <Text style={styles.officialText}>
+            DOKUMEN INI ADALAH SAH DAN DIKELUARKAN OLEH
+          </Text>
+          <Text style={styles.officialText}>
+            JABATAN HARTA PUSAKA MALAYSIA
+          </Text>
+          <Text style={styles.officialText}>
+            THIS DOCUMENT IS VALID AND ISSUED BY
+          </Text>
+          <Text style={styles.officialText}>
+            MALAYSIAN DEPARTMENT OF ESTATE MANAGEMENT
+          </Text>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Dokumen ini dijana secara automatik oleh sistem digital pada {format(new Date(), 'dd MMMM yyyy, HH:mm')}
+          </Text>
+          <Text style={styles.footerText}>
+            This document is automatically generated by digital system on {format(new Date(), 'dd MMMM yyyy, HH:mm')}
+          </Text>
+          <Text style={styles.footerText}>
+            Rujukan: WEM/{agreementNumber}/{format(new Date(createdAt), 'yyyy')}
+          </Text>
+        </View>
       </Page>
-     </>
-   );
- } 
+    </>
+  );
+} 
