@@ -1,4 +1,4 @@
-import { Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 
 // Create styles
@@ -7,6 +7,102 @@ const styles = StyleSheet.create({
     padding: 30,
     fontFamily: 'Helvetica',
     fontSize: 11,
+  },
+  // First page - Cover page styles
+  coverPage: {
+    padding: 30,
+    fontFamily: 'Helvetica',
+  },
+  dutiSetem: {
+    position: 'absolute',
+    top: 30,
+    right: 30,
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: 40,
+    marginBottom: 15,
+  },
+  logo: {
+    width: 80,
+    height: 80,
+  },
+  coverTitle: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    marginBottom: 5,
+    lineHeight: 1.3,
+  },
+  coverSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  antara: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    marginTop: 30,
+  },
+  dan: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    marginTop: 30,
+  },
+  partyBox: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  partyContent: {
+    alignItems: 'center',
+  },
+  partyName: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  partyIC: {
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+  partyDescription: {
+    fontSize: 10,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  governmentName: {
+    fontSize: 12,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+  },
+  dateSection: {
+    position: 'absolute',
+    bottom: 100,
+    left: 30,
+    right: 30,
+  },
+  dateText: {
+    fontSize: 11,
+    marginBottom: 5,
+  },
+  departmentInfo: {
+    position: 'absolute',
+    bottom: 30,
+    left: 30,
+    right: 30,
+  },
+  departmentText: {
+    fontSize: 10,
+    marginBottom: 3,
   },
   // Header styles
   governmentHeader: {
@@ -78,11 +174,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftStyle: 'solid',
     borderLeftColor: '#0066cc',
-  },
-  partyName: {
-    fontSize: 12,
-    fontFamily: 'Helvetica-Bold',
-    marginBottom: 3,
   },
   partyDetail: {
     fontSize: 10,
@@ -338,23 +429,9 @@ export function AgreementPDF({
   assetDescription,
   agreementId
 }: AgreementPDFProps) {
-  const agreementNumber = agreementId?.slice(-8).toUpperCase() || 'AGR' + new Date().getFullYear();
+  const agreementNumber = agreementId?.slice(-8).toUpperCase() || 'WEMSP' + new Date().getFullYear();
   const beneficiaries = agreements.filter(a => a.familyMember);
   const isCompleted = agreements.some(a => a.status === 'completed');
-
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'signed':
-        return { ...styles.statusBadge, ...styles.statusSigned };
-      case 'completed':
-        return { ...styles.statusBadge, ...styles.statusCompleted };
-      case 'pending':
-      case 'pending_admin':
-        return { ...styles.statusBadge, ...styles.statusPending };
-      default:
-        return styles.statusBadge;
-    }
-  };
 
   const getDistributionTypeDisplay = (type: string) => {
     switch (type.toLowerCase()) {
@@ -368,13 +445,105 @@ export function AgreementPDF({
 
   return (
     <>
-      {/* Main Agreement Page */}
+      {/* Cover Page - Malaysian Government Style */}
+      <Page size="A4" style={styles.coverPage}>
+        {/* Duti Setem */}
+        {/* <Text style={styles.dutiSetem}>Duti Setem Telah Dibayar</Text> */}
+        
+        {/* Government Logo */}
+        <View style={styles.logoContainer}>
+          <Image style={styles.logo} src="/assets/logo.png" />
+        </View>
+        
+        {/* Document Title */}
+        <Text style={styles.coverTitle}>
+          PERJANJIAN PENGAGIHAN HARTA
+        </Text>
+        <Text style={styles.coverSubtitle}>
+          TAHUN {format(new Date(createdAt), 'yyyy')}
+        </Text>
+        
+        {/* ANTARA Section */}
+        <Text style={styles.antara}>ANTARA</Text>
+        
+        {/* First Party - Benefactor */}
+        <View style={styles.partyBox}>
+          <View style={styles.partyContent}>
+            <Text style={styles.partyName}>
+              {benefactorName.toUpperCase()}
+            </Text>
+            <Text style={styles.partyIC}>
+              ({benefactorIC})
+            </Text>
+            <Text style={styles.partyDescription}>
+              (Nama PEMBERI dan No. Kad Pengenalan)
+            </Text>
+          </View>
+        </View>
+        
+        {/* DAN Section */}
+        <Text style={styles.dan}>DAN</Text>
+        
+        {/* Second Party - Government */}
+        <View style={styles.partyBox}>
+          <View style={styles.partyContent}>
+            <Text style={styles.governmentName}>
+              WILL & ESTATE MANAGEMENT SOLUTION PROVIDER (WEMSP)
+            </Text>
+          </View>
+        </View>
+        
+        {/* DAN Section */}
+        <Text style={styles.dan}>DAN</Text>
+        
+        {/* Third Party - Beneficiary */}
+        {beneficiaries.length > 0 && (
+          <View style={styles.partyBox}>
+            <View style={styles.partyContent}>
+              <Text style={styles.partyName}>
+                {beneficiaries[0].familyMember?.fullName.toUpperCase()}
+              </Text>
+              <Text style={styles.partyIC}>
+                ({beneficiaries[0].familyMember?.ic})
+              </Text>
+              <Text style={styles.partyDescription}>
+                (Nama PENERIMA dan No. Kad Pengenalan)
+              </Text>
+            </View>
+          </View>
+        )}
+        
+        {/* Date Section */}
+        <View style={styles.dateSection}>
+          <Text style={styles.dateText}>
+            Bertarikh pada    {format(new Date(createdAt), 'dd')} hari bulan {format(new Date(createdAt), 'MMMM yyyy')}
+          </Text>
+        </View>
+        
+        {/* Department Information */}
+        <View style={styles.departmentInfo}>
+          <Text style={styles.departmentText}>
+            Untuk Kegunaan Jabatan:
+          </Text>
+          <Text style={styles.departmentText}>
+            Kod Fail: {agreementNumber}
+          </Text>
+          {/* <Text style={styles.departmentText}>
+            Program: PROGRAM PENGAGIHAN HARTA DIGITAL
+          </Text> */}
+          <Text style={styles.departmentText}>
+            Will & Estate Management Solution Provider (WEMSP)
+          </Text>
+        </View>
+      </Page>
+
+      {/* Second Page - Detailed Information */}
       <Page size="A4" style={styles.page}>
         {/* Government Header */}
         <View style={styles.governmentHeader}>
-          <Text style={styles.governmentTitle}>KERAJAAN MALAYSIA</Text>
-          <Text style={styles.governmentTitle}>GOVERNMENT OF MALAYSIA</Text>
-          <Text style={styles.departmentTitle}>JABATAN HARTA PUSAKA</Text>
+          <Text style={styles.governmentTitle}>WILL & ESTATE MANAGEMENT SOLUTION PROVIDER (WEMSP)</Text>
+          {/* <Text style={styles.governmentTitle}>GOVERNMENT OF MALAYSIA</Text> */}
+          {/* <Text style={styles.departmentTitle}>JABATAN HARTA PUSAKA</Text> */}
           <Text style={styles.subDepartment}>Department of Estate Management</Text>
         </View>
 
@@ -472,38 +641,29 @@ export function AgreementPDF({
           
           {/* Table Header */}
           <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, { width: '5%' }]}>Bil.</Text>
-            <Text style={[styles.tableHeaderCell, { width: '30%' }]}>Nama</Text>
-            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>No. K/P</Text>
-            <Text style={[styles.tableHeaderCell, { width: '20%' }]}>Hubungan</Text>
-            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Status</Text>
+            <Text style={[styles.tableHeaderCell, { width: '10%' }]}>Bil.</Text>
+            <Text style={[styles.tableHeaderCell, { width: '40%' }]}>Nama</Text>
+            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>No. K/P</Text>
+            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Hubungan</Text>
           </View>
           
           {/* Table Rows */}
           {beneficiaries.map((agreement, index) => (
             <View key={agreement.id} style={styles.tableRow}>
-              <Text style={[styles.tableCell, { width: '5%' }]}>{index + 1}</Text>
-              <Text style={[styles.tableCell, { width: '30%' }]}>
+              <Text style={[styles.tableCell, { width: '10%' }]}>{index + 1}</Text>
+              <Text style={[styles.tableCell, { width: '40%' }]}>
                 {agreement.familyMember?.fullName}
               </Text>
-              <Text style={[styles.tableCell, { width: '20%' }]}>
+              <Text style={[styles.tableCell, { width: '25%' }]}>
                 {agreement.familyMember?.ic}
               </Text>
-              <Text style={[styles.tableCell, { width: '20%' }]}>
+              <Text style={[styles.tableCell, { width: '25%' }]}>
                 {agreement.familyMember?.relationship}
               </Text>
-              <View style={[{ width: '25%' }, { alignItems: 'center' }]}>
-                <View style={getStatusStyle(agreement.status)}>
-                  <Text>{agreement.status.toUpperCase()}</Text>
-                </View>
-              </View>
             </View>
           ))}
         </View>
-      </Page>
 
-      {/* Terms and Signatures Page */}
-      <Page size="A4" style={styles.page}>
         {/* Terms and Conditions */}
         <View style={styles.termsSection}>
           <Text style={styles.sectionTitle}>TERMA DAN SYARAT / TERMS AND CONDITIONS</Text>
@@ -587,13 +747,13 @@ export function AgreementPDF({
 
           {/* Government Official Signature */}
           <View style={styles.signatureBlock}>
-            <Text style={styles.signatureRole}>PEGAWAI KERAJAAN / GOVERNMENT OFFICIAL</Text>
+            <Text style={styles.signatureRole}>PEGAWAI AGENSI / AGENCY OFFICER</Text>
             
             {isCompleted ? (
               <View>
                 <View style={styles.signatureRow}>
                   <Text style={styles.signatureLabel}>Nama:</Text>
-                  <Text style={styles.signatureValue}>PEGAWAI JABATAN HARTA PUSAKA</Text>
+                  <Text style={styles.signatureValue}>PEGAWAI AGENSI</Text>
                 </View>
                 <View style={styles.signatureRow}>
                   <Text style={styles.signatureLabel}>Tandatangan:</Text>
