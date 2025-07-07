@@ -660,7 +660,7 @@ export default function AssetDetailsPage() {
                 <div className="col-span-2">
                   <div className="text-sm text-muted-foreground">Blockchain Transaction</div>
                   <a
-                    href={`https://sepolia.scrollscan.com/tx/${assetDetails.distribution.agreement.transactionHash}`}
+                    href={`https://sepolia.basescan.org/tx/${assetDetails.distribution.agreement.transactionHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-blue-600 hover:text-blue-800 truncate"
@@ -670,7 +670,7 @@ export default function AssetDetailsPage() {
                       <line x1="16" y1="8" x2="2" y2="22"></line>
                       <line x1="17.5" y1="15" x2="9" y2="15"></line>
                     </svg>
-                    View on Scrollscan
+                    View on BaseScan
                   </a>
                 </div>
               )}
