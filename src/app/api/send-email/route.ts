@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { to, subject, text } = body;
+    const { to, subject, text, html } = body;
 
     // Check if required environment variables are set
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       to,
       subject,
       text,
+      html: html || undefined, // Include HTML content if provided
     };
 
     // Send email
