@@ -6,19 +6,24 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { to, subject, text } = body;
 
+    // Check if required environment variables are set
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('Email environment variables are not set');
+      return NextResponse.json({ success: false, message: 'Email service not configured properly' }, { status: 500 });
+    }
+
     // Create a transporter
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        // These should be stored in environment variables in production
-        user: process.env.EMAIL_USER || 'your-email@gmail.com', // Replace with your email or use env variable
-        pass: process.env.EMAIL_PASS || 'your-app-password', // Replace with your app password or use env variable
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
       },
     });
 
     // Email options
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'your-email@gmail.com', // Replace with your email or use env variable
+      from: process.env.EMAIL_USER,
       to,
       subject,
       text,

@@ -55,6 +55,18 @@ model TemporaryUser {
   @@index([verificationCode])
 }
 
+// Password reset token model
+model PasswordResetToken {
+  id            String   @id @default(cuid())
+  email         String
+  token         String   @unique
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  
+  @@index([email])
+  @@index([token])
+}
+
 // Temporary model for agreement signing verification
 model TemporaryAgreementVerification {
   id            String   @id @default(cuid())
