@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import {
   Table,
   TableBody,
@@ -238,7 +238,7 @@ const cancelInvitation = async (id: string) => {
 //   return response.json();
 // };
 
-export default function FamilyPage() {
+function FamilyPageContent() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState<Family | null>(null);
   const [searchIC, setSearchIC] = useState('');
@@ -828,5 +828,13 @@ export default function FamilyPage() {
         </Table>
       </div>
     </div>
+  );
+}
+
+export default function FamilyPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <FamilyPageContent />
+    </Suspense>
   );
 }

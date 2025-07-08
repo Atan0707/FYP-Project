@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ interface InvitationDetails {
   status: string;
 }
 
-export default function DirectAcceptInvitationPage() {
+function DirectAcceptInvitationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -275,5 +275,17 @@ export default function DirectAcceptInvitationPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function DirectAcceptInvitationPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <DirectAcceptInvitationContent />
+    </Suspense>
   );
 } 

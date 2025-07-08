@@ -10,7 +10,7 @@ interface ExtendedUser {
   id: string;
   email: string;
   role?: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: string | number | boolean | undefined; // More specific than any
 }
 
 interface AgreementDetails {
@@ -46,11 +46,18 @@ interface Distribution {
   };
   agreement?: {
     id: string;
-    signatures: any[];
+    signatures: {
+      id: string;
+      familyId: string;
+      status: string;
+      signedAt?: Date;
+      notes?: string;
+      transactionHash?: string;
+    }[];
     adminSignedAt?: Date | null;
     adminNotes?: string | null;
   };
-  [key: string]: any; // Allow additional properties
+  [key: string]: unknown; // More specific than any
 }
 
 interface DistributionData {
@@ -211,7 +218,7 @@ async function getDistributionData(id: string, user: ExtendedUser): Promise<Dist
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Verify user authentication
@@ -223,7 +230,7 @@ export async function GET(
       );
     }
 
-    const id = params.id;
+    const id = (await params).id;
     const format = request.nextUrl.searchParams.get('format');
     
     // If format is JSON, return JSON data instead of PDF
