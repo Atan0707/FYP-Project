@@ -8,6 +8,14 @@ export function middleware(request: NextRequest) {
                      request.nextUrl.pathname.startsWith('/signup');
   const isAdminAuthPage = request.nextUrl.pathname.startsWith('/admin/login');
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin') && !isAdminAuthPage;
+  
+  // Public routes that don't require authentication
+  const isPublicRoute = request.nextUrl.pathname.startsWith('/pages/family/direct-accept');
+
+  // If it's a public route, allow access without authentication
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
 
   // Handle admin routes
   if (isAdminPage) {
