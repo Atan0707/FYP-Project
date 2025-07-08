@@ -16,6 +16,15 @@ export async function POST(
 
     const { notes } = await request.json();
 
+    // Find the admin info
+    const admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+    });
+
+    if (!admin) {
+      return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
+    }
+
     // Find the agreement and its distribution
     const agreement = await prisma.agreement.findFirst({
       where: {
@@ -38,6 +47,11 @@ export async function POST(
       );
     }
 
+    // Format admin notes with username
+    const adminNotesWithUsername = notes 
+      ? `[${admin.username}] ${notes}`
+      : `Signed by ${admin.username}`;
+
     // Update all agreements in the distribution to completed
     await prisma.agreement.updateMany({
       where: {
@@ -47,7 +61,7 @@ export async function POST(
       data: {
         status: 'completed',
         adminSignedAt: new Date(),
-        adminNotes: notes ? `[Admin] ${notes}` : undefined,
+        adminNotes: adminNotesWithUsername,
       },
     });
 

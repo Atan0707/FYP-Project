@@ -47,6 +47,8 @@ interface Distribution {
   agreement?: {
     id: string;
     signatures: any[];
+    adminSignedAt?: Date | null;
+    adminNotes?: string | null;
   };
   [key: string]: any; // Allow additional properties
 }
@@ -55,6 +57,8 @@ interface DistributionData {
   distribution: Distribution;
   agreementsWithDetails: AgreementDetails[];
   hasAccess: boolean;
+  adminName: string;
+  adminNotes?: string;
   error?: string;
   status?: number;
 }
@@ -84,11 +88,51 @@ async function getDistributionData(id: string, user: ExtendedUser): Promise<Dist
     return null;
   }
 
+  // Get admin information if the agreement has been signed by an admin
+  let adminName = 'Admin';
+  let formattedAdminNotes = distribution.agreement?.adminNotes || undefined;
+  
+  if (distribution.agreement?.adminSignedAt && distribution.agreement?.adminNotes) {
+    // Try to extract admin name from notes
+    const usernameMatch = distribution.agreement.adminNotes.match(/^\[([^\]]+)\]/);
+    if (usernameMatch && usernameMatch[1]) {
+      adminName = usernameMatch[1];
+      // Remove the [username] prefix from notes
+      formattedAdminNotes = distribution.agreement.adminNotes.replace(/^\[[^\]]+\]\s*/, '').trim();
+      if (!formattedAdminNotes) formattedAdminNotes = undefined;
+    } else {
+      // Try to extract from "Signed by username" format
+      const signedByMatch = distribution.agreement.adminNotes.match(/^Signed by (.+)$/);
+      if (signedByMatch && signedByMatch[1]) {
+        adminName = signedByMatch[1];
+        formattedAdminNotes = undefined; // No actual notes in this case
+      }
+    }
+    
+    // If we couldn't extract from notes, try to get from database
+    if (adminName === 'Admin') {
+      try {
+        const admin = await prisma.admin.findFirst({
+          select: {
+            username: true,
+          },
+        });
+        if (admin) {
+          adminName = admin.username;
+        }
+      } catch (error) {
+        console.error('Error fetching admin info:', error);
+      }
+    }
+  }
+
   console.log('Distribution found:', {
     id: distribution.id,
     assetName: distribution.asset.name,
     type: distribution.type,
-    signatureCount: distribution.agreement?.signatures.length || 0
+    signatureCount: distribution.agreement?.signatures.length || 0,
+    adminSigned: !!distribution.agreement?.adminSignedAt,
+    adminName
   });
 
   // Get family members for the signatures
@@ -149,6 +193,8 @@ async function getDistributionData(id: string, user: ExtendedUser): Promise<Dist
       distribution: distribution as Distribution,
       agreementsWithDetails,
       hasAccess: false,
+      adminName,
+      adminNotes: formattedAdminNotes,
       error: 'Unauthorized', 
       status: 403 
     };
@@ -157,7 +203,9 @@ async function getDistributionData(id: string, user: ExtendedUser): Promise<Dist
   return {
     distribution: distribution as Distribution,
     agreementsWithDetails,
-    hasAccess
+    hasAccess,
+    adminName,
+    adminNotes: formattedAdminNotes
   };
 }
 
@@ -199,7 +247,7 @@ export async function GET(
       );
     }
 
-    const { distribution, agreementsWithDetails } = data;
+    const { distribution, agreementsWithDetails, adminName, adminNotes } = data;
 
     if (!distribution || !distribution.asset || !distribution.agreement) {
       return NextResponse.json(
@@ -223,6 +271,9 @@ export async function GET(
             assetValue: distribution.asset.value,
             assetDescription: distribution.asset.description,
             agreementId: distribution.agreement?.id,
+            adminSignedAt: distribution.agreement?.adminSignedAt ? distribution.agreement.adminSignedAt.toISOString() : undefined,
+            adminNotes: adminNotes,
+            adminName: adminName,
           })
         )
       );
@@ -287,7 +338,7 @@ async function handleJsonRequest(id: string, user: ExtendedUser) {
       );
     }
 
-    const { distribution, agreementsWithDetails } = data;
+    const { distribution, agreementsWithDetails, adminName, adminNotes } = data;
 
     if (!distribution || !distribution.asset || !distribution.agreement) {
       return NextResponse.json(
@@ -310,6 +361,9 @@ async function handleJsonRequest(id: string, user: ExtendedUser) {
       benefactorName: distribution.asset.user.fullName,
       benefactorIC: distribution.asset.user.ic,
       agreements: agreementsWithDetails,
+      adminSignedAt: distribution.agreement?.adminSignedAt ? distribution.agreement.adminSignedAt.toISOString() : undefined,
+      adminNotes: adminNotes,
+      adminName: adminName,
     });
   } catch (error) {
     console.error('Error in agreement JSON route:', error);

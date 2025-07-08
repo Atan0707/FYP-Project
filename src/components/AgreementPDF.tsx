@@ -416,6 +416,9 @@ interface AgreementPDFProps {
   assetValue?: number;
   assetDescription?: string;
   agreementId?: string;
+  adminSignedAt?: string;
+  adminNotes?: string;
+  adminName?: string;
 }
 
 export function AgreementPDF({ 
@@ -427,11 +430,30 @@ export function AgreementPDF({
   benefactorIC,
   assetValue,
   assetDescription,
-  agreementId
+  agreementId,
+  adminSignedAt,
+  adminNotes,
+  adminName
 }: AgreementPDFProps) {
   const agreementNumber = agreementId?.slice(-8).toUpperCase() || 'WEMSP' + new Date().getFullYear();
   const beneficiaries = agreements.filter(a => a.familyMember);
   const isCompleted = agreements.some(a => a.status === 'completed');
+  
+  // Extract admin name from notes if not provided directly
+  let displayAdminName = adminName || 'Admin';
+  if (!adminName && adminNotes) {
+    // Try to extract from "[username] notes" format
+    const usernameMatch = adminNotes.match(/^\[([^\]]+)\]/);
+    if (usernameMatch && usernameMatch[1]) {
+      displayAdminName = usernameMatch[1];
+    } else {
+      // Try to extract from "Signed by username" format
+      const signedByMatch = adminNotes.match(/^Signed by (.+)$/);
+      if (signedByMatch && signedByMatch[1]) {
+        displayAdminName = signedByMatch[1];
+      }
+    }
+  }
 
   const getDistributionTypeDisplay = (type: string) => {
     switch (type.toLowerCase()) {
@@ -749,11 +771,34 @@ export function AgreementPDF({
           <View style={styles.signatureBlock}>
             <Text style={styles.signatureRole}>PEGAWAI AGENSI / AGENCY OFFICER</Text>
             
-            {isCompleted ? (
+            {adminSignedAt ? (
               <View>
                 <View style={styles.signatureRow}>
                   <Text style={styles.signatureLabel}>Nama:</Text>
-                  <Text style={styles.signatureValue}>PEGAWAI AGENSI</Text>
+                  <Text style={styles.signatureValue}>{displayAdminName}</Text>
+                </View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Tandatangan:</Text>
+                  <Text style={styles.signatureValue}>
+                    (Disahkan secara digital pada {format(new Date(adminSignedAt), 'dd/MM/yyyy HH:mm')})
+                  </Text>
+                </View>
+                {adminNotes && (
+                  <View style={styles.signatureRow}>
+                    <Text style={styles.signatureLabel}>Catatan:</Text>
+                    <Text style={styles.signatureValue}>{adminNotes}</Text>
+                  </View>
+                )}
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Jawatan:</Text>
+                  <Text style={styles.signatureValue}>Penolong Pengarah, Jabatan Harta Pusaka</Text>
+                </View>
+              </View>
+            ) : isCompleted ? (
+              <View>
+                <View style={styles.signatureRow}>
+                  <Text style={styles.signatureLabel}>Nama:</Text>
+                  <Text style={styles.signatureValue}>{displayAdminName}</Text>
                 </View>
                 <View style={styles.signatureRow}>
                   <Text style={styles.signatureLabel}>Tandatangan:</Text>
@@ -780,10 +825,6 @@ export function AgreementPDF({
                   <Text style={styles.signatureLabel}>Tarikh:</Text>
                   <Text style={styles.signatureValue}>_________________</Text>
                 </View>
-                <View style={styles.signatureRow}>
-                  <Text style={styles.signatureLabel}>Cop Rasmi:</Text>
-                  <View style={styles.signatureLine} />
-                </View>
               </View>
             )}
           </View>
@@ -795,13 +836,13 @@ export function AgreementPDF({
             DOKUMEN INI ADALAH SAH DAN DIKELUARKAN OLEH
           </Text>
           <Text style={styles.officialText}>
-            JABATAN HARTA PUSAKA MALAYSIA
+            WILL & ESTATE MANAGEMENT SOLUTION PROVIDER (WEMSP)
           </Text>
           <Text style={styles.officialText}>
             THIS DOCUMENT IS VALID AND ISSUED BY
           </Text>
           <Text style={styles.officialText}>
-            MALAYSIAN DEPARTMENT OF ESTATE MANAGEMENT
+            WILL & ESTATE MANAGEMENT SOLUTION PROVIDER (WEMSP)
           </Text>
         </View>
 
