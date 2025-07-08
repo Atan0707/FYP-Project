@@ -20,7 +20,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlusCircle, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Search,
+  //  RefreshCw 
+  } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import {
@@ -154,13 +156,13 @@ const deleteFamily = async (id: string) => {
 };
 
 // Add a new function to update family relationships
-const updateFamilyRelationships = async () => {
-  const response = await fetch('/api/cron/update-family-relationships');
-  if (!response.ok) {
-    throw new Error('Network response was not ok');
-  }
-  return response.json();
-};
+// const updateFamilyRelationships = async () => {
+//   const response = await fetch('/api/cron/update-family-relationships');
+//   if (!response.ok) {
+//     throw new Error('Network response was not ok');
+//   }
+//   return response.json();
+// };
 
 export default function FamilyPage() {
   const [isOpen, setIsOpen] = useState(false);
@@ -227,20 +229,20 @@ export default function FamilyPage() {
   });
 
   // Add a new mutation for updating family relationships
-  const updateRelationshipsMutation = useMutation({
-    mutationFn: updateFamilyRelationships,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['families'] });
-      if (data.updated > 0) {
-        toast.success(`Updated ${data.updated} family relationships`);
-      } else {
-        toast.info('No family relationships needed updating');
-      }
-    },
-    onError: (error) => {
-      toast.error('Failed to update family relationships: ' + error.message);
-    },
-  });
+  // const updateRelationshipsMutation = useMutation({
+  //   mutationFn: updateFamilyRelationships,
+  //   onSuccess: (data) => {
+  //     queryClient.invalidateQueries({ queryKey: ['families'] });
+  //     if (data.updated > 0) {
+  //       toast.success(`Updated ${data.updated} family relationships`);
+  //     } else {
+  //       toast.info('No family relationships needed updating');
+  //     }
+  //   },
+  //   onError: (error) => {
+  //     toast.error('Failed to update family relationships: ' + error.message);
+  //   },
+  // });
 
   const handleSearch = async () => {
     if (!searchIC.trim()) {
@@ -354,14 +356,14 @@ export default function FamilyPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Family Members</h1>
         <div className="flex gap-2">
-          <Button 
+          {/* <Button 
             variant="outline" 
             onClick={() => updateRelationshipsMutation.mutate()}
             disabled={updateRelationshipsMutation.isPending}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${updateRelationshipsMutation.isPending ? 'animate-spin' : ''}`} />
             Update Relationships
-          </Button>
+          </Button> */}
           <Dialog open={isOpen} onOpenChange={(open) => {
             setIsOpen(open);
             if (!open) {
