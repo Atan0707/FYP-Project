@@ -239,7 +239,7 @@ export default function UserDetailsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {familyMembers.map((member) => (
+                    {familyMembers && Array.isArray(familyMembers) ? familyMembers.map((member) => (
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">{member.fullName}</TableCell>
                         <TableCell>{member.ic}</TableCell>
@@ -254,7 +254,11 @@ export default function UserDetailsPage() {
                         </TableCell>
                         <TableCell>{format(new Date(member.createdAt), 'PPP')}</TableCell>
                       </TableRow>
-                    ))}
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center">No family members found</TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               )}

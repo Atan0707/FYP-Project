@@ -455,7 +455,7 @@ export default function AssetDetailsPage() {
 
       // Then add family members based on distribution type
       if (selectedType === 'hibah' && selectedBeneficiaryId) {
-        const beneficiary = familyMembers.find(m => m.id === selectedBeneficiaryId);
+        const beneficiary = familyMembers?.find(m => m.id === selectedBeneficiaryId);
         if (beneficiary) {
           signersToAdd.push({
             name: beneficiary.fullName,
@@ -463,22 +463,26 @@ export default function AssetDetailsPage() {
           });
         }
       } else if (selectedType === 'faraid' || selectedType === 'will') {
-        signersToAdd = [
-          ...signersToAdd,
-          ...familyMembers.map(member => ({
-            name: member.fullName,
-            ic: member.ic
-          }))
-        ];
+        if (familyMembers && Array.isArray(familyMembers)) {
+          signersToAdd = [
+            ...signersToAdd,
+            ...familyMembers.map(member => ({
+              name: member.fullName,
+              ic: member.ic
+            }))
+          ];
+        }
       } else if (selectedType === 'waqf') {
         // For waqf, we need to add all family members as signers
-        signersToAdd = [
-          ...signersToAdd,
-          ...familyMembers.map(member => ({
-            name: member.fullName,
-            ic: member.ic
-          }))
-        ];
+        if (familyMembers && Array.isArray(familyMembers)) {
+          signersToAdd = [
+            ...signersToAdd,
+            ...familyMembers.map(member => ({
+              name: member.fullName,
+              ic: member.ic
+            }))
+          ];
+        }
       }
 
       console.log('Signers to add:', signersToAdd); // Debug log
@@ -893,11 +897,13 @@ export default function AssetDetailsPage() {
                             <SelectValue placeholder="Select a family member" />
                           </SelectTrigger>
                           <SelectContent>
-                            {familyMembers.map((member) => (
+                            {familyMembers && Array.isArray(familyMembers) ? familyMembers.map((member) => (
                               <SelectItem key={member.id} value={member.id}>
                                 {member.fullName} ({member.relationship})
                               </SelectItem>
-                            ))}
+                            )) : (
+                              <SelectItem disabled value="">No family members found</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>

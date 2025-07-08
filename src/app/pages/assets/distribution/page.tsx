@@ -548,11 +548,13 @@ export default function AssetDistributionPage() {
                               <SelectValue placeholder="Select family member" />
                             </SelectTrigger>
                             <SelectContent>
-                              {familyMembers.map((member: FamilyMember) => (
+                              {familyMembers && Array.isArray(familyMembers) ? familyMembers.map((member: FamilyMember) => (
                                 <SelectItem key={member.id} value={member.id}>
                                   {member.fullName} ({member.relationship})
                                 </SelectItem>
-                              ))}
+                              )) : (
+                                <SelectItem disabled value="">No family members found</SelectItem>
+                              )}
                             </SelectContent>
                           </Select>
                           
