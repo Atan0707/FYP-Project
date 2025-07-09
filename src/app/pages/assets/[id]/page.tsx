@@ -575,7 +575,7 @@ export default function AssetDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container mx-auto py-6 px-4 sm:px-6">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
@@ -585,34 +585,36 @@ export default function AssetDetailsPage() {
 
   if (!assetDetails) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container mx-auto py-6 px-4 sm:px-6">
         <div className="text-center">Asset not found</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Button 
           variant="outline" 
           onClick={() => router.back()}
           className="mb-4"
+          size="sm"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Assets
+          <span className="hidden sm:inline">Back to Assets</span>
+          <span className="sm:hidden">Back</span>
         </Button>
-        <h1 className="text-2xl font-bold">Asset Details</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Asset Details</h1>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{assetDetails.name}</CardTitle>
+      <div className="grid gap-4 sm:gap-6">
+        <Card className="overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl">{assetDetails.name}</CardTitle>
             <CardDescription>Asset Information</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-muted-foreground">Type</div>
                 <div className="font-medium">{assetDetails.type}</div>
@@ -627,13 +629,13 @@ export default function AssetDetailsPage() {
                 </div>
               </div>
               {assetDetails.description && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Description</div>
                   <div className="font-medium">{assetDetails.description}</div>
                 </div>
               )}
               {assetDetails.pdfFile && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Document</div>
                   <a
                     href={`/api/download/${encodeURIComponent(assetDetails.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
@@ -647,7 +649,7 @@ export default function AssetDetailsPage() {
                 </div>
               )}
               {assetDetails.distribution?.id && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Agreement</div>
                   <a
                     href={`/api/agreement-pdf/${assetDetails.distribution.id}`}
@@ -661,7 +663,7 @@ export default function AssetDetailsPage() {
                 </div>
               )}
               {assetDetails.distribution?.agreement?.transactionHash && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Blockchain Transaction</div>
                   <a
                     href={`https://sepolia.basescan.org/tx/${assetDetails.distribution.agreement.transactionHash}`}
@@ -674,11 +676,12 @@ export default function AssetDetailsPage() {
                       <line x1="16" y1="8" x2="2" y2="22"></line>
                       <line x1="17.5" y1="15" x2="9" y2="15"></line>
                     </svg>
-                    View on Blockchain
+                    <span className="hidden sm:inline">View on Blockchain</span>
+                    <span className="sm:hidden">View TX</span>
                   </a>
                 </div>
               )}
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <div className="text-sm text-muted-foreground">Created On</div>
                 <div className="font-medium">{format(new Date(assetDetails.createdAt), 'PPP')}</div>
               </div>
@@ -686,18 +689,18 @@ export default function AssetDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Distribution Method</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl">Distribution Method</CardTitle>
             <CardDescription>
               Select how you want to distribute this asset
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-6">
               {assetDetails.distribution ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                     <Badge variant="outline" className="capitalize">
                       {assetDetails.distribution.type}
                     </Badge>
@@ -708,7 +711,7 @@ export default function AssetDetailsPage() {
                       {assetDetails.distribution.notes && (
                         <div>
                           <div className="text-sm text-muted-foreground">Notes</div>
-                          <div className="mt-1">{assetDetails.distribution.notes}</div>
+                          <div className="mt-1 break-words">{assetDetails.distribution.notes}</div>
                         </div>
                       )}
                       {assetDetails.distribution.organization && (
@@ -728,7 +731,7 @@ export default function AssetDetailsPage() {
                                 return nameA.localeCompare(nameB);
                               })
                               .map((beneficiary: Beneficiary, index: number) => (
-                                <div key={beneficiary.id || `beneficiary-${index}`} className="flex items-center gap-2 mb-2">
+                                <div key={beneficiary.id || `beneficiary-${index}`} className="flex flex-wrap items-center gap-2 mb-2">
                                   <span className="font-medium">
                                     {beneficiary.familyMember?.fullName || beneficiary.firstName || 'Unknown'} 
                                     {beneficiary.familyMember?.relationship && ` (${beneficiary.familyMember.relationship})`}
@@ -743,8 +746,8 @@ export default function AssetDetailsPage() {
                       <Separator className="my-4" />
                       
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between">
+                          <div className="flex items-center gap-2 mb-2 sm:mb-0">
                             <Users className="h-4 w-4" />
                             <span className="font-medium">Signing Status</span>
                           </div>
@@ -770,17 +773,15 @@ export default function AssetDetailsPage() {
 
                         <div className="space-y-2">
                           {assetDetails.distribution.agreements?.map((agreement: Agreement) => (
-                            <div key={agreement.id} className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <UserCircle2 className="h-4 w-4" />
-                                <span>
+                            <div key={agreement.id} className="flex flex-wrap items-center justify-between text-sm py-2">
+                              <div className="flex items-center gap-2 mb-1 sm:mb-0 w-full sm:w-auto">
+                                <UserCircle2 className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">
                                   {agreement.familyMember ? (
                                     <>
                                       {agreement.familyMember.fullName}
                                       <span className="text-muted-foreground ml-1">
                                         {(() => {
-                                          // Check if this signature belongs to the current user
-                                          // by comparing the signedById with current user's ID
                                           const isCurrentUser = currentUser && 
                                             agreement.signedById === currentUser.id;
                                           
@@ -952,9 +953,9 @@ export default function AssetDetailsPage() {
       </div>
 
       <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <div className="space-y-6 py-4">
-            <DialogTitle className="text-center text-xl font-semibold">Creating Agreement</DialogTitle>
+        <DialogContent className="sm:max-w-md max-w-[90vw] p-4 sm:p-6">
+          <div className="space-y-6 py-2 sm:py-4">
+            <DialogTitle className="text-center text-lg sm:text-xl font-semibold">Creating Agreement</DialogTitle>
             <div className="space-y-6">
               {progressSteps.map((step, index) => (
                 <div key={index} className="flex items-center gap-3">
@@ -998,7 +999,7 @@ export default function AssetDetailsPage() {
                   </div>
                   <div className="flex-1">
                     <p className={cn(
-                      "font-medium",
+                      "font-medium text-sm sm:text-base",
                       step.status === 'completed' && "text-green-600",
                       step.status === 'error' && "text-destructive"
                     )}>

@@ -203,7 +203,8 @@ const defaultCenter = {
 // For demo purposes - replace with your actual API key in production
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyC7MA3-v6oc_rZSjyGmnjSF0dx0zLecE4o";
 
-const getDistributionStatus = (distribution: Asset['distribution']) => {
+// Add this helper function for badge styling
+const getStatusBadge = (distribution: Asset['distribution']) => {
   if (!distribution) {
     return <Badge variant="secondary">Not Yet</Badge>;
   }
@@ -212,23 +213,20 @@ const getDistributionStatus = (distribution: Asset['distribution']) => {
   if (distribution.status === 'pending_admin' || 
      (distribution.agreement && distribution.agreement.status === 'pending_admin')) {
     return (
-      <div className="flex flex-col gap-1">
-        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">Pending Admin</Badge>
-        <span className="text-xs text-muted-foreground">All Signed</span>
-      </div>
+      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+        Pending Admin
+      </Badge>
     );
   }
 
   switch (distribution.status) {
     case 'in_progress':
-      return <Badge variant="secondary">In Progress</Badge>;
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800">In Progress</Badge>;
     case 'completed':
-      return (
-        <div className="flex flex-col gap-1">
-          <Badge variant="success">{distribution.type}</Badge>
-          <span className="text-xs text-muted-foreground">Completed</span>
-        </div>
-      );
+      if (distribution.type === 'waqf') {
+        return <Badge className="bg-green-500 text-white w-full py-1 flex justify-center">{distribution.type}</Badge>;
+      }
+      return <Badge variant="success" className="bg-green-100 text-green-800">Completed</Badge>;
     case 'rejected':
       return <Badge variant="destructive">Rejected</Badge>;
     default:
@@ -249,7 +247,7 @@ export default function AssetsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-
+  
   // Queries
   const { data: assets = [], isLoading, error } = useQuery({
     queryKey: ['assets'],
@@ -506,17 +504,17 @@ export default function AssetsPage() {
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="p-4 flex justify-center">Loading...</div>;
   }
 
   if (error) {
-    return <div>Error: {(error as Error).message}</div>;
+    return <div className="p-4 text-red-500">Error: {(error as Error).message}</div>;
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Assets</h1>
+    <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">Assets</h1>
 
         {/* Add assets */}
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -526,7 +524,7 @@ export default function AssetsPage() {
               Add Asset
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+          <DialogContent className="max-w-[95vw] sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>{editingAsset ? 'Edit' : 'Add'} Asset</DialogTitle>
             </DialogHeader>
@@ -581,7 +579,7 @@ export default function AssetsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="pdfFile">PDF Document</Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Label
                       htmlFor="pdfFile"
                       className="flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
@@ -624,7 +622,7 @@ export default function AssetsPage() {
                           value={propertyAddress}
                           onChange={handleAddressChange}
                           placeholder="Enter property address"
-                          className="flex-grow min-w-[200px]"
+                          className="flex-grow min-w-[200px] pr-10"
                           ref={inputRef}
                         />
                         {propertyAddress && (
@@ -634,7 +632,7 @@ export default function AssetsPage() {
                               setPropertyAddress('');
                               setSuggestions([]);
                             }}
-                            className="absolute right-16 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -643,6 +641,7 @@ export default function AssetsPage() {
                           type="button" 
                           variant="outline" 
                           size="sm"
+                          className="mt-2 sm:mt-0 w-full sm:w-auto"
                           onClick={() => {
                             if (propertyAddress && window.google?.maps) {
                               const geocoder = new window.google.maps.Geocoder();
@@ -660,7 +659,7 @@ export default function AssetsPage() {
                             }
                           }}
                         >
-                          Find
+                          Find on Map
                         </Button>
 
                         {/* Address suggestions */}
@@ -689,17 +688,23 @@ export default function AssetsPage() {
                     <LoadScript 
                       googleMapsApiKey={GOOGLE_MAPS_API_KEY}
                       libraries={googleMapsLibraries}
-                      loadingElement={<div className="h-[250px] w-full bg-slate-100 animate-pulse rounded-md"></div>}
+                      loadingElement={<div className="h-[200px] sm:h-[250px] w-full bg-slate-100 animate-pulse rounded-md"></div>}
                     >
                       <div className="rounded-md overflow-hidden border w-full max-w-full">
                         <GoogleMap
                           mapContainerStyle={{
                             width: '100%',
-                            height: '250px',
+                            height: '200px',
                             borderRadius: '0.375rem',
                           }}
                           center={mapPosition}
                           zoom={15}
+                          options={{
+                            zoomControl: true,
+                            mapTypeControl: false,
+                            streetViewControl: false,
+                            fullscreenControl: false,
+                          }}
                         >
                           <Marker
                             position={mapPosition}
@@ -728,166 +733,338 @@ export default function AssetsPage() {
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-semibold mb-4">My Assets</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Value</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Distribution</TableHead>
-                  <TableHead>Created On</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+          
+          {/* Desktop view - Table */}
+          <div className="hidden md:block border rounded-lg overflow-x-auto">
+            <div className="min-w-full">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6">
-                      <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
+                    <TableHead className="w-[120px]">Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Document</TableHead>
+                    <TableHead>Distribution</TableHead>
+                    <TableHead>Created On</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : error ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-red-500">
-                      Error loading assets: {(error as Error).message}
-                    </TableCell>
-                  </TableRow>
-                ) : assets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No assets found. Add your first asset using the button above.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  assets.map((asset: Asset) => (
-                    <TableRow key={asset.id}>
-                      <TableCell>
-                        <a 
-                          href={`/pages/assets/${asset.id}`}
-                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                        >
-                          {asset.name}
-                        </a>
-                      </TableCell>
-                      <TableCell>{asset.type}</TableCell>
-                      <TableCell>
-                        {new Intl.NumberFormat('en-MY', {
-                          style: 'currency',
-                          currency: 'MYR',
-                        }).format(asset.value)}
-                      </TableCell>
-                      <TableCell>{asset.description || '-'}</TableCell>
-                      <TableCell>
-                        {asset.pdfFile ? (
-                          <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center text-blue-600 hover:text-blue-800"
-                          >
-                            <Download className="mr-1 h-4 w-4" />
-                            View PDF
-                          </a>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>{getDistributionStatus(asset.distribution)}</TableCell>
-                      <TableCell>{format(new Date(asset.createdAt || ''), 'PPP')}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenDialog(asset)}
-                          >
-                            <Pencil className="mr-1 h-4 w-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => deleteMutation.mutate(asset.id)}
-                          >
-                            <Trash2 className="mr-1 h-4 w-4" />
-                            Delete
-                          </Button>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6">
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-red-500">
+                        Error loading assets: {(error as Error).message}
+                      </TableCell>
+                    </TableRow>
+                  ) : assets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
+                        No assets found. Add your first asset using the button above.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    assets.map((asset: Asset) => (
+                      <TableRow key={asset.id}>
+                        <TableCell className="font-medium">
+                          <a 
+                            href={`/pages/assets/${asset.id}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                          >
+                            {asset.name}
+                          </a>
+                        </TableCell>
+                        <TableCell>{asset.type}</TableCell>
+                        <TableCell>
+                          {new Intl.NumberFormat('en-MY', {
+                            style: 'currency',
+                            currency: 'MYR',
+                          }).format(asset.value)}
+                        </TableCell>
+                        <TableCell>{asset.description || '-'}</TableCell>
+                        <TableCell>
+                          {asset.pdfFile ? (
+                            <a
+                              href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              View PDF
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(asset.distribution)}</TableCell>
+                        <TableCell>{format(new Date(asset.createdAt || ''), 'dd/MM/yy')}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenDialog(asset)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span className="hidden sm:inline ml-1">Edit</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => deleteMutation.mutate(asset.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="hidden sm:inline ml-1">Delete</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Mobile view - Cards */}
+          <div className="md:hidden space-y-4">
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : error ? (
+              <div className="text-center py-6 text-red-500">
+                Error loading assets: {(error as Error).message}
+              </div>
+            ) : assets.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                No assets found. Add your first asset using the button above.
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                {assets.map((asset: Asset) => (
+                  <div key={asset.id} className="border-b last:border-b-0">
+                    <div className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <a 
+                            href={`/pages/assets/${asset.id}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium block mb-1"
+                          >
+                            {asset.name}
+                          </a>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            {asset.type} •
+                            <span className="font-medium">
+                              RM {asset.value.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-500"
+                            onClick={() => handleOpenDialog(asset)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500"
+                            onClick={() => deleteMutation.mutate(asset.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {asset.pdfFile && (
+                            <a
+                              href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              <span className="text-sm">PDF</span>
+                            </a>
+                          )}
+                          <span className="text-sm text-muted-foreground">
+                            {format(new Date(asset.createdAt || ''), 'dd/MM/yy')}
+                          </span>
+                        </div>
+                        
+                        <div className="text-right">
+                          {asset.distribution?.status === 'completed' && asset.distribution?.type === 'waqf' ? (
+                            <div className="mt-1 text-center">
+                              <Badge className="bg-green-500 text-white px-4 py-1">
+                                waqf
+                              </Badge>
+                              <div className="text-xs text-muted-foreground mt-1">Completed</div>
+                            </div>
+                          ) : asset.distribution?.status === 'in_progress' ? (
+                            <div className="text-sm text-blue-800">In Progress</div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              {asset.distribution?.status || 'Not Yet'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Pending Assets Section */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Pending Approval</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Value (RM)</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted On</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isPendingAssetsLoading ? (
+          
+          {/* Desktop view */}
+          <div className="hidden md:block border rounded-lg overflow-x-auto">
+            <div className="min-w-full">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6">
-                      <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
+                    <TableHead className="w-[120px]">Name</TableHead>
+                    <TableHead className="hidden md:table-cell">Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Value (RM)</TableHead>
+                    <TableHead className="hidden md:table-cell">Description</TableHead>
+                    <TableHead className="hidden md:table-cell">Document</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden md:table-cell">Submitted On</TableHead>
                   </TableRow>
-                ) : pendingAssetsError ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-red-500">
-                      Error loading pending assets: {(pendingAssetsError as Error).message}
-                    </TableCell>
-                  </TableRow>
-                ) : pendingAssets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No pending assets found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pendingAssets.map((asset: PendingAsset) => (
-                    <TableRow key={asset.id}>
-                      <TableCell>{asset.name}</TableCell>
-                      <TableCell>{asset.type}</TableCell>
-                      <TableCell>{asset.value.toFixed(2)}</TableCell>
-                      <TableCell>{asset.description}</TableCell>
-                      <TableCell>
-                        {asset.pdfFile ? (
-                          <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center text-blue-600 hover:text-blue-800"
-                          >
-                            <Download className="mr-1 h-4 w-4" />
-                            View PDF
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">No document</span>
-                        )}
+                </TableHeader>
+                <TableBody>
+                  {isPendingAssetsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6">
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                        </div>
                       </TableCell>
-                      <TableCell>
+                    </TableRow>
+                  ) : pendingAssetsError ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-red-500">
+                        Error loading pending assets: {(pendingAssetsError as Error).message}
+                      </TableCell>
+                    </TableRow>
+                  ) : pendingAssets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                        No pending assets found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingAssets.map((asset: PendingAsset) => (
+                      <TableRow key={asset.id}>
+                        <TableCell className="font-medium">
+                          {asset.name}
+                          <div className="md:hidden text-xs text-muted-foreground mt-1">
+                            {asset.type} • RM{asset.value.toFixed(2)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">{asset.type}</TableCell>
+                        <TableCell className="hidden md:table-cell">{asset.value.toFixed(2)}</TableCell>
+                        <TableCell className="hidden md:table-cell">{asset.description}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {asset.pdfFile ? (
+                            <a
+                              href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              <span className="hidden sm:inline">View PDF</span>
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">No document</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {asset.status === 'pending' && (
+                            <Badge variant="secondary">Pending</Badge>
+                          )}
+                          {asset.status === 'approved' && (
+                            <Badge variant="success">Approved</Badge>
+                          )}
+                          {asset.status === 'rejected' && (
+                            <Badge variant="destructive">Rejected</Badge>
+                          )}
+                          <div className="md:hidden mt-2 flex flex-wrap gap-2 text-xs">
+                            {asset.pdfFile && (
+                              <a
+                                href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center text-blue-600"
+                              >
+                                <Download className="mr-1 h-3 w-3" />
+                                PDF
+                              </a>
+                            )}
+                            <span>{format(new Date(asset.createdAt), 'dd/MM/yy')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {format(new Date(asset.createdAt), 'dd/MM/yyyy')}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          
+          {/* Mobile view - Cards */}
+          <div className="md:hidden space-y-4">
+            {isPendingAssetsLoading ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : pendingAssetsError ? (
+              <div className="text-center py-6 text-red-500">
+                Error loading pending assets: {(pendingAssetsError as Error).message}
+              </div>
+            ) : pendingAssets.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                No pending assets found.
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                {pendingAssets.map((asset: PendingAsset) => (
+                  <div key={asset.id} className="border-b last:border-b-0 p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium mb-1">{asset.name}</div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          {asset.type} •
+                          <span className="font-medium">
+                            RM {asset.value.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
                         {asset.status === 'pending' && (
                           <Badge variant="secondary">Pending</Badge>
                         )}
@@ -897,15 +1074,31 @@ export default function AssetsPage() {
                         {asset.status === 'rejected' && (
                           <Badge variant="destructive">Rejected</Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(asset.createdAt), 'dd/MM/yyyy')}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {asset.pdfFile && (
+                          <a
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-blue-600"
+                          >
+                            <Download className="mr-1 h-4 w-4" />
+                            <span className="text-sm">PDF</span>
+                          </a>
+                        )}
+                        <span className="text-sm text-muted-foreground">
+                          {format(new Date(asset.createdAt), 'dd/MM/yy')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -932,9 +1125,9 @@ export default function AssetsPage() {
                   value={familyAssetGroup.familyMember.id}
                 >
                   <AccordionTrigger className="hover:bg-accent hover:text-accent-foreground px-4 rounded-md">
-                    <div className="flex items-center">
-                      <span className="font-medium">{familyAssetGroup.familyMember.fullName}</span>
-                      <Badge variant="outline" className="ml-2 capitalize">
+                    <div className="flex flex-wrap items-center gap-y-2">
+                      <span className="font-medium mr-2">{familyAssetGroup.familyMember.fullName}</span>
+                      <Badge variant="outline" className="capitalize">
                         {familyAssetGroup.familyMember.relationship}
                       </Badge>
                       <Badge variant="secondary" className="ml-2">
@@ -943,62 +1136,81 @@ export default function AssetsPage() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="border rounded-lg mt-2">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Value (RM)</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Document</TableHead>
-                            <TableHead>Added On</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {familyAssetGroup.assets.length === 0 ? (
+                    <div className="border rounded-lg mt-2 overflow-x-auto">
+                      <div className="min-w-full">
+                        <Table>
+                          <TableHeader>
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
-                                No assets found for this family member.
-                              </TableCell>
+                              <TableHead className="w-[120px]">Name</TableHead>
+                              <TableHead className="hidden md:table-cell">Type</TableHead>
+                              <TableHead className="hidden md:table-cell">Value (RM)</TableHead>
+                              <TableHead className="hidden md:table-cell">Description</TableHead>
+                              <TableHead className="hidden md:table-cell">Document</TableHead>
+                              <TableHead className="hidden md:table-cell">Added On</TableHead>
                             </TableRow>
-                          ) : (
-                            familyAssetGroup.assets.map((asset) => (
-                              <TableRow key={asset.id}>
-                                <TableCell>
-                                  <a 
-                                    href={`/pages/assets/${asset.id}`}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                  >
-                                    {asset.name}
-                                  </a>
-                                </TableCell>
-                                <TableCell>{asset.type}</TableCell>
-                                <TableCell>{asset.value.toFixed(2)}</TableCell>
-                                <TableCell>{asset.description}</TableCell>
-                                <TableCell>
-                                  {asset.pdfFile ? (
-                                    <a
-                                      href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center text-blue-600 hover:text-blue-800"
-                                    >
-                                      <Download className="mr-1 h-4 w-4" />
-                                      View PDF
-                                    </a>
-                                  ) : (
-                                    <span className="text-gray-400">No document</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
+                          </TableHeader>
+                          <TableBody>
+                            {familyAssetGroup.assets.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                                  No assets found for this family member.
                                 </TableCell>
                               </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                            ) : (
+                              familyAssetGroup.assets.map((asset) => (
+                                <TableRow key={asset.id}>
+                                  <TableCell className="font-medium">
+                                    <a 
+                                      href={`/pages/assets/${asset.id}`}
+                                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                    >
+                                      {asset.name}
+                                    </a>
+                                    <div className="md:hidden text-xs text-muted-foreground mt-1">
+                                      {asset.type} • RM{asset.value.toFixed(2)}
+                                      <br />
+                                      {format(new Date(asset.createdAt || ''), 'dd/MM/yy')}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">{asset.type}</TableCell>
+                                  <TableCell className="hidden md:table-cell">{asset.value.toFixed(2)}</TableCell>
+                                  <TableCell className="hidden md:table-cell">{asset.description}</TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {asset.pdfFile ? (
+                                      <a
+                                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center text-blue-600 hover:text-blue-800"
+                                      >
+                                        <Download className="mr-1 h-4 w-4" />
+                                        <span className="hidden sm:inline">View PDF</span>
+                                      </a>
+                                    ) : (
+                                      <span className="text-gray-400">No document</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
+                                  </TableCell>
+                                  <TableCell className="md:hidden">
+                                    {asset.pdfFile && (
+                                      <a
+                                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center text-blue-600 hover:text-blue-800"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>
