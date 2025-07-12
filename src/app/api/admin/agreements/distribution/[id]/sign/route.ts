@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
-import { sendAgreementCompletionEmails } from '@/services/agreementEmailService';
 
 export async function POST(
   request: Request,
@@ -71,15 +70,6 @@ export async function POST(
         },
       },
     });
-
-    // Send email notifications to all agreement participants
-    try {
-      await sendAgreementCompletionEmails(distribution.agreement.id);
-      console.log('Agreement completion emails sent successfully');
-    } catch (emailError) {
-      console.error('Error sending agreement completion emails:', emailError);
-      // Don't fail the main request if email fails
-    }
 
     return NextResponse.json({
       success: true,

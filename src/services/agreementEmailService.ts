@@ -15,6 +15,13 @@ interface AgreementEmailData {
   adminSignedAt: Date;
 }
 
+interface Beneficiary {
+  email?: string;
+  fullName?: string;
+  familyId?: string;
+  percentage?: number;
+}
+
 export async function sendAgreementCompletionEmails(agreementId: string) {
   try {
     // Get agreement details with all related data
@@ -76,7 +83,7 @@ export async function sendAgreementCompletionEmails(agreementId: string) {
 
     // Add beneficiaries from distribution
     if (agreement.distribution.beneficiaries) {
-      const beneficiaries = agreement.distribution.beneficiaries as any[];
+      const beneficiaries = agreement.distribution.beneficiaries as Beneficiary[];
       
       for (const beneficiary of beneficiaries) {
         if (beneficiary.email && beneficiary.fullName) {
@@ -125,7 +132,7 @@ async function sendAgreementCompletionEmail(
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
         <h2 style="color: #28a745; margin: 0 0 10px 0;">Agreement Completed</h2>
-        <p style="color: #6c757d; margin: 0;">The asset distribution agreement has been finalized by the administrator.</p>
+        <p style="color: #6c757d; margin: 0;">The asset distribution agreement has been completed.</p>
       </div>
       
       <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px;">
@@ -144,11 +151,7 @@ async function sendAgreementCompletionEmail(
         </div>
         
         <div style="margin-bottom: 15px;">
-          <strong>Your Role:</strong> ${participant.relationship}
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-          <strong>Signed by Administrator:</strong> ${emailData.adminUsername}
+          <strong>Your Relationship:</strong> ${participant.relationship}
         </div>
         
         <div style="margin-bottom: 15px;">
@@ -188,14 +191,13 @@ Agreement Completed: ${emailData.assetName} Distribution
 
 Dear ${participant.fullName},
 
-The asset distribution agreement has been finalized by the administrator.
+The asset distribution agreement has been completed.
 
 Agreement Details:
 - Asset: ${emailData.assetName}
 - Asset Type: ${emailData.assetType}
 - Distribution Type: ${emailData.distributionType.toUpperCase()}
-- Your Role: ${participant.relationship}
-- Signed by Administrator: ${emailData.adminUsername}
+- Your Relationship: ${participant.relationship}
 - Completion Date: ${emailData.adminSignedAt.toLocaleString()}
 
 ${emailData.adminNotes ? `Administrator Notes: ${emailData.adminNotes}` : ''}
@@ -208,7 +210,7 @@ This is an automated notification from the Asset Distribution System.
   `;
 
   try {
-    const response = await fetch(`${process.env.NEXTAUTH_URL}/api/send-email`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'https://wemsp.my'}/api/send-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

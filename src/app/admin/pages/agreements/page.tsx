@@ -58,6 +58,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { contractService } from '@/services/contractService';
+import { sendAgreementCompletionEmails } from '@/services/agreementEmailService';
 
 interface Agreement {
   id: string;
@@ -151,105 +152,20 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
 
     if (!response.ok) throw new Error('Failed to sign agreement');
     
-    // Get the updated agreement data with all family members
+    // Get the updated agreement data
     const agreementData = await response.json();
     
-    // After successful signing, send email notifications to all family members
-    if (agreementData && agreementData.agreements) {
-      // Get the agreement details for email
-      const agreementDetailsResponse = await fetch(`/api/agreement-pdf/${agreementId}?format=json`);
-      if (!agreementDetailsResponse.ok) {
-        console.error('Failed to fetch agreement details for PDF');
-        toast.error('Agreement signed successfully, but failed to fetch details for email notifications.');
+    // After successful signing, send email notifications to all participants using the email service
+    try {
+      const emailResult = await sendAgreementCompletionEmails(agreementId);
+      if (emailResult.success) {
+        toast.success(`Successfully sent email notifications to all ${emailResult.emailsSent} participants.`);
       } else {
-        const agreementDetails = await agreementDetailsResponse.json();
-        
-        let emailSuccessCount = 0;
-        let emailFailCount = 0;
-        
-        // For each family member in the agreements, send an email notification
-        for (const agreement of agreementData.agreements) {
-          if (agreement.familyMember && agreement.familyMember.email) {
-            try {
-              // Send email notification
-              const emailResponse = await fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  to: agreement.familyMember.email,
-                  subject: `Agreement for ${agreementDetails.assetName} has been approved`,
-                  text: `Dear ${agreement.familyMember.fullName},
-
-We are pleased to inform you that the agreement for asset "${agreementDetails.assetName}" has been officially signed and approved by our administrator.
-
-The agreement is now legally binding and has been recorded on the blockchain with transaction hash: ${agreement.transactionHash || 'Pending'}
-
-You can view and download the full agreement document by clicking on the link below or by logging into your account:
-${process.env.NEXT_PUBLIC_APP_URL || 'https://wemsp.my'}/api/agreement-pdf/${agreementId}
-
-Thank you for using our Will & Estate Management Solution Provider (WEMSP) services.
-
-Best regards,
-WEMSP Administration Team`,
-                  html: `
-                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                      <img src="${process.env.NEXT_PUBLIC_APP_URL || 'https://wemsp.my'}/assets/logo.png" alt="WEMSP Logo" style="max-width: 100px;">
-                    </div>
-                    <h2 style="color: #333; text-align: center;">Agreement Approved</h2>
-                    <p style="color: #555;">Dear ${agreement.familyMember.fullName},</p>
-                    <p style="color: #555;">We are pleased to inform you that the agreement for asset <strong>"${agreementDetails.assetName}"</strong> has been officially signed and approved by our administrator.</p>
-                    <p style="color: #555;">The agreement is now legally binding and has been recorded on the blockchain.</p>
-                    
-                    <div style="background-color: #f9f9f9; padding: 10px; border-left: 4px solid #4CAF50; margin: 15px 0;">
-                      <p style="margin: 0; color: #333;"><strong>Transaction Hash:</strong> <span style="font-family: monospace; word-break: break-all;">${agreement.transactionHash || 'Pending'}</span></p>
-                    </div>
-                    
-                    <div style="text-align: center; margin: 25px 0;">
-                      <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://wemsp.my'}/api/agreement-pdf/${agreementId}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Download Agreement PDF</a>
-                    </div>
-                    
-                    <p style="color: #555;">You can also view all your agreements by logging into your account.</p>
-                    
-                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
-                    
-                    <p style="color: #555;">Thank you for using our Will & Estate Management Solution Provider (WEMSP) services.</p>
-                    
-                    <p style="color: #555;">Best regards,<br>WEMSP Administration Team</p>
-                    
-                    <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">
-                      <p>© ${new Date().getFullYear()} Will & Estate Management Solution Provider (WEMSP)</p>
-                    </div>
-                  </div>
-                  `
-                }),
-              });
-              
-              const emailResult = await emailResponse.json();
-              if (emailResult.success) {
-                console.log(`Email notification sent to ${agreement.familyMember.email}`);
-                emailSuccessCount++;
-              } else {
-                console.error(`Failed to send email to ${agreement.familyMember.email}:`, emailResult.message);
-                emailFailCount++;
-              }
-            } catch (emailError) {
-              console.error(`Failed to send email to ${agreement.familyMember.email}:`, emailError);
-              emailFailCount++;
-              // Continue with other emails even if one fails
-            }
-          }
-        }
-        
-        // Show toast with email sending results
-        if (emailSuccessCount > 0 && emailFailCount === 0) {
-          toast.success(`Successfully sent email notifications to all ${emailSuccessCount} family members.`);
-        } else if (emailSuccessCount > 0 && emailFailCount > 0) {
-          toast.warning(`Sent email notifications to ${emailSuccessCount} family members, but failed to send to ${emailFailCount} members.`);
-        } else if (emailFailCount > 0 && emailSuccessCount === 0) {
-          toast.error(`Failed to send email notifications to all ${emailFailCount} family members.`);
-        }
+        toast.warning('Agreement signed successfully, but there was an issue sending email notifications.');
       }
+    } catch (emailError) {
+      console.error('Failed to send agreement completion emails:', emailError);
+      toast.error('Agreement signed successfully, but failed to send email notifications.');
     }
     
     return agreementData;
