@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const userId = request.cookies.get('userId');
   const adminId = request.cookies.get('adminId');
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 

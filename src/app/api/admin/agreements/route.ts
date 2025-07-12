@@ -48,8 +48,9 @@ export async function GET(request: Request) {
         
         // Also add beneficiary family IDs if they exist
         if (dist.beneficiaries && Array.isArray(dist.beneficiaries)) {
-          dist.beneficiaries.forEach((ben: any) => {
-            if (ben.familyId) {
+          dist.beneficiaries.forEach((ben) => {
+            // Check if ben is an object and has familyId property
+            if (ben && typeof ben === 'object' && 'familyId' in ben && typeof ben.familyId === 'string') {
               familyIds.add(ben.familyId);
             }
           });
@@ -135,8 +136,10 @@ export async function GET(request: Request) {
       if (includeFamilyInfo && distribution.beneficiaries && Array.isArray(distribution.beneficiaries)) {
         processedDistribution = {
           ...distribution,
-          beneficiaries: distribution.beneficiaries.map((ben: any) => {
-            if (ben.familyId && familyInfo[ben.familyId]) {
+          beneficiaries: distribution.beneficiaries.map((ben) => {
+            // Check if ben is an object and has familyId property
+            if (ben && typeof ben === 'object' && 'familyId' in ben && 
+                typeof ben.familyId === 'string' && familyInfo[ben.familyId]) {
               return {
                 ...ben,
                 family: familyInfo[ben.familyId]
