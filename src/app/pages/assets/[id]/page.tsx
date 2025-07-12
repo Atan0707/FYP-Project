@@ -50,10 +50,11 @@ interface FamilyData {
 }
 
 interface Beneficiary {
-  id: string;
+  id?: string;
   percentage: number;
   familyMember?: FamilyMember;
   firstName?: string;
+  familyId?: string;
 }
 
 interface Distribution {
@@ -242,7 +243,7 @@ export default function AssetDetailsPage() {
       // If we have a distribution with an agreement, fetch the agreement details
       if (data.distribution?.id) {
         try {
-          const agreementResponse = await fetch(`/api/agreements/${data.distribution.id}`);
+          const agreementResponse = await fetch(`/api/agreements/${data.distribution.agreement.id}`);
           if (agreementResponse.ok) {
             const agreementData = await agreementResponse.json();
             data.distribution.agreement = agreementData;
@@ -257,7 +258,7 @@ export default function AssetDetailsPage() {
         // Create a map of family IDs to fetch
         const familyIds = [...new Set(
           data.distribution.agreements
-            .filter((a: Agreement) => !a.familyMember)
+            .filter((a: Agreement) => !a.familyMember && a.familyId) // Add check for familyId
             .map((a: Agreement) => a.familyId)
         )];
           
@@ -265,10 +266,13 @@ export default function AssetDetailsPage() {
           // Fetch family details
           const familyDetailsPromises = familyIds.map(async (id) => {
             try {
-              const res = await fetch(`/api/family/${id}`);
-              if (res.ok) {
-                const familyData = await res.json();
-                return { id, data: familyData };
+              // Add check to ensure id is defined
+              if (id) {
+                const res = await fetch(`/api/family/${id}`);
+                if (res.ok) {
+                  const familyData = await res.json();
+                  return { id, data: familyData };
+                }
               }
               return { id, data: null };
             } catch (err) {
@@ -302,23 +306,35 @@ export default function AssetDetailsPage() {
       
       // Fetch family member details for beneficiaries
       if (data.distribution?.beneficiaries) {
+        console.log('Raw beneficiaries data:', data.distribution.beneficiaries);
+        
         const beneficiariesWithDetails = await Promise.all(
           data.distribution.beneficiaries.map(async (beneficiary: Beneficiary) => {
             try {
-              const familyResponse = await fetch(`/api/family/${beneficiary.id}`);
-              if (familyResponse.ok) {
-                const familyData = await familyResponse.json();
-                return {
-                  ...beneficiary,
-                  familyMember: familyData,
-                };
+              // Use familyId which is the correct field from the database
+              if (beneficiary.familyId) {
+                const familyResponse = await fetch(`/api/family/${beneficiary.familyId}`);
+                if (familyResponse.ok) {
+                  const familyData = await familyResponse.json();
+                  console.log('Family data fetched:', familyData);
+                  return {
+                    ...beneficiary,
+                    familyMember: familyData,
+                  };
+                } else {
+                  console.error(`Failed to fetch family details for ${beneficiary.familyId}:`, await familyResponse.text());
+                }
+              } else {
+                console.log('Skipping fetch for beneficiary without familyId:', beneficiary);
               }
             } catch (err) {
-              console.error(`Error fetching beneficiary ${beneficiary.id}:`, err);
+              console.error(`Error fetching beneficiary details:`, err);
             }
             return beneficiary;
           })
         );
+        
+        console.log('Beneficiaries with details:', beneficiariesWithDetails);
         data.distribution.beneficiaries = beneficiariesWithDetails;
       }
       
@@ -422,7 +438,7 @@ export default function AssetDetailsPage() {
       }
 
       const distribution = await response.json();
-      const agreementId = distribution.agreement.id; // Get the database-generated ID
+      const agreementId = distribution.agreement.id; // Get the Agreement ID for the blockchain
 
       // Use contractService instead of direct contract calls
       const createResult = await contractService!.createAgreement(
@@ -773,15 +789,23 @@ export default function AssetDetailsPage() {
                                 const nameB = b.familyMember?.fullName || b.firstName || '';
                                 return nameA.localeCompare(nameB);
                               })
-                              .map((beneficiary: Beneficiary, index: number) => (
-                                <div key={beneficiary.id || `beneficiary-${index}`} className="flex flex-wrap items-center gap-2 mb-2">
-                                  <span className="font-medium">
-                                    {beneficiary.familyMember?.fullName || beneficiary.firstName || 'Unknown'} 
-                                    {beneficiary.familyMember?.relationship && ` (${beneficiary.familyMember.relationship})`}
-                                  </span>
-                                  <span className="text-gray-600">- {beneficiary.percentage}%</span>
-                                </div>
-                              ))}
+                              .map((beneficiary: Beneficiary, index: number) => {
+                                // Get the family member from the familyMembers array if not already attached
+                                const familyMember = !beneficiary.familyMember && beneficiary.familyId 
+                                  ? familyMembers.find(m => m.id === beneficiary.familyId) 
+                                  : null;
+                                
+                                return (
+                                  <div key={beneficiary.id || `beneficiary-${index}`} className="flex flex-wrap items-center gap-2 mb-2">
+                                    <span className="font-medium">
+                                      {beneficiary.familyMember?.fullName || familyMember?.fullName || beneficiary.firstName || `Beneficiary ${index + 1}`} 
+                                      {(beneficiary.familyMember?.relationship || familyMember?.relationship) && 
+                                        ` (${beneficiary.familyMember?.relationship || familyMember?.relationship})`}
+                                    </span>
+                                    <span className="text-gray-600">- {beneficiary.percentage}%</span>
+                                  </div>
+                                );
+                              })}
                           </div>
                         </div>
                       )}
