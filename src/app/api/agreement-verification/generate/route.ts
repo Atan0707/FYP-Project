@@ -114,7 +114,19 @@ export async function POST(request: Request) {
     }
 
     // Verify the agreement exists and user has access to it
-    const agreement = await prisma.familySignature.findFirst({
+    // First check if the agreement exists
+    const agreementExists = await prisma.agreement.findUnique({
+      where: {
+        id: agreementId
+      }
+    });
+
+    if (!agreementExists) {
+      return NextResponse.json({ error: 'Agreement not found' }, { status: 404 });
+    }
+
+    // Then check if the user has a signature for this agreement
+    const signature = await prisma.familySignature.findFirst({
       where: {
         agreementId,
         signedById: userId,
@@ -133,9 +145,12 @@ export async function POST(request: Request) {
       }
     });
 
-    if (!agreement) {
-      return NextResponse.json({ error: 'Agreement not found or not accessible' }, { status: 404 });
+    if (!signature) {
+      return NextResponse.json({ error: 'You are not authorized to sign this agreement' }, { status: 403 });
     }
+
+    // Use the signature as the agreement for the rest of the function
+    const agreement = signature;
 
     // Check if there's already a verification code for this agreement and user
     const existingVerification = await prisma.temporaryAgreementVerification.findFirst({

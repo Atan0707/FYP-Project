@@ -185,7 +185,14 @@ export default function AgreementsPage() {
       toast.success('Verification code sent to your email');
     },
     onError: (error) => {
-      toast.error('Failed to send verification code: ' + (error as Error).message);
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('not found') || errorMessage.includes('not accessible')) {
+        toast.error('This agreement cannot be signed. It may have been deleted or you do not have permission to sign it.');
+      } else if (errorMessage.includes('IC number')) {
+        toast.error('The IC number you entered does not match your registered IC number.');
+      } else {
+        toast.error('Failed to send verification code: ' + errorMessage);
+      }
       // Don't show verification step on error
     },
   });
@@ -215,7 +222,12 @@ export default function AgreementsPage() {
       }
     },
     onError: (error) => {
-      toast.error((error as Error).message);
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('Invalid or expired')) {
+        toast.error('The verification code is invalid or has expired. Please request a new code.');
+      } else {
+        toast.error('Verification failed: ' + errorMessage);
+      }
     },
   });
 
@@ -240,17 +252,18 @@ export default function AgreementsPage() {
         throw new Error(result.error || 'Failed to sign agreement');
       }
 
-              // After successful blockchain signing, update the database with transaction hash
-        const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            transactionHash: result.transactionHash 
-          }),
-        });
+      // After successful blockchain signing, update the database with transaction hash
+      const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          transactionHash: result.transactionHash 
+        }),
+      });
 
       if (!dbUpdateResponse.ok) {
-        throw new Error('Failed to update database after signing');
+        const errorData = await dbUpdateResponse.json();
+        throw new Error(errorData.error || 'Failed to update database after signing');
       }
 
       return result;
@@ -272,11 +285,16 @@ export default function AgreementsPage() {
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
       setSignerIC('');
+      setIsVerificationStep(false);
+      setVerificationCode('');
     },
     onError: (error) => {
       const message = 'Failed to sign agreement: ' + (error as Error).message;
       toast.error(message);
       addNotification(message, 'error');
+      // Reset verification step if there's an error
+      setIsVerificationStep(false);
+      setVerificationCode('');
     },
   });
 

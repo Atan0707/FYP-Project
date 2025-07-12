@@ -25,24 +25,23 @@ export async function POST(
       transactionHash: transactionHash ? 'present' : 'missing'
     });
 
-    // Find the user's family IDs
-    const familyIds = (await prisma.family.findMany({
-      where: { userId },
-      select: { id: true },
-    })).map(f => f.id);
+    // First check if the agreement exists
+    const agreementExists = await prisma.agreement.findUnique({
+      where: { id: agreementId }
+    });
 
-    if (familyIds.length === 0) {
+    if (!agreementExists) {
       return NextResponse.json(
-        { error: 'No family members found for this user' },
+        { error: 'Agreement not found' },
         { status: 404 }
       );
     }
 
-    // Find the pending signature for this agreement and user's family
+    // Find the pending signature for this agreement and user
     const signature = await prisma.familySignature.findFirst({
       where: {
         agreementId: agreementId,
-        familyId: { in: familyIds },
+        signedById: userId,
         status: 'pending',
       },
       include: {
