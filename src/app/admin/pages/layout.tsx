@@ -51,7 +51,7 @@ export default function AdminLayout({
         const response = await fetch('/api/admin/profile');
         if (response.ok) {
           const data = await response.json();
-          setIsRootAdmin(data.username === 'admin');
+          setIsRootAdmin(data.admin.username === 'admin');
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
