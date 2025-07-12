@@ -2,6 +2,34 @@ import { ethers } from 'ethers';
 import ContractABI from '@/contract/ContractABI.json';
 import { CONTRACT_ADDRESS } from '@/lib/config';
 
+// Helper function for retrying contract calls
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 2000
+): Promise<T> {
+  let lastError: Error | unknown;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      console.log(`Attempt ${attempt}/${maxRetries} failed:`, error);
+      lastError = error;
+      
+      // Don't wait after the last attempt
+      if (attempt < maxRetries) {
+        console.log(`Retrying in ${delay/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        // Increase delay for next attempt (exponential backoff)
+        delay = delay * 1.5;
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 class ContractService {
   private provider: ethers.JsonRpcProvider;
   private signer: ethers.Wallet;
@@ -54,29 +82,31 @@ class ContractService {
     adminName: string,
     notes?: string
   ): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!this.contract) {
-        throw new Error('Contract not initialized');
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
+
+        // Call the contract's adminSignAgreement function with just tokenId and adminName
+        const tx = await this.contract.adminSignAgreement(tokenId, adminName);
+        await tx.wait();
+
+        // If notes are provided, add them in a separate transaction
+        if (notes && notes.trim() !== '') {
+          const notesTx = await this.contract.addNotes(tokenId, notes);
+          await notesTx.wait();
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error('Error signing agreement:', error);
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
       }
-
-      // Call the contract's adminSignAgreement function with just tokenId and adminName
-      const tx = await this.contract.adminSignAgreement(tokenId, adminName);
-      await tx.wait();
-
-      // If notes are provided, add them in a separate transaction
-      if (notes && notes.trim() !== '') {
-        const notesTx = await this.contract.addNotes(tokenId, notes);
-        await notesTx.wait();
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error signing agreement:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
-      };
-    }
+    });
   }
 
   async createAgreement(
@@ -86,44 +116,47 @@ class ContractService {
     assetValue: number,
     distributionType: string,
     metadataURI: string
-  ): Promise<{ success: boolean; tokenId?: string; error?: string }> {
-    try {
-      if (!this.contract) {
-        throw new Error('Contract not initialized');
+  ): Promise<{ success: boolean; tokenId?: string; transactionHash?: string; error?: string }> {
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
+
+        // Call the contract's createAgreement function
+        const tx = await this.contract.createAgreement(
+          agreementId,
+          assetName,
+          assetType,
+          ethers.parseEther(assetValue.toString()), // Convert to wei
+          distributionType,
+          metadataURI
+        );
+
+        // Wait for the transaction to be mined
+        const receipt = await tx.wait();
+
+        // Get the tokenId from the AgreementCreated event
+        const event = receipt?.logs.find(
+          (log: ethers.Log) => this.contract.interface.parseLog(log)?.name === 'AgreementCreated'
+        );
+
+        const parsedLog = event ? this.contract.interface.parseLog(event) : null;
+        const tokenId = parsedLog?.args?.tokenId?.toString();
+
+        return { 
+          success: true,
+          tokenId,
+          transactionHash: tx.hash
+        };
+      } catch (error) {
+        console.error('Error creating agreement:', error);
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
       }
-
-      // Call the contract's createAgreement function
-      const tx = await this.contract.createAgreement(
-        agreementId,
-        assetName,
-        assetType,
-        ethers.parseEther(assetValue.toString()), // Convert to wei
-        distributionType,
-        metadataURI
-      );
-
-      // Wait for the transaction to be mined
-      const receipt = await tx.wait();
-
-      // Get the tokenId from the AgreementCreated event
-      const event = receipt?.logs.find(
-        (log: ethers.Log) => this.contract.interface.parseLog(log)?.name === 'AgreementCreated'
-      );
-
-      const parsedLog = event ? this.contract.interface.parseLog(event) : null;
-      const tokenId = parsedLog?.args?.tokenId?.toString();
-
-      return { 
-        success: true,
-        tokenId
-      };
-    } catch (error) {
-      console.error('Error creating agreement:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
-      };
-    }
+    });
   }
 
   async addSigner(
@@ -131,87 +164,95 @@ class ContractService {
     signerName: string,
     signerIC: string
   ): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!this.contract) {
-        throw new Error('Contract not initialized');
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
+
+        // Call the contract's addSigner function
+        const tx = await this.contract.addSigner(tokenId, signerName, signerIC);
+        await tx.wait();
+
+        return { success: true };
+      } catch (error) {
+        console.error('Error adding signer:', error);
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
       }
-
-      // Call the contract's addSigner function
-      const tx = await this.contract.addSigner(tokenId, signerName, signerIC);
-      await tx.wait();
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error adding signer:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
-      };
-    }
+    });
   }
 
   async getTokenIdFromAgreementId(
     agreementId: string
   ): Promise<{ success: boolean; tokenId?: string; error?: string }> {
-    try {
-      if (!this.contract) {
-        throw new Error('Contract not initialized');
-      }
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
 
-      // Call the contract's getTokenIdFromAgreementId function
-      const tokenId = await this.contract.getTokenIdFromAgreementId(agreementId);
-      
-      return { 
-        success: true,
-        tokenId: tokenId.toString()
-      };
-    } catch (error) {
-      console.error('Error getting token ID:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
-      };
-    }
+        // Call the contract's getTokenIdFromAgreementId function
+        const tokenId = await this.contract.getTokenIdFromAgreementId(agreementId);
+        
+        return { 
+          success: true,
+          tokenId: tokenId.toString()
+        };
+      } catch (error) {
+        console.error('Error getting token ID:', error);
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
+      }
+    });
   }
 
   async signAgreement(
     tokenId: string,
     signerIC: string
   ): Promise<{ success: boolean; transactionHash?: string; error?: string }> {
-    try {
-      if (!this.contract) {
-        throw new Error('Contract not initialized');
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
+
+        // Call the contract's signAgreement function
+        const tx = await this.contract.signAgreement(tokenId, signerIC);
+        await tx.wait();
+
+        return { 
+          success: true,
+          transactionHash: tx.hash
+        };
+      } catch (error) {
+        console.error('Error signing agreement:', error);
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
       }
-
-      // Call the contract's signAgreement function
-      const tx = await this.contract.signAgreement(tokenId, signerIC);
-      await tx.wait();
-
-      return { 
-        success: true,
-        transactionHash: tx.hash
-      };
-    } catch (error) {
-      console.error('Error signing agreement:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
-      };
-    }
+    });
   }
 
   async getAgreementDetails(tokenId: string) {
-    try {
-      if (!this.contract) {
-        throw new Error('Contract not initialized');
-      }
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
 
-      const agreement = await this.contract.agreements(tokenId);
-      return agreement;
-    } catch (error) {
-      console.error('Error fetching agreement details:', error);
-      throw error;
-    }
+        const agreement = await this.contract.agreements(tokenId);
+        return agreement;
+      } catch (error) {
+        console.error('Error fetching agreement details:', error);
+        throw error;
+      }
+    });
   }
 }
 

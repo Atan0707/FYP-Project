@@ -14,8 +14,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from "@/components/ui/separator";
-import { ethers, Log } from 'ethers';
-import { createAgreement, addSigner } from '@/lib/agreement';
+import { contractService } from '@/services/contractService';
 import {
   Tooltip,
   TooltipContent,
@@ -35,6 +34,19 @@ interface FamilyMember {
   relationship: string;
   relatedUserId: string;
   ic: string;
+}
+
+interface FamilyInvitation {
+  id: string;
+  inviterId: string;
+  email: string;
+  status: string;
+  createdAt: string;
+}
+
+interface FamilyData {
+  families: FamilyMember[];
+  pendingInvitations: FamilyInvitation[];
 }
 
 interface Beneficiary {
@@ -187,8 +199,6 @@ export default function AssetDetailsPage() {
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY;
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
   const [transactionState, setTransactionState] = useState<'idle' | 'creating-agreement' | 'adding-signers' | 'saving'>('idle');
   const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
   const [progressSteps, setProgressSteps] = useState<{ step: string; status: 'pending' | 'completed' | 'error' }[]>([
@@ -316,18 +326,27 @@ export default function AssetDetailsPage() {
     },
   });
 
-  // Fetch family members for distribution types that need signers
-  const { data: familyMembers = [] } = useQuery<FamilyMember[]>({
+  // Fetch family members regardless of selectedType to have them ready
+  const { data: familyData, isLoading: isFamilyMembersLoading, isSuccess: isFamilyMembersSuccess } = useQuery<FamilyData>({
     queryKey: ['familyMembers'],
     queryFn: async () => {
       const response = await fetch('/api/family');
-      if (!response.ok) throw new Error('Failed to fetch family members');
+      if (!response.ok) throw new Error('Failed to fetch family members: ' + response.statusText);
       const data = await response.json();
-      console.log('Fetched family members:', data);
+      console.log('Fetched family data:', data);
       return data;
     },
-    enabled: selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf',
   });
+
+  // Extract family members from the response
+  const familyMembers = familyData?.families || [];
+  
+  // Log family members whenever they change
+  useEffect(() => {
+    console.log('Family members updated:', familyMembers);
+    console.log('Family members loading:', isFamilyMembersLoading);
+    console.log('Family members success:', isFamilyMembersSuccess);
+  }, [familyMembers, isFamilyMembersLoading, isFamilyMembersSuccess]);
 
   // We'll handle distribution creation directly in the handleSubmit function
 
@@ -364,6 +383,20 @@ export default function AssetDetailsPage() {
       return;
     }
 
+    // Check if family members are still loading for types that need them
+    if ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
+        isFamilyMembersLoading) {
+      toast.error('Still loading family members. Please wait a moment and try again.');
+      return;
+    }
+
+    // Check if we have family members for types that need them
+    if ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
+        (!familyMembers || familyMembers.length === 0)) {
+      toast.error('No family members found. Please add family members before creating this distribution.');
+      return;
+    }
+
     try {
       setIsProgressDialogOpen(true);
       setTransactionState('creating-agreement');
@@ -391,13 +424,8 @@ export default function AssetDetailsPage() {
       const distribution = await response.json();
       const agreementId = distribution.agreement.id; // Get the database-generated ID
 
-      // Create a provider and signer
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-      const signer = new ethers.Wallet(privateKey!, provider);
-
-      // Create the agreement on the blockchain using the database ID
-      const tx = await createAgreement(
-        signer,
+      // Use contractService instead of direct contract calls
+      const createResult = await contractService!.createAgreement(
         agreementId,
         assetDetails!.name,
         assetDetails!.type,
@@ -406,34 +434,30 @@ export default function AssetDetailsPage() {
         'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreier5qlxlholbixx2vkgnp3ics2u7cvhmnmtkgeoovfdporvh35feu'
       );
 
-      // Store the transaction hash in the database
-      const transactionHash = tx.hash;
-      console.log('Transaction Hash:', transactionHash);
-      
-      // Update the agreement with the transaction hash
+      if (!createResult.success) {
+        throw new Error(`Failed to create agreement on blockchain: ${createResult.error}`);
+      }
+
+      const tokenId = createResult.tokenId;
+      if (!tokenId) {
+        throw new Error('Failed to get token ID from blockchain');
+      }
+
+      // Update the agreement with the transaction hash if it was returned from the database
       const updateResponse = await fetch(`/api/agreements/${agreementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionHash }),
+        body: JSON.stringify({ 
+          // Use the transaction hash from the createResult if available
+          transactionHash: createResult.transactionHash,
+          tokenId 
+        }),
       });
       
       if (!updateResponse.ok) {
-        console.warn('Failed to update agreement with transaction hash');
+        console.warn('Failed to update agreement with transaction hash and token ID');
       }
 
-      // Find the AgreementCreated event and get the tokenId
-      const agreementCreatedEvent = tx.logs.find(
-        (log: Log) => log.topics[0] === ethers.id(
-          "AgreementCreated(uint256,string,address,string)"
-        )
-      );
-
-      if (!agreementCreatedEvent) {
-        throw new Error('Failed to get tokenId from transaction receipt');
-      }
-
-      // Get the tokenId from the event (it's the first indexed parameter)
-      const tokenId = Number(agreementCreatedEvent.topics[1]);
       console.log('Token ID:', tokenId); // Debug log
 
       updateProgressStep(0, 'completed');
@@ -456,32 +480,57 @@ export default function AssetDetailsPage() {
       // Then add family members based on distribution type
       if (selectedType === 'hibah' && selectedBeneficiaryId) {
         const beneficiary = familyMembers?.find(m => m.id === selectedBeneficiaryId);
+        console.log('Selected beneficiary for hibah:', beneficiary);
         if (beneficiary) {
           signersToAdd.push({
             name: beneficiary.fullName,
             ic: beneficiary.ic
           });
+        } else {
+          console.warn(`Beneficiary with ID ${selectedBeneficiaryId} not found in family members`);
         }
       } else if (selectedType === 'faraid' || selectedType === 'will') {
-        if (familyMembers && Array.isArray(familyMembers)) {
+        console.log('Adding family members for faraid/will:', familyMembers);
+        if (familyMembers && Array.isArray(familyMembers) && familyMembers.length > 0) {
+          const validFamilyMembers = familyMembers.filter(member => 
+            member.fullName && member.ic && member.ic.trim() !== ''
+          );
+          
+          if (validFamilyMembers.length !== familyMembers.length) {
+            console.warn(`${familyMembers.length - validFamilyMembers.length} family members were skipped due to missing required fields`);
+          }
+          
           signersToAdd = [
             ...signersToAdd,
-            ...familyMembers.map(member => ({
+            ...validFamilyMembers.map(member => ({
               name: member.fullName,
               ic: member.ic
             }))
           ];
+        } else {
+          console.warn('No family members found for faraid/will distribution');
         }
       } else if (selectedType === 'waqf') {
         // For waqf, we need to add all family members as signers
-        if (familyMembers && Array.isArray(familyMembers)) {
+        console.log('Adding family members for waqf:', familyMembers);
+        if (familyMembers && Array.isArray(familyMembers) && familyMembers.length > 0) {
+          const validFamilyMembers = familyMembers.filter(member => 
+            member.fullName && member.ic && member.ic.trim() !== ''
+          );
+          
+          if (validFamilyMembers.length !== familyMembers.length) {
+            console.warn(`${familyMembers.length - validFamilyMembers.length} family members were skipped due to missing required fields`);
+          }
+          
           signersToAdd = [
             ...signersToAdd,
-            ...familyMembers.map(member => ({
+            ...validFamilyMembers.map(member => ({
               name: member.fullName,
               ic: member.ic
             }))
           ];
+        } else {
+          console.warn('No family members found for waqf distribution');
         }
       }
 
@@ -494,32 +543,26 @@ export default function AssetDetailsPage() {
         throw new Error('No signers to add');
       }
 
-      // Add each signer individually
+      // Add each signer individually using contractService
       for (const signerData of signersToAdd) {
         try {
           console.log('Adding signer:', signerData); // Debug log
-          const receipt = await addSigner(
-            signer,
+          const addSignerResult = await contractService!.addSigner(
             tokenId,
             signerData.name,
             signerData.ic
           );
 
-          // Find the SignerAdded event
-          const signerAddedEvent = receipt.logs.find(
-            (log: Log) => log.topics[0] === ethers.id(
-              "SignerAdded(uint256,string,string)"
-            )
-          );
-
-          if (!signerAddedEvent) {
-            throw new Error(`Failed to add signer ${signerData.name}`);
+          if (!addSignerResult.success) {
+            console.error(`Failed to add signer ${signerData.name}: ${addSignerResult.error}`);
+            // Continue with other signers even if one fails
+            continue;
           }
 
           console.log('Signer added successfully:', signerData.name); // Debug log
         } catch (error) {
           console.error('Error adding signer:', signerData.name, error);
-          throw error;
+          // Continue with other signers even if one fails
         }
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
@@ -937,12 +980,16 @@ export default function AssetDetailsPage() {
                     <Button
                       onClick={handleSubmit}
                       className="w-full"
-                      disabled={transactionState !== 'idle'}
+                      disabled={transactionState !== 'idle' || 
+                        ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
+                          isFamilyMembersLoading)}
                     >
                       {transactionState !== 'idle' && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
-                      {getSubmitButtonText()}
+                      {isFamilyMembersLoading && selectedType !== '' ? 
+                        'Loading Family Members...' : 
+                        getSubmitButtonText()}
                     </Button>
                   )}
                 </div>
