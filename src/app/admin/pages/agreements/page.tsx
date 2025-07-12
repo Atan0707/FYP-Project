@@ -71,6 +71,10 @@ interface Agreement {
   createdAt: string;
   updatedAt: string;
   distribution: AssetDistribution;
+  family?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface AssetDistribution {
@@ -83,6 +87,10 @@ interface AssetDistribution {
   beneficiaries?: Array<{
     familyId: string;
     percentage: number;
+    family?: {
+      id: string;
+      name: string;
+    };
   }>;
   organization?: string;
   asset: {
@@ -97,13 +105,13 @@ interface AssetDistribution {
 
 // API functions
 const fetchPendingAdminAgreements = async () => {
-  const response = await fetch('/api/admin/agreements/pending');
+  const response = await fetch('/api/admin/agreements/pending?includeFamilyInfo=true');
   if (!response.ok) throw new Error('Failed to fetch pending admin agreements');
   return response.json();
 };
 
 const fetchAllAgreements = async () => {
-  const response = await fetch('/api/admin/agreements');
+  const response = await fetch('/api/admin/agreements?includeFamilyInfo=true');
   if (!response.ok) throw new Error('Failed to fetch all agreements');
   return response.json();
 };
@@ -876,7 +884,7 @@ const AdminAgreements = () => {
                       <Table>
                         <TableHeader className="sticky top-0 bg-background">
                           <TableRow>
-                            <TableHead>Family ID</TableHead>
+                            <TableHead>Participant</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Signed At</TableHead>
                             <TableHead>Admin Signed At</TableHead>
@@ -886,7 +894,7 @@ const AdminAgreements = () => {
                         <TableBody>
                           {selectedAgreement.distribution.agreements.map((agreement) => (
                             <TableRow key={agreement.id}>
-                              <TableCell className="text-sm">{agreement.familyId}</TableCell>
+                              <TableCell className="text-sm">{agreement.family?.name || agreement.familyId}</TableCell>
                               <TableCell className="text-sm">{getStatusBadge(agreement.status, 'signature')}</TableCell>
                               <TableCell className="text-sm">
                                 {agreement.signedAt 
@@ -925,14 +933,14 @@ const AdminAgreements = () => {
                           <Table>
                             <TableHeader className="sticky top-0 bg-background">
                               <TableRow>
-                                <TableHead>Family ID</TableHead>
+                                <TableHead>Participant</TableHead>
                                 <TableHead>Percentage</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {selectedAgreement.distribution.beneficiaries.map((beneficiary, index) => (
                                 <TableRow key={index}>
-                                  <TableCell className="text-sm">{beneficiary.familyId}</TableCell>
+                                  <TableCell className="text-sm">{beneficiary.family?.name || beneficiary.familyId}</TableCell>
                                   <TableCell className="text-sm">{beneficiary.percentage}%</TableCell>
                                 </TableRow>
                               ))}
