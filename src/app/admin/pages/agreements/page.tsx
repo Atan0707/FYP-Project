@@ -41,7 +41,9 @@ import {
   Filter, 
   Eye,
   XCircle,
-  Mail
+  Mail,
+  FileText,
+  Download
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -200,9 +202,9 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
          const emailResult = await emailResponse.json();
          if (emailResult.success) {
            if (emailResult.emailsFailed && emailResult.emailsFailed > 0) {
-             toast.warning(`Agreement signed successfully. ${emailResult.emailsSent} notifications sent, ${emailResult.emailsFailed} failed. Admin confirmation email sent.`);
+             toast.warning(`Agreement signed successfully. ${emailResult.emailsSent} completion emails sent, ${emailResult.emailsFailed} failed. Each email includes PDF document link.`);
            } else {
-             toast.success(`Successfully sent email notifications to all ${emailResult.emailsSent} participants. Admin confirmation email sent.`);
+             toast.success(`Successfully sent completion emails with PDF document links to all ${emailResult.emailsSent} participants.`);
            }
          } else {
            toast.warning('Agreement signed successfully, but there was an issue sending email notifications.');
@@ -339,15 +341,15 @@ const AdminAgreements = () => {
   const sendEmailsMutation = useMutation({
     mutationFn: sendCompletionEmails,
     onSuccess: (result) => {
-      if (result.success) {
-        if (result.emailsFailed && result.emailsFailed > 0) {
-          toast.warning(`${result.emailsSent} notifications sent, ${result.emailsFailed} failed. Admin confirmation email sent.`);
-        } else {
-          toast.success(`Successfully sent completion emails to all ${result.emailsSent} participants. Admin confirmation email sent.`);
-        }
-      } else {
-        toast.error('Failed to send completion emails');
-      }
+               if (result.success) {
+           if (result.emailsFailed && result.emailsFailed > 0) {
+             toast.warning(`${result.emailsSent} completion emails sent, ${result.emailsFailed} failed. Each email includes PDF document link.`);
+           } else {
+             toast.success(`Successfully sent completion emails with PDF document links to all ${result.emailsSent} participants.`);
+           }
+         } else {
+           toast.error('Failed to send completion emails');
+         }
     },
     onError: (error) => {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -769,20 +771,49 @@ const AdminAgreements = () => {
                           )}
                           
                           {(agreement.status === 'completed' || agreement.status === 'signed') && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => sendEmailsMutation.mutate(agreement.id)}
-                              disabled={sendEmailsMutation.isPending}
-                            >
-                              {sendEmailsMutation.isPending ? (
-                                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Mail className="mr-1 h-4 w-4" />
-                              )}
-                              Send Emails
-                            </Button>
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => sendEmailsMutation.mutate(agreement.id)}
+                                disabled={sendEmailsMutation.isPending}
+                              >
+                                {sendEmailsMutation.isPending ? (
+                                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Mail className="mr-1 h-4 w-4" />
+                                )}
+                                Send Emails
+                              </Button>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => window.open(`/api/agreement-pdf/${agreement.distributionId}`, '_blank')}
+                              >
+                                <FileText className="mr-1 h-4 w-4" />
+                                View Agreement
+                              </Button>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = `/api/agreement-pdf/${agreement.distributionId}`;
+                                  link.download = `agreement-${agreement.distribution.asset.name}-${agreement.id}.pdf`;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                              >
+                                <Download className="mr-1 h-4 w-4" />
+                                Download PDF
+                              </Button>
+                            </>
                           )}
                           
                           <Button
@@ -1039,6 +1070,55 @@ const AdminAgreements = () => {
                   <CardContent className="pt-2">
                     <div className="p-3 border rounded-lg text-sm">
                       {selectedAgreement.distribution.organization || 'No organization specified'}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {(selectedAgreement.status === 'completed' || selectedAgreement.status === 'signed') && (
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Agreement Document</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <div className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-green-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">
+                            📄 View Your Agreement Here
+                          </h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            The official agreement document is ready for viewing and download.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                          onClick={() => window.open(`/api/agreement-pdf/${selectedAgreement.distributionId}`, '_blank')}
+                        >
+                          <FileText className="mr-1 h-4 w-4" />
+                          View Agreement
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = `/api/agreement-pdf/${selectedAgreement.distributionId}`;
+                            link.download = `agreement-${selectedAgreement.distribution.asset.name}-${selectedAgreement.id}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                        >
+                          <Download className="mr-1 h-4 w-4" />
+                          Download PDF
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
