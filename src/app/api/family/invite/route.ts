@@ -21,11 +21,11 @@ async function sendInvitationEmail(
 ) {
   try {
     // Get base URL from environment or default to localhost
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const inviteLink = `${baseUrl}/pages/family/accept-invitation?token=${invitationToken}`;
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://wemsp.hrzhkm.xyz';
+    const inviteLink = `${baseUrl}/accept-invitation?token=${invitationToken}`;
     
     // Direct action links (no login required)
-    const directAcceptLink = `${baseUrl}/pages/family/direct-accept?token=${invitationToken}&action=accept`;
+    const directAcceptLink = `${baseUrl}/accept-invitation/direct-accept?token=${invitationToken}&action=accept`;
     
     // Log for debugging
     console.log(`Sending invitation email to ${email} with link ${inviteLink}`);
