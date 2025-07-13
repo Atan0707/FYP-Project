@@ -117,6 +117,8 @@ const fetchAllAgreements = async () => {
 };
 
 const signAdminAgreement = async ({ distributionId, notes, agreementId }: { distributionId: string; notes?: string; agreementId: string }) => {
+
+  console.log("Signing admin agreement with distributionId:", distributionId, "notes:", notes, "agreementId:", agreementId)
   try {
     // Check if contract service is initialized
     if (!contractService) {
@@ -138,7 +140,8 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
       throw new Error('Admin not authenticated or session expired. Please log in again.');
     }
     const adminData = await adminResponse.json();
-    const adminName = adminData.username;
+    const adminName = adminData.admin.username;
+    console.log("Admin name:", adminName)
 
     // Now sign on the smart contract using the tokenId
     const contractResponse = await contractService.adminSignAgreement(
