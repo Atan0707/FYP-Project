@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     // Email options
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: '"WEMSP" <hello@hrzhkm.xyz>',
       to,
       subject,
       text,
