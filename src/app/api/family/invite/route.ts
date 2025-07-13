@@ -26,10 +26,142 @@ async function sendInvitationEmail(
     
     // Direct action links (no login required)
     const directAcceptLink = `${baseUrl}/pages/family/direct-accept?token=${invitationToken}&action=accept`;
-    // const directRejectLink = `${baseUrl}/pages/family/direct-accept?token=${invitationToken}&action=reject`;
     
     // Log for debugging
     console.log(`Sending invitation email to ${email} with link ${inviteLink}`);
+    
+    const subject = 'Family Relationship Invitation - WEMSP';
+    
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <h2 style="color: #155724; margin: 0 0 10px 0;">Family Invitation</h2>
+          <p style="color: #155724; margin: 0;">You've been invited to join a family network on WEMSP.</p>
+        </div>
+        
+        <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px;">
+          <h3 style="color: #495057; margin-top: 0;">Hello ${fullName},</h3>
+          
+          <p style="color: #6c757d; margin-bottom: 20px;">
+            <strong>${inviterName}</strong> has invited you to join their family network on the Will Estate Management Service Provider (WEMSP) as their <strong>${relationship}</strong>.
+          </p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h4 style="color: #495057; margin: 0 0 15px 0;">📋 Invitation Details</h4>
+            <div style="margin-bottom: 10px;">
+              <strong>Invited by:</strong> ${inviterName}
+            </div>
+            <div style="margin-bottom: 10px;">
+              <strong>Relationship:</strong> ${relationship}
+            </div>
+            <div style="margin-bottom: 10px;">
+              <strong>Platform:</strong> Will Estate Management Service Provider (WEMSP)
+            </div>
+            <div style="color: #6c757d; font-size: 14px;">
+              <strong>Expires:</strong> This invitation will expire in 7 days
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${directAcceptLink}" 
+               style="display: inline-block; background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+              ✅ Accept Invitation
+            </a>
+          </div>
+          
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
+            <h4 style="color: #495057; margin: 0 0 10px 0;">🔗 Alternative Access</h4>
+            <p style="color: #6c757d; margin: 0 0 10px 0; font-size: 14px;">
+              You can also respond to this invitation by visiting our website:
+            </p>
+            <p style="margin: 0;">
+              <a href="${inviteLink}" style="color: #007bff; text-decoration: none; font-weight: bold;">
+                ${inviteLink}
+              </a>
+            </p>
+          </div>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <h4 style="color: #495057; margin-bottom: 10px;">What happens next?</h4>
+            <ol style="color: #6c757d; margin: 0; padding-left: 20px;">
+              <li>Click the "Accept Invitation" button above</li>
+              <li>You'll be redirected to confirm your acceptance</li>
+              <li>Your family relationship will be established in the system</li>
+              <li>You'll gain access to family-related features and notifications</li>
+            </ol>
+          </div>
+          
+          <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ Important Notes</h4>
+            <ul style="color: #856404; margin: 0; padding-left: 20px; font-size: 14px;">
+              <li>This invitation will expire in 7 days from now</li>
+              <li>If you did not expect this invitation, you can safely ignore this email</li>
+              <li>Only accept invitations from people you know and trust</li>
+              <li>This will establish a family relationship in our estate management system</li>
+            </ul>
+          </div>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <h4 style="color: #495057; margin-bottom: 10px;">About WEMSP</h4>
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              The Will Estate Management Service Provider (WEMSP) helps families manage their estate planning and inheritance according to Islamic principles.
+            </p>
+            <p style="color: #6c757d; margin: 0;">
+              By accepting this invitation, you'll be part of a secure family network for estate management purposes.
+            </p>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <p style="color: #6c757d; font-size: 14px; margin: 0;">
+            This is an automated invitation from the Will Estate Management Service Provider (WEMSP).
+          </p>
+          <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+            Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const textContent = `
+Family Invitation - WEMSP
+
+Hello ${fullName},
+
+${inviterName} has invited you to join their family network on the Will Estate Management Service Provider (WEMSP) as their ${relationship}.
+
+Invitation Details:
+- Invited by: ${inviterName}
+- Relationship: ${relationship}
+- Platform: Will Estate Management Service Provider (WEMSP)
+- Expires: This invitation will expire in 7 days
+
+To accept this invitation, click the link below:
+${directAcceptLink}
+
+Alternative Access:
+You can also respond to this invitation by visiting our website:
+${inviteLink}
+
+What happens next?
+1. Click the "Accept Invitation" button above
+2. You'll be redirected to confirm your acceptance
+3. Your family relationship will be established in the system
+4. You'll gain access to family-related features and notifications
+
+Important Notes:
+- This invitation will expire in 7 days from now
+- If you did not expect this invitation, you can safely ignore this email
+- Only accept invitations from people you know and trust
+- This will establish a family relationship in our estate management system
+
+About WEMSP:
+The Will Estate Management Service Provider (WEMSP) helps families manage their estate planning and inheritance according to Islamic principles.
+By accepting this invitation, you'll be part of a secure family network for estate management purposes.
+
+This is an automated invitation from the Will Estate Management Service Provider (WEMSP).
+Please do not reply to this email.
+    `;
     
     const response = await fetch(`${baseUrl}/api/send-email`, {
       method: 'POST',
@@ -38,79 +170,17 @@ async function sendInvitationEmail(
       },
       body: JSON.stringify({
         to: email,
-        subject: 'Family Relationship Invitation - Islamic Inheritance System',
-        text: `Dear ${fullName},
-
-${inviterName} has invited you to join their family network on the Islamic Inheritance System as their ${relationship}.
-
-Please click on the link below to accept this invitation:
-
-${directAcceptLink}
-
-Alternatively, you can visit our website to respond to the invitation:
-${inviteLink}
-
-This invitation will expire in 7 days. If you did not expect this invitation, you can safely ignore this email.
-
-Best regards,
-Islamic Inheritance System Team`,
-        html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { text-align: center; margin-bottom: 20px; }
-    .content { background-color: #f9f9f9; padding: 20px; border-radius: 5px; }
-    .button { display: inline-block; padding: 10px 20px; margin: 10px 5px; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; }
-    .accept { background-color: #4CAF50; color: white !important; }
-    .reject { background-color: #f44336; color: white !important; }
-    .alternative { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }
-    .footer { margin-top: 20px; font-size: 12px; color: #777; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h2>Family Invitation</h2>
-    </div>
-    <div class="content">
-      <p>Dear ${fullName},</p>
-      <p><strong>${inviterName}</strong> has invited you to join their family network on the Islamic Inheritance System as their <strong>${relationship}</strong>.</p>
-      
-      <p>Please click the button below to accept this invitation:</p>
-      
-      <div style="text-align: center;">
-        <a href="${directAcceptLink}" class="button accept">Accept Invitation</a>
-      </div>
-      
-      <div class="alternative">
-        <p>Alternatively, you can visit our website to respond to the invitation:</p>
-        <p><a href="${inviteLink}">Respond on our website</a></p>
-      </div>
-      
-      <p>This invitation will expire in 7 days. If you did not expect this invitation, you can safely ignore this email.</p>
-    </div>
-    <div class="footer">
-      <p>Best regards,<br>Islamic Inheritance System Team</p>
-    </div>
-  </div>
-</body>
-</html>
-`
+        subject,
+        text: textContent,
+        html: htmlContent,
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('Email API error:', errorData);
-      throw new Error(`Failed to send email: ${errorData?.message || response.statusText}`);
+      throw new Error(`Failed to send invitation email: ${response.status}`);
     }
-    
-    const responseData = await response.json();
-    console.log('Email sending response:', responseData);
-    
+
+    console.log(`Invitation email sent successfully to ${email}`);
     return true;
   } catch (error) {
     console.error('Error sending invitation email:', error);

@@ -13,6 +13,97 @@ function generateVerificationCode(): string {
 // Function to send verification email
 async function sendVerificationEmail(email: string, code: string, fullName: string) {
   try {
+    const subject = 'Email Verification - WEMSP';
+    
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <h2 style="color: #155724; margin: 0 0 10px 0;">Welcome to Will Estate Management Service Provider (WEMSP)</h2>
+          <p style="color: #155724; margin: 0;">Please verify your email address to complete your registration.</p>
+        </div>
+        
+        <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px;">
+          <h3 style="color: #495057; margin-top: 0;">Hello ${fullName},</h3>
+          
+          <p style="color: #6c757d; margin-bottom: 20px;">
+            Thank you for registering with the Will Estate Management Service Provider (WEMSP). To complete your registration, please verify your email address using the verification code below.
+          </p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+            <h4 style="color: #495057; margin: 0 0 15px 0;">Your Verification Code</h4>
+            <div style="background-color: #007bff; color: white; padding: 15px 25px; border-radius: 6px; font-size: 24px; font-weight: bold; letter-spacing: 3px; display: inline-block;">
+              ${code}
+            </div>
+            <p style="color: #6c757d; margin: 15px 0 0 0; font-size: 14px;">
+              This code will expire in 1 hour
+            </p>
+          </div>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <h4 style="color: #495057; margin-bottom: 10px;">How to verify:</h4>
+            <ol style="color: #6c757d; margin: 0; padding-left: 20px;">
+              <li>Return to the registration page</li>
+              <li>Enter the verification code above</li>
+              <li>Click "Verify Email" to complete your registration</li>
+            </ol>
+          </div>
+          
+          <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ Important Security Notice</h4>
+            <p style="color: #856404; margin: 0; font-size: 14px;">
+              If you did not request this registration, please ignore this email. The verification code will expire automatically in 1 hour.
+            </p>
+          </div>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <h4 style="color: #495057; margin-bottom: 10px;">Need Help?</h4>
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              If you're having trouble with verification, you can request a new verification code on the registration page.
+            </p>
+            <p style="color: #6c757d; margin: 0;">
+              For additional support, please contact our support team.
+            </p>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <p style="color: #6c757d; font-size: 14px; margin: 0;">
+            This is an automated email from the Will Estate Management Service Provider (WEMSP).
+          </p>
+          <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+            Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const textContent = `
+Welcome to Islamic Inheritance System
+
+Hello ${fullName},
+
+Thank you for registering with the Will Estate Management Service Provider (WEMSP). To complete your registration, please verify your email address using the verification code below.
+
+Your Verification Code: ${code}
+
+This code will expire in 1 hour.
+
+How to verify:
+1. Return to the registration page
+2. Enter the verification code above
+3. Click "Verify Email" to complete your registration
+
+Important Security Notice:
+If you did not request this registration, please ignore this email. The verification code will expire automatically in 1 hour.
+
+Need Help?
+If you're having trouble with verification, you can request a new verification code on the registration page.
+For additional support, please contact our support team.
+
+This is an automated email from the Will Estate Management Service Provider (WEMSP).
+Please do not reply to this email.
+    `;
+
     const response = await fetch(process.env.NEXTAUTH_URL + '/api/send-email', {
       method: 'POST',
       headers: {
@@ -20,19 +111,9 @@ async function sendVerificationEmail(email: string, code: string, fullName: stri
       },
       body: JSON.stringify({
         to: email,
-        subject: 'Email Verification - Islamic Inheritance System',
-        text: `Dear ${fullName},
-
-Thank you for registering with the Islamic Inheritance System.
-
-Your verification code is: ${code}
-
-This code will expire in 1 hour. Please enter this code on the verification page to complete your registration.
-
-If you did not request this registration, please ignore this email.
-
-Best regards,
-Islamic Inheritance System Team`
+        subject,
+        text: textContent,
+        html: htmlContent,
       }),
     });
 

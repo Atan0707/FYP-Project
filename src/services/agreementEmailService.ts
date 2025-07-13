@@ -354,11 +354,14 @@ async function sendCombinedCompletionAndPDFEmail(
         </div>
       </div>
       
-      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
-        <p style="color: #6c757d; font-size: 14px; margin: 0;">
-          This is an automated notification from the Asset Distribution System.
-        </p>
-      </div>
+              <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <p style="color: #6c757d; font-size: 14px; margin: 0;">
+            This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+          </p>
+          <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+            Please do not reply to this email.
+          </p>
+        </div>
     </div>
   `;
 
@@ -390,7 +393,8 @@ Important Notes:
 - The document can be accessed anytime using the link above
 - If you have any questions, please contact the administrator
 
-This is an automated notification from the Asset Distribution System.
+This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+Please do not reply to this email.
   `;
 
   try {
@@ -412,6 +416,302 @@ This is an automated notification from the Asset Distribution System.
     }
 
     console.log(`Combined agreement completion and PDF email sent to ${participant.email}`);
+  } catch (error) {
+    console.error(`Error sending email to ${participant.email}:`, error);
+    throw error;
+  }
+}
+
+export async function sendAgreementSigningNotification(
+  agreementId: string,
+  signerName: string,
+  signerRelationship: string
+) {
+  try {
+    // Get agreement details with all related data
+    const agreement = await prisma.agreement.findFirst({
+      where: { id: agreementId },
+      include: {
+        distribution: {
+          include: {
+            asset: {
+              include: {
+                user: true, // Asset owner
+              },
+            },
+          },
+        },
+        signatures: {
+          include: {
+            signedBy: true, // Family members who signed
+          },
+        },
+      },
+    });
+
+    if (!agreement) {
+      throw new Error('Agreement not found');
+    }
+
+    // Collect all participants except the one who just signed
+    const participants: AgreementParticipant[] = [];
+    
+    // Add asset owner if they haven't signed yet
+    const owner = agreement.distribution.asset.user;
+    const ownerSignature = agreement.signatures.find(sig => sig.signedById === owner.id);
+    if (!ownerSignature || ownerSignature.status !== 'signed') {
+      participants.push({
+        email: owner.email,
+        fullName: owner.fullName,
+        relationship: 'Owner',
+      });
+    }
+
+    // Add other family members who haven't signed yet
+    agreement.signatures.forEach(signature => {
+      const signedBy = signature.signedBy;
+      if (signature.status !== 'signed' && signedBy.fullName !== signerName) {
+        if (!participants.some(p => p.email === signedBy.email)) {
+          participants.push({
+            email: signedBy.email,
+            fullName: signedBy.fullName,
+            relationship: 'Family Member',
+          });
+        }
+      }
+    });
+
+    // Add beneficiaries from distribution who haven't signed
+    if (agreement.distribution.beneficiaries) {
+      const beneficiaries = agreement.distribution.beneficiaries as Beneficiary[];
+      
+      for (const beneficiary of beneficiaries) {
+        if (beneficiary.email && beneficiary.fullName) {
+          const beneficiarySignature = agreement.signatures.find(sig => sig.signedBy.email === beneficiary.email);
+          if (!beneficiarySignature || beneficiarySignature.status !== 'signed') {
+            if (!participants.some(p => p.email === beneficiary.email)) {
+              participants.push({
+                email: beneficiary.email,
+                fullName: beneficiary.fullName,
+                relationship: 'Beneficiary',
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Send notification emails to all remaining participants
+    const emailPromises = participants.map(participant => 
+      sendAgreementSigningNotificationEmail(
+        participant,
+        {
+          assetName: agreement.distribution.asset.name,
+          assetType: agreement.distribution.asset.type,
+          distributionType: agreement.distribution.type,
+          signerName,
+          signerRelationship,
+          totalSignatures: agreement.signatures.length,
+          completedSignatures: agreement.signatures.filter(sig => sig.status === 'signed').length,
+        }
+      )
+    );
+
+    const emailResults = await Promise.allSettled(emailPromises);
+    
+    // Count successful emails
+    const successfulEmails = emailResults.filter(result => result.status === 'fulfilled').length;
+    const failedEmails = emailResults.filter(result => result.status === 'rejected').length;
+
+    return { success: true, emailsSent: successfulEmails, emailsFailed: failedEmails };
+  } catch (error) {
+    console.error('Error sending agreement signing notification emails:', error);
+    throw error;
+  }
+}
+
+async function sendAgreementSigningNotificationEmail(
+  participant: AgreementParticipant,
+  emailData: {
+    assetName: string;
+    assetType: string;
+    distributionType: string;
+    signerName: string;
+    signerRelationship: string;
+    totalSignatures: number;
+    completedSignatures: number;
+  }
+) {
+  const subject = `Agreement Update: ${emailData.signerName} has signed - ${emailData.assetName}`;
+  
+  const remainingSignatures = emailData.totalSignatures - emailData.completedSignatures;
+  const progressPercentage = Math.round((emailData.completedSignatures / emailData.totalSignatures) * 100);
+  
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="color: #155724; margin: 0 0 10px 0;">Agreement Signing Update</h2>
+        <p style="color: #155724; margin: 0;">A family member has signed the agreement for ${emailData.assetName}.</p>
+      </div>
+      
+      <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px;">
+        <h3 style="color: #495057; margin-top: 0;">Hello ${participant.fullName},</h3>
+        
+        <p style="color: #6c757d; margin-bottom: 20px;">
+          We wanted to inform you that <strong>${emailData.signerName}</strong> (${emailData.signerRelationship}) has signed the agreement for the asset distribution.
+        </p>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #495057; margin: 0 0 15px 0;">📋 Agreement Details</h4>
+          <div style="margin-bottom: 10px;">
+            <strong>Asset:</strong> ${emailData.assetName}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Asset Type:</strong> ${emailData.assetType}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Distribution Type:</strong> ${emailData.distributionType.toUpperCase()}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Recently Signed By:</strong> ${emailData.signerName} (${emailData.signerRelationship})
+          </div>
+          <div style="color: #6c757d; font-size: 14px;">
+            <strong>Your Role:</strong> ${participant.relationship}
+          </div>
+        </div>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #495057; margin: 0 0 15px 0;">📊 Signing Progress</h4>
+          <div style="margin-bottom: 15px;">
+            <div style="background-color: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden;">
+              <div style="background-color: #28a745; height: 100%; width: ${progressPercentage}%; border-radius: 10px; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="text-align: center; margin-top: 8px; font-size: 14px; color: #6c757d;">
+              ${emailData.completedSignatures} of ${emailData.totalSignatures} signatures completed (${progressPercentage}%)
+            </div>
+          </div>
+          ${remainingSignatures > 0 ? `
+            <div style="background-color: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">
+              <p style="color: #856404; margin: 0; font-size: 14px;">
+                <strong>⏳ ${remainingSignatures} signature${remainingSignatures > 1 ? 's' : ''} still needed</strong> before the agreement can be finalized by the administrator.
+              </p>
+            </div>
+          ` : `
+            <div style="background-color: #d4edda; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">
+              <p style="color: #155724; margin: 0; font-size: 14px;">
+                <strong>✅ All signatures completed!</strong> The agreement is now ready for administrator approval.
+              </p>
+            </div>
+          `}
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.NEXTAUTH_URL || 'https://wemsp.hrzhkm.xyz'}/pages/agreements" 
+             style="display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+            📝 View Agreement Details
+          </a>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <h4 style="color: #495057; margin-bottom: 10px;">What happens next?</h4>
+          ${remainingSignatures > 0 ? `
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              The agreement is waiting for ${remainingSignatures} more signature${remainingSignatures > 1 ? 's' : ''} from other family members.
+            </p>
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              Once all family members have signed, the agreement will be sent to the administrator for final approval.
+            </p>
+          ` : `
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              All family members have now signed the agreement. It will be sent to the administrator for final approval.
+            </p>
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              You will receive another notification once the administrator has completed the agreement.
+            </p>
+          `}
+          <p style="color: #6c757d; margin: 0;">
+            You can track the progress and view all details in your dashboard.
+          </p>
+        </div>
+        
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #17a2b8;">
+          <h4 style="color: #495057; margin: 0 0 10px 0;">💡 Need to Sign?</h4>
+          <p style="color: #6c757d; margin: 0; font-size: 14px;">
+            If you haven't signed this agreement yet, please visit your dashboard to review and sign the agreement.
+            Your signature is important for the completion of this asset distribution.
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+        <p style="color: #6c757d; font-size: 14px; margin: 0;">
+          This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+        </p>
+        <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+          Please do not reply to this email.
+        </p>
+      </div>
+    </div>
+  `;
+
+  const textContent = `
+Agreement Signing Update - ${emailData.assetName}
+
+Hello ${participant.fullName},
+
+We wanted to inform you that ${emailData.signerName} (${emailData.signerRelationship}) has signed the agreement for the asset distribution.
+
+Agreement Details:
+- Asset: ${emailData.assetName}
+- Asset Type: ${emailData.assetType}
+- Distribution Type: ${emailData.distributionType.toUpperCase()}
+- Recently Signed By: ${emailData.signerName} (${emailData.signerRelationship})
+- Your Role: ${participant.relationship}
+
+Signing Progress:
+${emailData.completedSignatures} of ${emailData.totalSignatures} signatures completed (${progressPercentage}%)
+
+${remainingSignatures > 0 ? 
+  `⏳ ${remainingSignatures} signature${remainingSignatures > 1 ? 's' : ''} still needed before the agreement can be finalized by the administrator.` :
+  `✅ All signatures completed! The agreement is now ready for administrator approval.`
+}
+
+View Agreement Details: ${process.env.NEXTAUTH_URL || 'https://wemsp.hrzhkm.xyz'}/pages/agreements
+
+What happens next?
+${remainingSignatures > 0 ? 
+  `The agreement is waiting for ${remainingSignatures} more signature${remainingSignatures > 1 ? 's' : ''} from other family members. Once all family members have signed, the agreement will be sent to the administrator for final approval.` :
+  `All family members have now signed the agreement. It will be sent to the administrator for final approval. You will receive another notification once the administrator has completed the agreement.`
+}
+
+You can track the progress and view all details in your dashboard.
+
+Need to Sign?
+If you haven't signed this agreement yet, please visit your dashboard to review and sign the agreement. Your signature is important for the completion of this asset distribution.
+
+This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+Please do not reply to this email.
+  `;
+
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'https://wemsp.hrzhkm.xyz'}/api/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: participant.email,
+        subject,
+        text: textContent,
+        html: htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to send email to ${participant.email}`);
+    }
+
+    console.log(`Agreement signing notification email sent to ${participant.email}`);
   } catch (error) {
     console.error(`Error sending email to ${participant.email}:`, error);
     throw error;
