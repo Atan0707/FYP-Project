@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from "@/components/ui/separator";
 import { contractService } from '@/services/contractService';
+import { FaraidResult } from '@/lib/faraid';
+import dynamic from 'next/dynamic';
 import {
   Tooltip,
   TooltipContent,
@@ -27,6 +29,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+
+// Dynamically import the FaraidDistribution to avoid SSR issues
+const FaraidDistribution = dynamic(
+  () => import('../distribution/FaraidDistribution'),
+  { ssr: false }
+);
+
+const FaraidExplanation = dynamic(
+  () => import('../distribution/FaraidExplanation'),
+  { ssr: false }
+);
 
 interface FamilyMember {
   id: string;
@@ -207,6 +220,8 @@ export default function AssetDetailsPage() {
     { step: 'Adding signers to agreement', status: 'pending' },
     { step: 'Saving distribution details', status: 'pending' },
   ]);
+  const [faraidResults, setFaraidResults] = useState<FaraidResult[]>([]);
+  const [userGender, setUserGender] = useState<'male' | 'female'>('male');
 
   // Fetch current user data
   useEffect(() => {
@@ -217,8 +232,11 @@ export default function AssetDetailsPage() {
           const userData = await response.json();
           console.log('Current user data:', userData);
           setCurrentUser(userData);
-          // console.log('Private key:', privateKey);
-          // console.log('RPC URL:', rpcUrl);
+          // Determine gender based on user data if available
+          // This is a simple assumption - in a real app, you might want to store gender explicitly
+          if (userData.gender) {
+            setUserGender(userData.gender);
+          }
         } else {
           console.error('Failed to fetch user data:', response.status);
         }
@@ -372,6 +390,17 @@ export default function AssetDetailsPage() {
     setNotes('');
     setOrganization('');
     setSelectedBeneficiaryId('');
+    setFaraidResults([]);
+  };
+
+  const handleFaraidCalculated = (results: FaraidResult[]) => {
+    setFaraidResults(results);
+    // Add a note about the Faraid calculation
+    setNotes(`Faraid distribution calculated according to Islamic inheritance law. ${results.length} beneficiaries identified.`);
+  };
+
+  const handleNotesChange = (newNotes: string) => {
+    setNotes(newNotes);
   };
 
   const updateProgressStep = (stepIndex: number, status: 'pending' | 'completed' | 'error') => {
@@ -399,6 +428,11 @@ export default function AssetDetailsPage() {
       return;
     }
 
+    if (selectedType === 'faraid' && faraidResults.length === 0) {
+      toast.error('Please add family members with valid relationships for Faraid calculation');
+      return;
+    }
+
     // Check if family members are still loading for types that need them
     if ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
         isFamilyMembersLoading) {
@@ -418,6 +452,19 @@ export default function AssetDetailsPage() {
       setTransactionState('creating-agreement');
       updateProgressStep(0, 'pending');
 
+      // Prepare beneficiaries based on distribution type
+      let beneficiaries;
+      
+      if (selectedType === 'hibah') {
+        beneficiaries = [{ familyId: selectedBeneficiaryId, percentage: 100 }];
+      } else if (selectedType === 'faraid' && faraidResults.length > 0) {
+        // Map Faraid results to beneficiaries
+        beneficiaries = faraidResults.map(result => ({
+          familyId: result.familyId,
+          percentage: result.percentage
+        }));
+      }
+
       // First create the distribution and agreement in the database to get an ID
       const response = await fetch('/api/asset-distribution', {
         method: 'POST',
@@ -426,7 +473,7 @@ export default function AssetDetailsPage() {
           type: selectedType,
           notes: notes,
           assetId: assetDetails!.id,
-          beneficiaries: selectedType === 'hibah' ? [{ familyId: selectedBeneficiaryId, percentage: 100 }] : undefined,
+          beneficiaries: beneficiaries,
           organization: selectedType === 'waqf' ? organization : undefined,
         }),
       });
@@ -942,13 +989,15 @@ export default function AssetDetailsPage() {
                   )}
 
                   {selectedType === 'faraid' && (
-                    <div>
-                      <label className="text-sm font-medium">Additional Notes (Optional)</label>
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Add any additional notes about the faraid distribution"
-                        className="mt-1"
+                    <div className="space-y-4">
+                      <FaraidExplanation />
+                      <FaraidDistribution 
+                        assetValue={assetDetails.value}
+                        familyMembers={familyMembers}
+                        userGender={userGender}
+                        onDistributionCalculated={handleFaraidCalculated}
+                        onNotesChange={handleNotesChange}
+                        notes={notes}
                       />
                     </div>
                   )}
@@ -1006,13 +1055,16 @@ export default function AssetDetailsPage() {
                       className="w-full"
                       disabled={transactionState !== 'idle' || 
                         ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
-                          isFamilyMembersLoading)}
+                          isFamilyMembersLoading) ||
+                        (selectedType === 'faraid' && faraidResults.length === 0)}
                     >
                       {transactionState !== 'idle' && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
                       {isFamilyMembersLoading && selectedType !== '' ? 
                         'Loading Family Members...' : 
+                        selectedType === 'faraid' && faraidResults.length === 0 ?
+                        'Calculate Faraid First' :
                         getSubmitButtonText()}
                     </Button>
                   )}
