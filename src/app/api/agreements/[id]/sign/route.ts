@@ -38,10 +38,19 @@ export async function POST(
     }
 
     // Find the pending signature for this agreement and user
+    // First get all family IDs where the user is a family member
+    const familyIds = (await prisma.family.findMany({
+      where: { userId },
+      select: { id: true },
+    })).map(f => f.id);
+
+    // Then find the signature for this agreement where the user is a family member
     const signature = await prisma.familySignature.findFirst({
       where: {
         agreementId: agreementId,
-        signedById: userId,
+        familyId: {
+          in: familyIds,
+        },
         status: 'pending',
       },
       include: {

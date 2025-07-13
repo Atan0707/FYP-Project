@@ -494,7 +494,7 @@ export default function AssetDetailsPage() {
         assetDetails!.type,
         assetDetails!.value,
         selectedType,
-        'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreier5qlxlholbixx2vkgnp3ics2u7cvhmnmtkgeoovfdporvh35feu'
+        'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreidybvfdia2pmocb6qp6qxcdbptst47pb5gdinbnvqqafa667ij4zy'
       );
 
       if (!createResult.success) {
