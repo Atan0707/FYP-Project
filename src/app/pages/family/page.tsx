@@ -37,6 +37,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 // Get available relationships
 const relationships = getAvailableRelationships();
 
+// Feature flag to enable/disable non-registered family members
+const nonRegisteredFeatures = false; // true - turn on    false - turn off
+
 // Malaysian IC validation function
 const validateMalaysianIC = (ic: string): boolean => {
   // Remove dashes if present
@@ -450,6 +453,11 @@ function FamilyPageContent() {
         setShowConfirmation(true);
         toast.success('User found! Please review the details.');
       } else {
+        // Check if non-registered features are disabled
+        if (!nonRegisteredFeatures) {
+          toast.error('This feature is disabled. Only registered users can be added as family members.');
+          return;
+        }
         setFoundUser(null);
         setShowForm(true);
         toast.info('User not registered. Please fill in the details.');
@@ -469,6 +477,12 @@ function FamilyPageContent() {
     
     if (!selectedRelationship) {
       toast.error('Please select a relationship');
+      return;
+    }
+
+    // If user doesn't have email and non-registered features are disabled
+    if (!foundUser.email && !nonRegisteredFeatures) {
+      toast.error('This feature is disabled. Only users with email addresses can be added as family members.');
       return;
     }
 
@@ -528,6 +542,12 @@ function FamilyPageContent() {
       toast.info('Sending invitation...');
       inviteMutation.mutate(invitationData);
     } else {
+      // Check if non-registered features are disabled (only for new additions, not edits)
+      if (!editingFamily && !nonRegisteredFeatures) {
+        toast.error('This feature is disabled. Only users with email addresses can be added as family members.');
+        return;
+      }
+      
       // If no email, add as a non-registered family member
       const familyData = {
         fullName,
@@ -672,6 +692,14 @@ function FamilyPageContent() {
                         </Alert>
                       )}
                       
+                      {!foundUser.email && !nonRegisteredFeatures && (
+                        <Alert className="bg-red-50 border-red-200">
+                          <AlertDescription>
+                            This feature is disabled. Only users with email addresses can be added as family members.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      
                       <div className="grid gap-2">
                         <Label htmlFor="relationship">Relationship</Label>
                         <Select
@@ -701,7 +729,7 @@ function FamilyPageContent() {
                         </Button>
                         <Button 
                           onClick={handleConfirmRegistered}
-                          disabled={!selectedRelationship}
+                          disabled={!selectedRelationship || (!foundUser.email && !nonRegisteredFeatures)}
                         >
                           {foundUser.email ? 'Send Invitation' : 'Add as Family Member'}
                         </Button>
@@ -758,14 +786,18 @@ function FamilyPageContent() {
                         </div>
                         {!editingFamily && (
                           <div className="grid gap-2">
-                            <Label htmlFor="email">Email (Optional)</Label>
+                            <Label htmlFor="email">Email {nonRegisteredFeatures ? '(Optional)' : '(Required)'}</Label>
                             <Input
                               id="email"
                               name="email"
                               type="email"
+                              required={!nonRegisteredFeatures}
                             />
                             <div className="text-xs text-muted-foreground">
-                              If provided, an invitation will be sent to this email
+                              {nonRegisteredFeatures 
+                                ? 'If provided, an invitation will be sent to this email' 
+                                : 'Email is required to send invitation to the user'
+                              }
                             </div>
                           </div>
                         )}
