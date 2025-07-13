@@ -20,9 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlusCircle, Pencil, Trash2, Search, Clock
-  //  RefreshCw 
-  } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Search, Clock } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import {
@@ -238,6 +236,25 @@ const cancelInvitation = async (id: string) => {
 //   return response.json();
 // };
 
+// Add new API function for updating only the relationship
+const updateFamilyRelationship = async (data: { id: string; relationship: string }) => {
+  const response = await fetch('/api/family/relationship', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    if (errorData && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    throw new Error(`Server error: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
 function FamilyPageContent() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState<Family | null>(null);
@@ -247,6 +264,12 @@ function FamilyPageContent() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [selectedRelationship, setSelectedRelationship] = useState<string>('');
   const [processingInvitation, setProcessingInvitation] = useState(false);
+  
+  // Add new states for relationship editing
+  const [isRelationshipDialogOpen, setIsRelationshipDialogOpen] = useState(false);
+  const [editingRelationship, setEditingRelationship] = useState<Family | null>(null);
+  const [newRelationship, setNewRelationship] = useState<string>('');
+  
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   
@@ -352,6 +375,22 @@ function FamilyPageContent() {
     },
     onError: (error) => {
       toast.error('Failed to cancel invitation: ' + error.message);
+    },
+  });
+
+  // Add new mutation for updating relationship only
+  const updateRelationshipMutation = useMutation({
+    mutationFn: updateFamilyRelationship,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success('Family relationship updated successfully');
+      setIsRelationshipDialogOpen(false);
+      setEditingRelationship(null);
+      setNewRelationship('');
+    },
+    onError: (error: Error) => {
+      console.error('Error updating family relationship:', error);
+      toast.error(`Failed to update relationship: ${error.message}`);
     },
   });
 
@@ -506,6 +545,19 @@ function FamilyPageContent() {
         createMutation.mutate(familyData);
       }
     }
+  };
+
+  // Add handler for relationship update
+  const handleRelationshipUpdate = () => {
+    if (!editingRelationship || !newRelationship) {
+      toast.error('Please select a relationship');
+      return;
+    }
+
+    updateRelationshipMutation.mutate({
+      id: editingRelationship.id,
+      relationship: newRelationship,
+    });
   };
 
   if (isLoading) {
@@ -802,18 +854,27 @@ function FamilyPageContent() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right space-x-2">
+                  {/* Single Edit Button - Handles both relationship and full edits */}
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      setEditingFamily(family);
-                      setIsOpen(true);
+                      if (family.isRegistered) {
+                        // For registered users, open relationship update dialog
+                        setEditingRelationship(family);
+                        setNewRelationship(family.relationship);
+                        setIsRelationshipDialogOpen(true);
+                      } else {
+                        // For non-registered users, open full edit dialog
+                        setEditingFamily(family);
+                        setIsOpen(true);
+                      }
                     }}
-                    disabled={family.isRegistered}
-                    title={family.isRegistered ? "Registered family members cannot be edited. Their information is synchronized with their account." : "Edit family member"}
+                    title={family.isRegistered ? "Update relationship" : "Edit family member"}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  
                   <Button
                     variant="destructive"
                     size="icon"
@@ -827,6 +888,85 @@ function FamilyPageContent() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Relationship Update Dialog */}
+      <Dialog open={isRelationshipDialogOpen} onOpenChange={(open) => {
+        setIsRelationshipDialogOpen(open);
+        if (!open) {
+          setEditingRelationship(null);
+          setNewRelationship('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Family Relationship</DialogTitle>
+          </DialogHeader>
+          {editingRelationship && (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-4 space-y-3">
+                <div>
+                  <Label>Family Member</Label>
+                  <div className="font-medium">{editingRelationship.fullName}</div>
+                </div>
+                <div>
+                  <Label>IC Number</Label>
+                  <div className="font-medium">{editingRelationship.ic}</div>
+                </div>
+                <div>
+                  <Label>Current Relationship</Label>
+                  <div className="font-medium capitalize">{editingRelationship.relationship}</div>
+                </div>
+                {editingRelationship.isRegistered && (
+                  <div className="pt-2">
+                    <Badge variant="success">Registered User</Badge>
+                  </div>
+                )}
+              </div>
+
+              <Alert className="bg-blue-50 border-blue-200">
+                <AlertDescription>
+                  Updating the relationship will automatically update the relationship for both family members.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="newRelationship">New Relationship</Label>
+                <Select
+                  onValueChange={(value) => setNewRelationship(value)}
+                  value={newRelationship}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select new relationship" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relationships.map((relationship) => (
+                      <SelectItem key={relationship} value={relationship}>
+                        {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => {
+                  setIsRelationshipDialogOpen(false);
+                  setEditingRelationship(null);
+                  setNewRelationship('');
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleRelationshipUpdate}
+                  disabled={!newRelationship || newRelationship === editingRelationship.relationship || updateRelationshipMutation.isPending}
+                >
+                  {updateRelationshipMutation.isPending ? 'Updating...' : 'Update Relationship'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
