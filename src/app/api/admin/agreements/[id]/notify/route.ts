@@ -1,21 +1,27 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sendAgreementCompletionEmails } from '@/services/agreementEmailService';
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { id: agreementId } = await params;
     
-    // Call the email service
-    const result = await sendAgreementCompletionEmails(id);
+    if (!agreementId) {
+      return NextResponse.json(
+        { error: 'Agreement ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await sendAgreementCompletionEmails(agreementId);
     
-    return NextResponse.json(result, { status: 200 });  
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error sending agreement notifications:', error);
+    console.error('Error sending agreement completion emails:', error);
     return NextResponse.json(
-      { success: false, error: String(error) },
+      { error: 'Failed to send agreement completion emails' },
       { status: 500 }
     );
   }

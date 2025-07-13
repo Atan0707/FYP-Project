@@ -40,7 +40,8 @@ import {
   Clock, 
   Filter, 
   Eye,
-  XCircle
+  XCircle,
+  Mail
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -58,7 +59,6 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { contractService } from '@/services/contractService';
-import { sendAgreementCompletionEmails } from '@/services/agreementEmailService';
 
 interface Agreement {
   id: string;
@@ -116,6 +116,27 @@ const fetchAllAgreements = async () => {
   return response.json();
 };
 
+const sendCompletionEmails = async (agreementId: string) => {
+  try {
+    const response = await fetch(`/api/admin/agreements/${agreementId}/notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send completion emails');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error sending completion emails:', error);
+    throw error;
+  }
+};
+
 const signAdminAgreement = async ({ distributionId, notes, agreementId }: { distributionId: string; notes?: string; agreementId: string }) => {
 
   console.log("Signing admin agreement with distributionId:", distributionId, "notes:", notes, "agreementId:", agreementId)
@@ -166,17 +187,32 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
     // Get the updated agreement data
     const agreementData = await response.json();
     
-    // After successful signing, send email notifications to all participants using the email service
+    // After successful signing, send email notifications to all participants via API
     try {
-      const emailResult = await sendAgreementCompletionEmails(agreementId);
-      if (emailResult.success) {
-        toast.success(`Successfully sent email notifications to all ${emailResult.emailsSent} participants.`);
-      } else {
-        toast.warning('Agreement signed successfully, but there was an issue sending email notifications.');
-      }
+      const emailResponse = await fetch(`/api/admin/agreements/${agreementId}/notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+             if (emailResponse.ok) {
+         const emailResult = await emailResponse.json();
+         if (emailResult.success) {
+           if (emailResult.emailsFailed && emailResult.emailsFailed > 0) {
+             toast.warning(`Agreement signed successfully. ${emailResult.emailsSent} notifications sent, ${emailResult.emailsFailed} failed. Admin confirmation email sent.`);
+           } else {
+             toast.success(`Successfully sent email notifications to all ${emailResult.emailsSent} participants. Admin confirmation email sent.`);
+           }
+         } else {
+           toast.warning('Agreement signed successfully, but there was an issue sending email notifications.');
+         }
+       } else {
+         toast.warning('Agreement signed successfully, but failed to send email notifications.');
+       }
     } catch (emailError) {
       console.error('Failed to send agreement completion emails:', emailError);
-      toast.error('Agreement signed successfully, but failed to send email notifications.');
+      toast.warning('Agreement signed successfully, but failed to send email notifications.');
     }
     
     return agreementData;
@@ -297,6 +333,25 @@ const AdminAgreements = () => {
       } else {
         toast.error('Failed to sign agreement: ' + errorMessage);
       }
+    },
+  });
+
+  const sendEmailsMutation = useMutation({
+    mutationFn: sendCompletionEmails,
+    onSuccess: (result) => {
+      if (result.success) {
+        if (result.emailsFailed && result.emailsFailed > 0) {
+          toast.warning(`${result.emailsSent} notifications sent, ${result.emailsFailed} failed. Admin confirmation email sent.`);
+        } else {
+          toast.success(`Successfully sent completion emails to all ${result.emailsSent} participants. Admin confirmation email sent.`);
+        }
+      } else {
+        toast.error('Failed to send completion emails');
+      }
+    },
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error('Failed to send completion emails: ' + errorMessage);
     },
   });
 
@@ -697,12 +752,12 @@ const AdminAgreements = () => {
                       </TableCell>
                       <TableCell>{format(new Date(agreement.createdAt), 'dd/MM/yyyy')}</TableCell>
                       <TableCell className="text-right">
-                        {agreement.status === 'pending_admin' && (
-                          <>
+                        <div className="flex items-center justify-end gap-2">
+                          {agreement.status === 'pending_admin' && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 mr-2"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
                               onClick={() => {
                                 setSelectedAgreement(agreement);
                                 setIsSignDialogOpen(true);
@@ -711,20 +766,38 @@ const AdminAgreements = () => {
                               <CheckCircle className="mr-1 h-4 w-4" />
                               Sign Agreement
                             </Button>
-                          </>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary hover:text-primary/80"
-                          onClick={() => {
-                            setSelectedAgreement(agreement);
-                            setIsViewDialogOpen(true);
-                          }}
-                        >
-                          <Eye className="mr-1 h-4 w-4" />
-                          View
-                        </Button>
+                          )}
+                          
+                          {(agreement.status === 'completed' || agreement.status === 'signed') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => sendEmailsMutation.mutate(agreement.id)}
+                              disabled={sendEmailsMutation.isPending}
+                            >
+                              {sendEmailsMutation.isPending ? (
+                                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Mail className="mr-1 h-4 w-4" />
+                              )}
+                              Send Emails
+                            </Button>
+                          )}
+                          
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary hover:text-primary/80"
+                            onClick={() => {
+                              setSelectedAgreement(agreement);
+                              setIsViewDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="mr-1 h-4 w-4" />
+                            View
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
