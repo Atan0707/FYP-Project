@@ -3,10 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
 // GET pending admin agreements
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
     const adminId = cookieStore.get('adminId')?.value;
+    
+    // Parse the URL to get query parameters
+    const url = new URL(request.url);
+    const includeFamilyInfo = url.searchParams.get('includeFamilyInfo') === 'true';
 
     if (!adminId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -41,11 +45,80 @@ export async function GET() {
       distinct: ['assetId'], // Add distinct constraint on assetId
     });
 
+    // If family info is requested, fetch it separately
+    let familyInfo: Record<string, { id: string; name: string }> = {};
+    if (includeFamilyInfo) {
+      // Get all family IDs from agreements
+      const familyIds = new Set<string>();
+      distributions.forEach(dist => {
+        if (dist.agreement?.signatures) {
+          dist.agreement.signatures.forEach((sig) => {
+            if (sig.familyId) {
+              familyIds.add(sig.familyId);
+            }
+          });
+        }
+        
+        // Also add beneficiary family IDs if they exist
+        if (dist.beneficiaries && Array.isArray(dist.beneficiaries)) {
+          dist.beneficiaries.forEach((ben) => {
+            // Check if ben is an object and has familyId property
+            if (ben && typeof ben === 'object' && 'familyId' in ben && typeof ben.familyId === 'string') {
+              familyIds.add(ben.familyId);
+            }
+          });
+        }
+      });
+      
+      // Fetch family info for all these IDs
+      if (familyIds.size > 0) {
+        const families = await prisma.family.findMany({
+          where: {
+            id: {
+              in: Array.from(familyIds)
+            }
+          },
+          select: {
+            id: true,
+            fullName: true
+          }
+        });
+        
+        // Create a map for easy lookup and transform fullName to name for UI consistency
+        familyInfo = families.reduce((acc: Record<string, { id: string; name: string }>, family) => {
+          acc[family.id] = {
+            id: family.id,
+            name: family.fullName // Map fullName to name for UI consistency
+          };
+          return acc;
+        }, {});
+      }
+    }
+
     // Transform the data to match the expected interface
     const pendingAdminAgreements = distributions
       .map(distribution => {
         const agreement = distribution.agreement;
         if (!agreement) return null;
+        
+        // Process beneficiaries if they exist and family info is requested
+        let processedDistribution = { ...distribution };
+        if (includeFamilyInfo && distribution.beneficiaries && Array.isArray(distribution.beneficiaries)) {
+          processedDistribution = {
+            ...distribution,
+            beneficiaries: distribution.beneficiaries.map((ben) => {
+              // Check if ben is an object and has familyId property
+              if (ben && typeof ben === 'object' && 'familyId' in ben && 
+                  typeof ben.familyId === 'string' && familyInfo[ben.familyId]) {
+                return {
+                  ...ben,
+                  family: familyInfo[ben.familyId]
+                };
+              }
+              return ben;
+            })
+          };
+        }
         
         // Create a structure that matches the expected interface
         return {
@@ -56,18 +129,30 @@ export async function GET() {
           createdAt: agreement.createdAt,
           updatedAt: agreement.updatedAt,
           distribution: {
-            ...distribution,
-            agreements: agreement.signatures.map(sig => ({
-              id: sig.id,
-              familyId: sig.familyId,
-              status: sig.status,
-              signedAt: sig.signedAt,
-              notes: sig.notes,
-              adminSignedAt: agreement.adminSignedAt,
-              distributionId: distribution.id,
-              createdAt: sig.createdAt,
-              updatedAt: sig.updatedAt,
-            }))
+            ...processedDistribution,
+            agreements: agreement.signatures.map((sig) => {
+              const result = {
+                id: sig.id,
+                familyId: sig.familyId,
+                status: sig.status,
+                signedAt: sig.signedAt,
+                notes: sig.notes,
+                adminSignedAt: agreement.adminSignedAt,
+                distributionId: distribution.id,
+                createdAt: sig.createdAt,
+                updatedAt: sig.updatedAt,
+              };
+              
+              // Add family info if requested and available
+              if (includeFamilyInfo && sig.familyId && familyInfo[sig.familyId]) {
+                return {
+                  ...result,
+                  family: familyInfo[sig.familyId]
+                };
+              }
+              
+              return result;
+            })
           }
         };
       })

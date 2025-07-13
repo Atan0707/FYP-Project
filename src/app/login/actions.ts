@@ -215,4 +215,121 @@ export async function resendVerificationCodeLogin(formData: FormData) {
     console.error('Error resending verification code:', error);
     return { error: 'Something went wrong while resending verification code' };
   }
+}
+
+// New function to initiate password reset
+export async function initiatePasswordReset(formData: FormData) {
+  const email = formData.get('email') as string;
+
+  if (!email) {
+    return { error: 'Email is required' };
+  }
+
+  try {
+    // Call the reset-password API endpoint to initiate the reset
+    const response = await fetch(process.env.NEXTAUTH_URL + '/api/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        action: 'initiate'
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to initiate password reset' };
+    }
+
+    return { 
+      success: true, 
+      message: result.message || 'If your email is registered, you will receive a password reset code.'
+    };
+  } catch (error) {
+    console.error('Error initiating password reset:', error);
+    return { error: 'Something went wrong while initiating password reset' };
+  }
+}
+
+// New function to verify reset code
+export async function verifyResetCode(formData: FormData) {
+  const email = formData.get('email') as string;
+  const token = formData.get('token') as string;
+
+  if (!email || !token) {
+    return { error: 'Email and verification code are required' };
+  }
+
+  try {
+    // Call the reset-password API endpoint to verify the code
+    const response = await fetch(process.env.NEXTAUTH_URL + '/api/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        token,
+        action: 'verify'
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to verify reset code' };
+    }
+
+    return { 
+      success: true, 
+      message: result.message || 'Reset code verified successfully'
+    };
+  } catch (error) {
+    console.error('Error verifying reset code:', error);
+    return { error: 'Something went wrong while verifying reset code' };
+  }
+}
+
+// New function to complete password reset
+export async function completePasswordReset(formData: FormData) {
+  const email = formData.get('email') as string;
+  const token = formData.get('token') as string;
+  const newPassword = formData.get('newPassword') as string;
+
+  if (!email || !token || !newPassword) {
+    return { error: 'All fields are required' };
+  }
+
+  try {
+    // Call the reset-password API endpoint to complete the reset
+    const response = await fetch(process.env.NEXTAUTH_URL + '/api/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        token,
+        newPassword,
+        action: 'reset'
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { error: result.error || 'Failed to reset password' };
+    }
+
+    return { 
+      success: true, 
+      message: result.message || 'Password reset successfully'
+    };
+  } catch (error) {
+    console.error('Error completing password reset:', error);
+    return { error: 'Something went wrong while resetting password' };
+  }
 } 

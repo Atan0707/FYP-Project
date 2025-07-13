@@ -185,7 +185,14 @@ export default function AgreementsPage() {
       toast.success('Verification code sent to your email');
     },
     onError: (error) => {
-      toast.error('Failed to send verification code: ' + (error as Error).message);
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('not found') || errorMessage.includes('not accessible')) {
+        toast.error('This agreement cannot be signed. It may have been deleted or you do not have permission to sign it.');
+      } else if (errorMessage.includes('IC number')) {
+        toast.error('The IC number you entered does not match your registered IC number.');
+      } else {
+        toast.error('Failed to send verification code: ' + errorMessage);
+      }
       // Don't show verification step on error
     },
   });
@@ -215,7 +222,12 @@ export default function AgreementsPage() {
       }
     },
     onError: (error) => {
-      toast.error((error as Error).message);
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('Invalid or expired')) {
+        toast.error('The verification code is invalid or has expired. Please request a new code.');
+      } else {
+        toast.error('Verification failed: ' + errorMessage);
+      }
     },
   });
 
@@ -240,17 +252,18 @@ export default function AgreementsPage() {
         throw new Error(result.error || 'Failed to sign agreement');
       }
 
-              // After successful blockchain signing, update the database with transaction hash
-        const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            transactionHash: result.transactionHash 
-          }),
-        });
+      // After successful blockchain signing, update the database with transaction hash
+      const dbUpdateResponse = await fetch(`/api/agreements/${agreementId}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          transactionHash: result.transactionHash 
+        }),
+      });
 
       if (!dbUpdateResponse.ok) {
-        throw new Error('Failed to update database after signing');
+        const errorData = await dbUpdateResponse.json();
+        throw new Error(errorData.error || 'Failed to update database after signing');
       }
 
       return result;
@@ -272,11 +285,16 @@ export default function AgreementsPage() {
       setIsSignDialogOpen(false);
       setSelectedAgreement(null);
       setSignerIC('');
+      setIsVerificationStep(false);
+      setVerificationCode('');
     },
     onError: (error) => {
       const message = 'Failed to sign agreement: ' + (error as Error).message;
       toast.error(message);
       addNotification(message, 'error');
+      // Reset verification step if there's an error
+      setIsVerificationStep(false);
+      setVerificationCode('');
     },
   });
 
@@ -617,8 +635,8 @@ export default function AgreementsPage() {
   const rejectedCount = myAgreements.filter((agreement: Agreement) => agreement.status === 'rejected').length;
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto py-6 px-4 sm:py-10 sm:px-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold">Agreements</h1>
         <div className="flex items-center gap-2">
           <NotificationBell />
@@ -633,7 +651,7 @@ export default function AgreementsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-secondary/50 p-4 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer">
               <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
                 <Clock className="mr-2 h-4 w-4" />
@@ -660,9 +678,9 @@ export default function AgreementsPage() {
       </Card>
 
       <Tabs defaultValue="pending" className="mb-6">
-        <TabsList className="mb-4">
-          <TabsTrigger value="all">All Agreements</TabsTrigger>
-          <TabsTrigger value="pending">Pending Agreements</TabsTrigger>         
+        <TabsList className="mb-4 w-full overflow-x-auto">
+          <TabsTrigger value="all" className="flex-1">All Agreements</TabsTrigger>
+          <TabsTrigger value="pending" className="flex-1">Pending Agreements</TabsTrigger>         
         </TabsList>
         
         <TabsContent value="pending">
@@ -679,9 +697,9 @@ export default function AgreementsPage() {
                   {pendingAgreements.map((agreement: Agreement) => (
                     <Card key={agreement.id}>
                       <CardHeader className="pb-4">
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
                           <div>
-                            <CardTitle className="text-lg flex items-center">
+                            <CardTitle className="text-lg flex flex-wrap items-center gap-2">
                               {agreement.distribution.asset.name}
                               {getAgreementRole(agreement)}
                             </CardTitle>
@@ -690,13 +708,13 @@ export default function AgreementsPage() {
                               {agreement.distribution.asset.value.toFixed(2)}
                             </CardDescription>
                           </div>
-                          <div>
+                          <div className="self-start sm:self-auto">
                             {getStatusBadge(agreement.status, agreement.transactionHash)}
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="pb-2">
-                        <div className="flex justify-between items-center">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                           <div>
                             <p className="text-sm font-medium">Distribution Type</p>
                             <p className="text-sm text-muted-foreground">
@@ -712,10 +730,11 @@ export default function AgreementsPage() {
                           </div>
                         </div>
                       </CardContent>
-                      <CardFooter className="flex justify-end gap-2">
+                      <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="w-full sm:w-auto"
                           onClick={() => {
                             setSelectedAgreement(agreement);
                             setIsRejectDialogOpen(true);
@@ -725,6 +744,7 @@ export default function AgreementsPage() {
                         </Button>
                         <Button
                           size="sm"
+                          className="w-full sm:w-auto"
                           onClick={() => {
                             setSelectedAgreement(agreement);
                             setIsSignDialogOpen(true);
@@ -762,7 +782,7 @@ export default function AgreementsPage() {
         <TabsContent value="all">
           <Card>
             <CardHeader>
-              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <div className="flex flex-col gap-4">
                 <div>
                   <CardTitle>All Agreements</CardTitle>
                   <CardDescription>
@@ -770,19 +790,19 @@ export default function AgreementsPage() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative">
+                  <div className="relative flex-grow">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search agreements..."
-                      className="pl-8"
+                      className="pl-8 w-full"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-2 sm:mt-0">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon">
+                        <Button variant="outline" size="icon" className="h-10 w-10">
                           <Filter className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -806,7 +826,7 @@ export default function AgreementsPage() {
                     
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon">
+                        <Button variant="outline" size="icon" className="h-10 w-10">
                           <ArrowUpDown className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -825,7 +845,7 @@ export default function AgreementsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                     
-                    <Button variant="outline" size="icon" onClick={handleExportAgreements}>
+                    <Button variant="outline" size="icon" className="h-10 w-10" onClick={handleExportAgreements}>
                       <Download className="h-4 w-4" />
                     </Button>
                   </div>
@@ -838,9 +858,9 @@ export default function AgreementsPage() {
                   {filteredMyAgreements.map((agreement: Agreement) => (
                     <Card key={agreement.id} className="hover:bg-muted/50 transition-colors">
                       <CardHeader className="pb-2">
-                        <div className="flex justify-between items-start">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
                           <div>
-                            <CardTitle className="text-lg flex items-center">
+                            <CardTitle className="text-lg flex flex-wrap items-center gap-2">
                               {agreement.distribution.asset.name}
                               {getAgreementRole(agreement)}
                             </CardTitle>
@@ -849,13 +869,13 @@ export default function AgreementsPage() {
                               {agreement.distribution.asset.value.toFixed(2)}
                             </CardDescription>
                           </div>
-                          <div>
+                          <div className="self-start sm:self-auto">
                             {getStatusBadge(agreement.status, agreement.transactionHash)}
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="pb-2">
-                        <div className="flex justify-between items-center">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                           <div>
                             <p className="text-sm font-medium">Distribution Type</p>
                             <p className="text-sm text-muted-foreground">
@@ -863,7 +883,7 @@ export default function AgreementsPage() {
                               {getDistributionDetails(agreement.distribution) && `(${getDistributionDetails(agreement.distribution)})`}
                             </p>
                           </div>
-                          <div className="flex items-center gap-4">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-2 sm:mt-0">
                             <div>
                               <p className="text-sm font-medium">Created</p>
                               <p className="text-sm text-muted-foreground flex items-center">
@@ -872,7 +892,7 @@ export default function AgreementsPage() {
                               </p>
                             </div>
                             {agreement.signedAt && (
-                              <div>
+                              <div className="mt-2 sm:mt-0">
                                 <p className="text-sm font-medium">Signed</p>
                                 <p className="text-sm text-muted-foreground flex items-center">
                                   <Calendar className="h-3 w-3 mr-1" />
@@ -923,7 +943,7 @@ export default function AgreementsPage() {
           setVerificationTimer(0);
         }
       }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md max-w-[95vw]">
           <DialogHeader>
             <DialogTitle>
               {isVerificationStep ? 'Verify Your Identity' : 'Sign Agreement'}
@@ -1002,9 +1022,10 @@ export default function AgreementsPage() {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
             <Button
               variant="outline"
+              className="mt-2 sm:mt-0 w-full sm:w-auto"
               onClick={() => {
                 setIsSignDialogOpen(false);
               }}
@@ -1012,6 +1033,7 @@ export default function AgreementsPage() {
               Cancel
             </Button>
             <Button
+              className="w-full sm:w-auto"
               onClick={handleSign}
               disabled={
                 (!isVerificationStep && (!signerIC || signMutation.isPending || generateVerificationMutation.isPending)) ||
@@ -1045,7 +1067,7 @@ export default function AgreementsPage() {
 
       {/* Reject Dialog */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md max-w-[95vw]">
           <DialogHeader>
             <DialogTitle>Reject Agreement</DialogTitle>
             <DialogDescription>
@@ -1071,12 +1093,17 @@ export default function AgreementsPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              className="mt-2 sm:mt-0 w-full sm:w-auto"
+              onClick={() => setIsRejectDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
+              className="w-full sm:w-auto"
               onClick={handleReject}
               disabled={rejectMutation.isPending || notes.length === 0}
             >
@@ -1095,7 +1122,7 @@ export default function AgreementsPage() {
 
       {/* Agreement Details Dialog */}
       <AlertDialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
-        <AlertDialogContent className="max-w-2xl">
+        <AlertDialogContent className="max-w-[95vw] sm:max-w-2xl overflow-y-auto max-h-[90vh]">
           <AlertDialogHeader>
             <AlertDialogTitle>Agreement Details</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1129,7 +1156,7 @@ export default function AgreementsPage() {
               
               <div>
                 <h3 className="text-sm font-medium">Agreement Status</h3>
-                <div className="bg-muted p-3 rounded-md mt-1 flex items-center justify-between">
+                <div className="bg-muted p-3 rounded-md mt-1 flex flex-col sm:flex-row justify-between gap-2">
                   <div>
                     <p className="text-sm"><span className="font-medium">Current Status:</span> {selectedAgreement.status}</p>
                     <p className="text-sm"><span className="font-medium">Created:</span> {format(new Date(selectedAgreement.createdAt), 'MMM d, yyyy h:mm a')}</p>
@@ -1137,7 +1164,7 @@ export default function AgreementsPage() {
                       <p className="text-sm"><span className="font-medium">Signed:</span> {format(new Date(selectedAgreement.signedAt), 'MMM d, yyyy h:mm a')}</p>
                     )}
                   </div>
-                  <div>
+                  <div className="self-start">
                     {getStatusBadge(selectedAgreement.status, selectedAgreement.transactionHash)}
                   </div>
                 </div>
@@ -1153,9 +1180,10 @@ export default function AgreementsPage() {
               )}
               
               {selectedAgreement.status === 'pending' && (
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
                   <Button
                     variant="outline"
+                    className="w-full sm:w-auto"
                     onClick={() => {
                       setIsInfoDialogOpen(false);
                       setIsRejectDialogOpen(true);
@@ -1164,6 +1192,7 @@ export default function AgreementsPage() {
                     Reject
                   </Button>
                   <Button
+                    className="w-full sm:w-auto"
                     onClick={() => {
                       setIsInfoDialogOpen(false);
                       setIsSignDialogOpen(true);
@@ -1177,7 +1206,7 @@ export default function AgreementsPage() {
           )}
           
           <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogCancel className="w-full sm:w-auto">Close</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

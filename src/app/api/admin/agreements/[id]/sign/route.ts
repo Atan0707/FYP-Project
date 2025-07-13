@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { sendAgreementCompletionEmails } from '@/services/agreementEmailService';
 
 export async function POST(
   request: Request,
@@ -15,6 +16,15 @@ export async function POST(
     }
 
     const { notes } = await request.json();
+
+    // Find the admin info
+    const admin = await prisma.admin.findUnique({
+      where: { id: adminId },
+    });
+
+    if (!admin) {
+      return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
+    }
 
     // Find the agreement and its distribution
     const agreement = await prisma.agreement.findFirst({
@@ -38,6 +48,11 @@ export async function POST(
       );
     }
 
+    // Format admin notes with username
+    const adminNotesWithUsername = notes 
+      ? `[${admin.username}] ${notes}`
+      : `Signed by ${admin.username}`;
+
     // Update all agreements in the distribution to completed
     await prisma.agreement.updateMany({
       where: {
@@ -47,7 +62,7 @@ export async function POST(
       data: {
         status: 'completed',
         adminSignedAt: new Date(),
-        adminNotes: notes ? `[Admin] ${notes}` : undefined,
+        adminNotes: adminNotesWithUsername,
       },
     });
 
@@ -69,6 +84,15 @@ export async function POST(
         },
       },
     });
+
+    // Send email notifications to all agreement participants
+    try {
+      await sendAgreementCompletionEmails((await params).id);
+      console.log('Agreement completion emails sent successfully');
+    } catch (emailError) {
+      console.error('Error sending agreement completion emails:', emailError);
+      // Don't fail the main request if email fails
+    }
 
     return NextResponse.json(updatedAgreement);
   } catch (error) {

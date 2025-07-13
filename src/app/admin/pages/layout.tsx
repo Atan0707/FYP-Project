@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings, LogOut, FileText, Gavel } from "lucide-react";
+import { LayoutDashboard, Users, Settings, LogOut, FileText, Gavel, Shield } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { adminLogout } from "../actions";
@@ -42,6 +42,24 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [isRootAdmin, setIsRootAdmin] = useState(false);
+
+  useEffect(() => {
+    // Check if current admin is root
+    const checkIfRootAdmin = async () => {
+      try {
+        const response = await fetch('/api/admin/profile');
+        if (response.ok) {
+          const data = await response.json();
+          setIsRootAdmin(data.admin.username === 'admin');
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    checkIfRootAdmin();
+  }, []);
 
   const links = [
     {
@@ -72,6 +90,16 @@ export default function AdminLayout({
         <Gavel className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
+    // Only show Admin Management link for root admin
+    ...(isRootAdmin ? [
+      {
+        label: "Admin Management",
+        href: "/admin/pages/admin",
+        icon: (
+          <Shield className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        ),
+      }
+    ] : []),
     {
       label: "Settings",
       href: "/admin/pages/settings",

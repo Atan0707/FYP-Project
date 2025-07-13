@@ -27,57 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, Pencil, Trash2, FileText, Upload, Download, MapPin, X, MapPin as LocationIcon } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, FileText, Upload, Download } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
-import {
-  GoogleMap,
-  LoadScript,
-  Marker,
-  Libraries
-} from '@react-google-maps/api';
 import React from 'react';
-
-// Define libraries to load with Google Maps
-const googleMapsLibraries: Libraries = ['places'];
-
-// Extend Window interface to include Google Maps
-declare global {
-  interface Window {
-    google?: {
-      maps: {
-        Geocoder: new () => {
-          geocode: (
-            request: { address?: string; location?: { lat: number; lng: number } },
-            callback: (
-              results: Array<{ formatted_address: string; geometry: { location: { lat: () => number; lng: () => number } } }>,
-              status: string
-            ) => void
-          ) => void;
-        };
-        GeocoderStatus: { OK: string };
-        MapMouseEvent: { latLng?: { lat: () => number; lng: () => number } };
-        places: {
-          AutocompleteService: new () => {
-            getPlacePredictions: (
-              request: {
-                input: string;
-                componentRestrictions?: { country: string };
-              },
-              callback: (
-                predictions: Array<{ description: string }> | null,
-                status: string
-              ) => void
-            ) => void;
-          };
-          PlacesServiceStatus: { OK: string };
-        };
-      };
-    };
-  }
-}
 
 interface Asset {
   id: string;
@@ -98,10 +53,6 @@ interface Asset {
     };
   } | null;
   propertyAddress?: string;
-  location?: {
-    lat: number;
-    lng: number;
-  };
 }
 
 interface PendingAsset {
@@ -194,16 +145,8 @@ const deleteAsset = async (id: string) => {
   return response.json();
 };
 
-// Map styles and container
-const defaultCenter = {
-  lat: 3.1390, // Default to Malaysia's coordinates
-  lng: 101.6869,
-};
-
-// For demo purposes - replace with your actual API key in production
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyC7MA3-v6oc_rZSjyGmnjSF0dx0zLecE4o";
-
-const getDistributionStatus = (distribution: Asset['distribution']) => {
+// Add this helper function for badge styling
+const getStatusBadge = (distribution: Asset['distribution']) => {
   if (!distribution) {
     return <Badge variant="secondary">Not Yet</Badge>;
   }
@@ -212,23 +155,20 @@ const getDistributionStatus = (distribution: Asset['distribution']) => {
   if (distribution.status === 'pending_admin' || 
      (distribution.agreement && distribution.agreement.status === 'pending_admin')) {
     return (
-      <div className="flex flex-col gap-1">
-        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">Pending Admin</Badge>
-        <span className="text-xs text-muted-foreground">All Signed</span>
-      </div>
+      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
+        Pending Admin
+      </Badge>
     );
   }
 
   switch (distribution.status) {
     case 'in_progress':
-      return <Badge variant="secondary">In Progress</Badge>;
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800">In Progress</Badge>;
     case 'completed':
-      return (
-        <div className="flex flex-col gap-1">
-          <Badge variant="success">{distribution.type}</Badge>
-          <span className="text-xs text-muted-foreground">Completed</span>
-        </div>
-      );
+      if (distribution.type === 'waqf') {
+        return <Badge className="bg-green-500 text-white w-full py-1 flex justify-center">{distribution.type}</Badge>;
+      }
+      return <Badge variant="success" className="bg-green-100 text-green-800">Completed</Badge>;
     case 'rejected':
       return <Badge variant="destructive">Rejected</Badge>;
     default:
@@ -243,13 +183,9 @@ export default function AssetsPage() {
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [currentAssetType, setCurrentAssetType] = useState(assetTypes[0]);
   const [propertyAddress, setPropertyAddress] = useState('');
-  const [mapPosition, setMapPosition] = useState(defaultCenter);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-
+  
   // Queries
   const { data: assets = [], isLoading, error } = useQuery({
     queryKey: ['assets'],
@@ -281,102 +217,11 @@ export default function AssetsPage() {
     }
   }, [pendingAssets, queryClient]);
 
-  // Handle marker drag end to update position
-  const handleMarkerDragEnd = useCallback((e: google.maps.MapMouseEvent) => {
-    if (!window.google || !window.google.maps) {
-      return;
-    }
-    
-    if (e.latLng) {
-      setMapPosition({
-        lat: e.latLng.lat(),
-        lng: e.latLng.lng()
-      });
-      
-      // Reverse geocode to get address
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ location: { lat: e.latLng.lat(), lng: e.latLng.lng() } }, (results, status) => {
-        if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
-          setPropertyAddress(results[0].formatted_address);
-        }
-      });
-    }
-  }, []);
-
-  // Handle address input change with debounce for suggestions
+  // Handle address input change
   const handleAddressChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setPropertyAddress(value);
-    
-    if (value.trim().length > 2) {
-      // Show suggestions panel
-      setShowSuggestions(true);
-      
-      // Fetch suggestions using the service
-      if (window.google && window.google.maps && window.google.maps.places) {
-        try {
-          const service = new window.google.maps.places.AutocompleteService();
-          service.getPlacePredictions(
-            {
-              input: value,
-              componentRestrictions: { country: 'my' }, // Restrict to Malaysia
-            },
-            (predictions, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-                setSuggestions(predictions.map(p => p.description));
-              } else {
-                setSuggestions([]);
-              }
-            }
-          );
-        } catch (error) {
-          console.error("Error with Places API:", error);
-          setSuggestions([]);
-        }
-      } else {
-        setSuggestions([]);
-      }
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
   }, []);
-
-  // Handle suggestion selection
-  const handleSelectSuggestion = (suggestion: string) => {
-    setPropertyAddress(suggestion);
-    setSuggestions([]);
-    setShowSuggestions(false);
-    
-    // Get coordinates for this address
-    if (window.google && window.google.maps) {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ address: suggestion }, (results, status) => {
-        if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
-          const location = results[0].geometry.location;
-          setMapPosition({
-            lat: location.lat(),
-            lng: location.lng()
-          });
-        }
-      });
-    }
-  };
-
-  // Close suggestions when clicking outside
-  const handleClickOutside = useCallback((e: MouseEvent) => {
-    if (inputRef.current && !inputRef.current.contains(e.target as Node)) {
-      setShowSuggestions(false);
-    }
-  }, []);
-
-  // Add event listener for clicking outside
-  React.useEffect(() => {
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [handleClickOutside]);
 
   // Mutations
   const createMutation = useMutation({
@@ -387,7 +232,6 @@ export default function AssetsPage() {
       setIsOpen(false);
       setUploadedFilePath(null);
       setPropertyAddress('');
-      setMapPosition(defaultCenter);
     },
     onError: (error) => {
       toast.error('Failed to add asset: ' + error.message);
@@ -402,7 +246,6 @@ export default function AssetsPage() {
       setIsOpen(false);
       setUploadedFilePath(null);
       setPropertyAddress('');
-      setMapPosition(defaultCenter);
     },
     onError: (error) => {
       toast.error('Failed to update asset: ' + error.message);
@@ -470,9 +313,8 @@ export default function AssetsPage() {
       value: parseFloat(formData.get('value') as string),
       description: formData.get('description') as string,
       pdfFile: uploadedFilePath || editingAsset?.pdfFile,
-      // Add property address and location for property type
+      // Add property address for property type
       propertyAddress: currentAssetType === 'Property' ? propertyAddress : undefined,
-      location: currentAssetType === 'Property' ? mapPosition : undefined,
     };
 
     if (editingAsset) {
@@ -492,11 +334,9 @@ export default function AssetsPage() {
     if (asset) {
       setCurrentAssetType(asset.type);
       setPropertyAddress(asset.propertyAddress || '');
-      setMapPosition(asset.location || defaultCenter);
     } else {
       setCurrentAssetType(assetTypes[0]);
       setPropertyAddress('');
-      setMapPosition(defaultCenter);
     }
     setIsOpen(true);
   };
@@ -506,17 +346,17 @@ export default function AssetsPage() {
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="p-4 flex justify-center">Loading...</div>;
   }
 
   if (error) {
-    return <div>Error: {(error as Error).message}</div>;
+    return <div className="p-4 text-red-500">Error: {(error as Error).message}</div>;
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Assets</h1>
+    <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold">Assets</h1>
 
         {/* Add assets */}
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -526,7 +366,7 @@ export default function AssetsPage() {
               Add Asset
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+          <DialogContent className="max-w-[95vw] sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>{editingAsset ? 'Edit' : 'Add'} Asset</DialogTitle>
             </DialogHeader>
@@ -581,7 +421,7 @@ export default function AssetsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="pdfFile">PDF Document</Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Label
                       htmlFor="pdfFile"
                       className="flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm hover:bg-accent hover:text-accent-foreground cursor-pointer"
@@ -610,108 +450,21 @@ export default function AssetsPage() {
                   </p>
                 </div>
 
-                {/* Property Address and Google Maps Integration */}
+                {/* Property Address Input */}
                 {currentAssetType === 'Property' && (
                   <div className="grid gap-4 mt-4 border-t pt-4">
                     <div className="grid gap-2">
-                      <Label htmlFor="propertyAddress" className="flex items-center">
-                        <LocationIcon className="mr-2 h-4 w-4" />
-                        Property Address
-                      </Label>
-                      <div className="flex flex-wrap items-center gap-2 relative">
-                        <Input
-                          id="propertyAddress"
-                          value={propertyAddress}
-                          onChange={handleAddressChange}
-                          placeholder="Enter property address"
-                          className="flex-grow min-w-[200px]"
-                          ref={inputRef}
-                        />
-                        {propertyAddress && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPropertyAddress('');
-                              setSuggestions([]);
-                            }}
-                            className="absolute right-16 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            if (propertyAddress && window.google?.maps) {
-                              const geocoder = new window.google.maps.Geocoder();
-                              geocoder.geocode({ address: propertyAddress }, (results, status) => {
-                                if (status === window.google.maps.GeocoderStatus.OK && results?.[0]) {
-                                  const location = results[0].geometry.location;
-                                  setMapPosition({
-                                    lat: location.lat(),
-                                    lng: location.lng()
-                                  });
-                                } else {
-                                  toast.error("Could not find this address on the map");
-                                }
-                              });
-                            }
-                          }}
-                        >
-                          Find
-                        </Button>
-
-                        {/* Address suggestions */}
-                        {showSuggestions && suggestions.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-50 max-h-[200px] overflow-y-auto">
-                            <ul className="py-1">
-                              {suggestions.map((suggestion, index) => (
-                                <li 
-                                  key={index}
-                                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-start"
-                                  onClick={() => handleSelectSuggestion(suggestion)}
-                                >
-                                  <MapPin className="h-4 w-4 mr-2 mt-0.5 shrink-0 text-gray-500" />
-                                  <span className="text-sm">{suggestion}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
+                      <Label htmlFor="propertyAddress">Property Address</Label>
+                      <Input
+                        id="propertyAddress"
+                        value={propertyAddress}
+                        onChange={handleAddressChange}
+                        placeholder="Enter property address"
+                      />
                       <p className="text-xs text-muted-foreground">
-                        Enter the property&apos;s address or drop a pin on the map
+                        Enter the property&apos;s full address
                       </p>
                     </div>
-                    
-                    <LoadScript 
-                      googleMapsApiKey={GOOGLE_MAPS_API_KEY}
-                      libraries={googleMapsLibraries}
-                      loadingElement={<div className="h-[250px] w-full bg-slate-100 animate-pulse rounded-md"></div>}
-                    >
-                      <div className="rounded-md overflow-hidden border w-full max-w-full">
-                        <GoogleMap
-                          mapContainerStyle={{
-                            width: '100%',
-                            height: '250px',
-                            borderRadius: '0.375rem',
-                          }}
-                          center={mapPosition}
-                          zoom={15}
-                        >
-                          <Marker
-                            position={mapPosition}
-                            draggable={true}
-                            onDragEnd={handleMarkerDragEnd}
-                          />
-                        </GoogleMap>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Note: To use this feature in production, you need to set up a Google Maps API key in your .env.local file.
-                      </p>
-                    </LoadScript>
                   </div>
                 )}
               </div>
@@ -728,166 +481,338 @@ export default function AssetsPage() {
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-semibold mb-4">My Assets</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Value</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Distribution</TableHead>
-                  <TableHead>Created On</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
+          
+          {/* Desktop view - Table */}
+          <div className="hidden md:block border rounded-lg overflow-x-auto">
+            <div className="min-w-full">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6">
-                      <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
+                    <TableHead className="w-[120px]">Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Document</TableHead>
+                    <TableHead>Distribution</TableHead>
+                    <TableHead>Created On</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : error ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-red-500">
-                      Error loading assets: {(error as Error).message}
-                    </TableCell>
-                  </TableRow>
-                ) : assets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No assets found. Add your first asset using the button above.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  assets.map((asset: Asset) => (
-                    <TableRow key={asset.id}>
-                      <TableCell>
-                        <a 
-                          href={`/pages/assets/${asset.id}`}
-                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                        >
-                          {asset.name}
-                        </a>
-                      </TableCell>
-                      <TableCell>{asset.type}</TableCell>
-                      <TableCell>
-                        {new Intl.NumberFormat('en-MY', {
-                          style: 'currency',
-                          currency: 'MYR',
-                        }).format(asset.value)}
-                      </TableCell>
-                      <TableCell>{asset.description || '-'}</TableCell>
-                      <TableCell>
-                        {asset.pdfFile ? (
-                          <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center text-blue-600 hover:text-blue-800"
-                          >
-                            <Download className="mr-1 h-4 w-4" />
-                            View PDF
-                          </a>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>{getDistributionStatus(asset.distribution)}</TableCell>
-                      <TableCell>{format(new Date(asset.createdAt || ''), 'PPP')}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenDialog(asset)}
-                          >
-                            <Pencil className="mr-1 h-4 w-4" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => deleteMutation.mutate(asset.id)}
-                          >
-                            <Trash2 className="mr-1 h-4 w-4" />
-                            Delete
-                          </Button>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6">
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-red-500">
+                        Error loading assets: {(error as Error).message}
+                      </TableCell>
+                    </TableRow>
+                  ) : assets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
+                        No assets found. Add your first asset using the button above.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    assets.map((asset: Asset) => (
+                      <TableRow key={asset.id}>
+                        <TableCell className="font-medium">
+                          <a 
+                            href={`/pages/assets/${asset.id}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                          >
+                            {asset.name}
+                          </a>
+                        </TableCell>
+                        <TableCell>{asset.type}</TableCell>
+                        <TableCell>
+                          {new Intl.NumberFormat('en-MY', {
+                            style: 'currency',
+                            currency: 'MYR',
+                          }).format(asset.value)}
+                        </TableCell>
+                        <TableCell>{asset.description || '-'}</TableCell>
+                        <TableCell>
+                          {asset.pdfFile ? (
+                            <a
+                              href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              View PDF
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(asset.distribution)}</TableCell>
+                        <TableCell>{format(new Date(asset.createdAt || ''), 'dd/MM/yy')}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenDialog(asset)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span className="hidden sm:inline ml-1">Edit</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => deleteMutation.mutate(asset.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="hidden sm:inline ml-1">Delete</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Mobile view - Cards */}
+          <div className="md:hidden space-y-4">
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : error ? (
+              <div className="text-center py-6 text-red-500">
+                Error loading assets: {(error as Error).message}
+              </div>
+            ) : assets.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                No assets found. Add your first asset using the button above.
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                {assets.map((asset: Asset) => (
+                  <div key={asset.id} className="border-b last:border-b-0">
+                    <div className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <a 
+                            href={`/pages/assets/${asset.id}`}
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-medium block mb-1"
+                          >
+                            {asset.name}
+                          </a>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            {asset.type} •
+                            <span className="font-medium">
+                              RM {asset.value.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-500"
+                            onClick={() => handleOpenDialog(asset)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500"
+                            onClick={() => deleteMutation.mutate(asset.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {asset.pdfFile && (
+                            <a
+                              href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              <span className="text-sm">PDF</span>
+                            </a>
+                          )}
+                          <span className="text-sm text-muted-foreground">
+                            {format(new Date(asset.createdAt || ''), 'dd/MM/yy')}
+                          </span>
+                        </div>
+                        
+                        <div className="text-right">
+                          {asset.distribution?.status === 'completed' && asset.distribution?.type === 'waqf' ? (
+                            <div className="mt-1 text-center">
+                              <Badge className="bg-green-500 text-white px-4 py-1">
+                                waqf
+                              </Badge>
+                              <div className="text-xs text-muted-foreground mt-1">Completed</div>
+                            </div>
+                          ) : asset.distribution?.status === 'in_progress' ? (
+                            <div className="text-sm text-blue-800">In Progress</div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              {asset.distribution?.status || 'Not Yet'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Pending Assets Section */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Pending Approval</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Value (RM)</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted On</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isPendingAssetsLoading ? (
+          
+          {/* Desktop view */}
+          <div className="hidden md:block border rounded-lg overflow-x-auto">
+            <div className="min-w-full">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6">
-                      <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                      </div>
-                    </TableCell>
+                    <TableHead className="w-[120px]">Name</TableHead>
+                    <TableHead className="hidden md:table-cell">Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Value (RM)</TableHead>
+                    <TableHead className="hidden md:table-cell">Description</TableHead>
+                    <TableHead className="hidden md:table-cell">Document</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden md:table-cell">Submitted On</TableHead>
                   </TableRow>
-                ) : pendingAssetsError ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-red-500">
-                      Error loading pending assets: {(pendingAssetsError as Error).message}
-                    </TableCell>
-                  </TableRow>
-                ) : pendingAssets.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
-                      No pending assets found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pendingAssets.map((asset: PendingAsset) => (
-                    <TableRow key={asset.id}>
-                      <TableCell>{asset.name}</TableCell>
-                      <TableCell>{asset.type}</TableCell>
-                      <TableCell>{asset.value.toFixed(2)}</TableCell>
-                      <TableCell>{asset.description}</TableCell>
-                      <TableCell>
-                        {asset.pdfFile ? (
-                          <a
-                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center text-blue-600 hover:text-blue-800"
-                          >
-                            <Download className="mr-1 h-4 w-4" />
-                            View PDF
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">No document</span>
-                        )}
+                </TableHeader>
+                <TableBody>
+                  {isPendingAssetsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6">
+                        <div className="flex justify-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                        </div>
                       </TableCell>
-                      <TableCell>
+                    </TableRow>
+                  ) : pendingAssetsError ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-red-500">
+                        Error loading pending assets: {(pendingAssetsError as Error).message}
+                      </TableCell>
+                    </TableRow>
+                  ) : pendingAssets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                        No pending assets found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingAssets.map((asset: PendingAsset) => (
+                      <TableRow key={asset.id}>
+                        <TableCell className="font-medium">
+                          {asset.name}
+                          <div className="md:hidden text-xs text-muted-foreground mt-1">
+                            {asset.type} • RM{asset.value.toFixed(2)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">{asset.type}</TableCell>
+                        <TableCell className="hidden md:table-cell">{asset.value.toFixed(2)}</TableCell>
+                        <TableCell className="hidden md:table-cell">{asset.description}</TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {asset.pdfFile ? (
+                            <a
+                              href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              <span className="hidden sm:inline">View PDF</span>
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">No document</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {asset.status === 'pending' && (
+                            <Badge variant="secondary">Pending</Badge>
+                          )}
+                          {asset.status === 'approved' && (
+                            <Badge variant="success">Approved</Badge>
+                          )}
+                          {asset.status === 'rejected' && (
+                            <Badge variant="destructive">Rejected</Badge>
+                          )}
+                          <div className="md:hidden mt-2 flex flex-wrap gap-2 text-xs">
+                            {asset.pdfFile && (
+                              <a
+                                href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center text-blue-600"
+                              >
+                                <Download className="mr-1 h-3 w-3" />
+                                PDF
+                              </a>
+                            )}
+                            <span>{format(new Date(asset.createdAt), 'dd/MM/yy')}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {format(new Date(asset.createdAt), 'dd/MM/yyyy')}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          
+          {/* Mobile view - Cards */}
+          <div className="md:hidden space-y-4">
+            {isPendingAssetsLoading ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+              </div>
+            ) : pendingAssetsError ? (
+              <div className="text-center py-6 text-red-500">
+                Error loading pending assets: {(pendingAssetsError as Error).message}
+              </div>
+            ) : pendingAssets.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                No pending assets found.
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                {pendingAssets.map((asset: PendingAsset) => (
+                  <div key={asset.id} className="border-b last:border-b-0 p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-medium mb-1">{asset.name}</div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-1">
+                          {asset.type} •
+                          <span className="font-medium">
+                            RM {asset.value.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
                         {asset.status === 'pending' && (
                           <Badge variant="secondary">Pending</Badge>
                         )}
@@ -897,15 +822,31 @@ export default function AssetsPage() {
                         {asset.status === 'rejected' && (
                           <Badge variant="destructive">Rejected</Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(asset.createdAt), 'dd/MM/yyyy')}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {asset.pdfFile && (
+                          <a
+                            href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-blue-600"
+                          >
+                            <Download className="mr-1 h-4 w-4" />
+                            <span className="text-sm">PDF</span>
+                          </a>
+                        )}
+                        <span className="text-sm text-muted-foreground">
+                          {format(new Date(asset.createdAt), 'dd/MM/yy')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -932,9 +873,9 @@ export default function AssetsPage() {
                   value={familyAssetGroup.familyMember.id}
                 >
                   <AccordionTrigger className="hover:bg-accent hover:text-accent-foreground px-4 rounded-md">
-                    <div className="flex items-center">
-                      <span className="font-medium">{familyAssetGroup.familyMember.fullName}</span>
-                      <Badge variant="outline" className="ml-2 capitalize">
+                    <div className="flex flex-wrap items-center gap-y-2">
+                      <span className="font-medium mr-2">{familyAssetGroup.familyMember.fullName}</span>
+                      <Badge variant="outline" className="capitalize">
                         {familyAssetGroup.familyMember.relationship}
                       </Badge>
                       <Badge variant="secondary" className="ml-2">
@@ -943,62 +884,81 @@ export default function AssetsPage() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <div className="border rounded-lg mt-2">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Value (RM)</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Document</TableHead>
-                            <TableHead>Added On</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {familyAssetGroup.assets.length === 0 ? (
+                    <div className="border rounded-lg mt-2 overflow-x-auto">
+                      <div className="min-w-full">
+                        <Table>
+                          <TableHeader>
                             <TableRow>
-                              <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
-                                No assets found for this family member.
-                              </TableCell>
+                              <TableHead className="w-[120px]">Name</TableHead>
+                              <TableHead className="hidden md:table-cell">Type</TableHead>
+                              <TableHead className="hidden md:table-cell">Value (RM)</TableHead>
+                              <TableHead className="hidden md:table-cell">Description</TableHead>
+                              <TableHead className="hidden md:table-cell">Document</TableHead>
+                              <TableHead className="hidden md:table-cell">Added On</TableHead>
                             </TableRow>
-                          ) : (
-                            familyAssetGroup.assets.map((asset) => (
-                              <TableRow key={asset.id}>
-                                <TableCell>
-                                  <a 
-                                    href={`/pages/assets/${asset.id}`}
-                                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                  >
-                                    {asset.name}
-                                  </a>
-                                </TableCell>
-                                <TableCell>{asset.type}</TableCell>
-                                <TableCell>{asset.value.toFixed(2)}</TableCell>
-                                <TableCell>{asset.description}</TableCell>
-                                <TableCell>
-                                  {asset.pdfFile ? (
-                                    <a
-                                      href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="flex items-center text-blue-600 hover:text-blue-800"
-                                    >
-                                      <Download className="mr-1 h-4 w-4" />
-                                      View PDF
-                                    </a>
-                                  ) : (
-                                    <span className="text-gray-400">No document</span>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
+                          </TableHeader>
+                          <TableBody>
+                            {familyAssetGroup.assets.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                                  No assets found for this family member.
                                 </TableCell>
                               </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                            ) : (
+                              familyAssetGroup.assets.map((asset) => (
+                                <TableRow key={asset.id}>
+                                  <TableCell className="font-medium">
+                                    <a 
+                                      href={`/pages/assets/${asset.id}`}
+                                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                    >
+                                      {asset.name}
+                                    </a>
+                                    <div className="md:hidden text-xs text-muted-foreground mt-1">
+                                      {asset.type} • RM{asset.value.toFixed(2)}
+                                      <br />
+                                      {format(new Date(asset.createdAt || ''), 'dd/MM/yy')}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">{asset.type}</TableCell>
+                                  <TableCell className="hidden md:table-cell">{asset.value.toFixed(2)}</TableCell>
+                                  <TableCell className="hidden md:table-cell">{asset.description}</TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {asset.pdfFile ? (
+                                      <a
+                                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center text-blue-600 hover:text-blue-800"
+                                      >
+                                        <Download className="mr-1 h-4 w-4" />
+                                        <span className="hidden sm:inline">View PDF</span>
+                                      </a>
+                                    ) : (
+                                      <span className="text-gray-400">No document</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
+                                  </TableCell>
+                                  <TableCell className="md:hidden">
+                                    {asset.pdfFile && (
+                                      <a
+                                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center text-blue-600 hover:text-blue-800"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>

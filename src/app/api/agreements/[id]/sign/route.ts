@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { FamilySignature } from '@prisma/client';
+import { sendAgreementSigningNotification } from '@/services/agreementEmailService';
 
 export async function POST(
   request: Request,
@@ -25,24 +26,45 @@ export async function POST(
       transactionHash: transactionHash ? 'present' : 'missing'
     });
 
-    // Find the user's family IDs
-    const familyIds = (await prisma.family.findMany({
-      where: { userId },
-      select: { id: true },
-    })).map(f => f.id);
+    // First check if the agreement exists
+    const agreementExists = await prisma.agreement.findUnique({
+      where: { id: agreementId }
+    });
 
-    if (familyIds.length === 0) {
+    if (!agreementExists) {
       return NextResponse.json(
-        { error: 'No family members found for this user' },
+        { error: 'Agreement not found' },
         { status: 404 }
       );
     }
 
-    // Find the pending signature for this agreement and user's family
+    // Get user details for the signer
+    const signerUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true }
+    });
+
+    if (!signerUser) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Find the pending signature for this agreement and user
+    // First get all family IDs where the user is a family member
+    const familyIds = (await prisma.family.findMany({
+      where: { userId },
+      select: { id: true, relationship: true },
+    })).map(f => ({ id: f.id, relationship: f.relationship }));
+
+    // Then find the signature for this agreement where the user is a family member
     const signature = await prisma.familySignature.findFirst({
       where: {
         agreementId: agreementId,
-        familyId: { in: familyIds },
+        familyId: {
+          in: familyIds.map(f => f.id),
+        },
         status: 'pending',
       },
       include: {
@@ -65,6 +87,10 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    // Get the relationship of the signer
+    const signerFamily = familyIds.find(f => f.id === signature.familyId);
+    const signerRelationship = signerFamily?.relationship || 'Family Member';
 
     // Update the signature
     console.log('Updating signature with data:', {
@@ -120,6 +146,19 @@ export async function POST(
         where: { id: updatedAgreement.distribution.id },
         data: { status: 'pending_admin' },
       });
+    }
+
+    // Send notification emails to other family members
+    try {
+      await sendAgreementSigningNotification(
+        agreementId,
+        signerUser.fullName,
+        signerRelationship
+      );
+      console.log('Agreement signing notification emails sent successfully');
+    } catch (emailError) {
+      console.error('Error sending agreement signing notification emails:', emailError);
+      // Don't fail the main request if email fails
     }
 
     return NextResponse.json({

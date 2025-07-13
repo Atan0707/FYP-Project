@@ -12,6 +12,7 @@ export async function GET() {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
+    // Get family members
     const families = await prisma.family.findMany({
       where: {
         userId: userId,
@@ -21,7 +22,21 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(families);
+    // Get pending invitations
+    const pendingInvitations = await prisma.familyInvitation.findMany({
+      where: {
+        inviterId: userId,
+        status: 'pending'
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return NextResponse.json({
+      families,
+      pendingInvitations
+    });
   } catch (error) {
     console.error('Error fetching families:', error);
     return new NextResponse('Internal Server Error', { status: 500 });

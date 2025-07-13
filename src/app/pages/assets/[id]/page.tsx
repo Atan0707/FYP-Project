@@ -14,8 +14,9 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from "@/components/ui/separator";
-import { ethers, Log } from 'ethers';
-import { createAgreement, addSigner } from '@/lib/agreement';
+import { contractService } from '@/services/contractService';
+import { FaraidResult } from '@/lib/faraid';
+import dynamic from 'next/dynamic';
 import {
   Tooltip,
   TooltipContent,
@@ -29,6 +30,17 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+// Dynamically import the FaraidDistribution to avoid SSR issues
+const FaraidDistribution = dynamic(
+  () => import('../distribution/FaraidDistribution'),
+  { ssr: false }
+);
+
+const FaraidExplanation = dynamic(
+  () => import('../distribution/FaraidExplanation'),
+  { ssr: false }
+);
+
 interface FamilyMember {
   id: string;
   fullName: string;
@@ -37,11 +49,25 @@ interface FamilyMember {
   ic: string;
 }
 
-interface Beneficiary {
+interface FamilyInvitation {
   id: string;
+  inviterId: string;
+  email: string;
+  status: string;
+  createdAt: string;
+}
+
+interface FamilyData {
+  families: FamilyMember[];
+  pendingInvitations: FamilyInvitation[];
+}
+
+interface Beneficiary {
+  id?: string;
   percentage: number;
   familyMember?: FamilyMember;
   firstName?: string;
+  familyId?: string;
 }
 
 interface Distribution {
@@ -187,8 +213,6 @@ export default function AssetDetailsPage() {
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY;
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
   const [transactionState, setTransactionState] = useState<'idle' | 'creating-agreement' | 'adding-signers' | 'saving'>('idle');
   const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
   const [progressSteps, setProgressSteps] = useState<{ step: string; status: 'pending' | 'completed' | 'error' }[]>([
@@ -196,6 +220,8 @@ export default function AssetDetailsPage() {
     { step: 'Adding signers to agreement', status: 'pending' },
     { step: 'Saving distribution details', status: 'pending' },
   ]);
+  const [faraidResults, setFaraidResults] = useState<FaraidResult[]>([]);
+  const [userGender, setUserGender] = useState<'male' | 'female'>('male');
 
   // Fetch current user data
   useEffect(() => {
@@ -206,8 +232,11 @@ export default function AssetDetailsPage() {
           const userData = await response.json();
           console.log('Current user data:', userData);
           setCurrentUser(userData);
-          // console.log('Private key:', privateKey);
-          // console.log('RPC URL:', rpcUrl);
+          // Determine gender based on user data if available
+          // This is a simple assumption - in a real app, you might want to store gender explicitly
+          if (userData.gender) {
+            setUserGender(userData.gender);
+          }
         } else {
           console.error('Failed to fetch user data:', response.status);
         }
@@ -232,7 +261,7 @@ export default function AssetDetailsPage() {
       // If we have a distribution with an agreement, fetch the agreement details
       if (data.distribution?.id) {
         try {
-          const agreementResponse = await fetch(`/api/agreements/${data.distribution.id}`);
+          const agreementResponse = await fetch(`/api/agreements/${data.distribution.agreement.id}`);
           if (agreementResponse.ok) {
             const agreementData = await agreementResponse.json();
             data.distribution.agreement = agreementData;
@@ -247,7 +276,7 @@ export default function AssetDetailsPage() {
         // Create a map of family IDs to fetch
         const familyIds = [...new Set(
           data.distribution.agreements
-            .filter((a: Agreement) => !a.familyMember)
+            .filter((a: Agreement) => !a.familyMember && a.familyId) // Add check for familyId
             .map((a: Agreement) => a.familyId)
         )];
           
@@ -255,10 +284,13 @@ export default function AssetDetailsPage() {
           // Fetch family details
           const familyDetailsPromises = familyIds.map(async (id) => {
             try {
-              const res = await fetch(`/api/family/${id}`);
-              if (res.ok) {
-                const familyData = await res.json();
-                return { id, data: familyData };
+              // Add check to ensure id is defined
+              if (id) {
+                const res = await fetch(`/api/family/${id}`);
+                if (res.ok) {
+                  const familyData = await res.json();
+                  return { id, data: familyData };
+                }
               }
               return { id, data: null };
             } catch (err) {
@@ -292,23 +324,35 @@ export default function AssetDetailsPage() {
       
       // Fetch family member details for beneficiaries
       if (data.distribution?.beneficiaries) {
+        console.log('Raw beneficiaries data:', data.distribution.beneficiaries);
+        
         const beneficiariesWithDetails = await Promise.all(
           data.distribution.beneficiaries.map(async (beneficiary: Beneficiary) => {
             try {
-              const familyResponse = await fetch(`/api/family/${beneficiary.id}`);
-              if (familyResponse.ok) {
-                const familyData = await familyResponse.json();
-                return {
-                  ...beneficiary,
-                  familyMember: familyData,
-                };
+              // Use familyId which is the correct field from the database
+              if (beneficiary.familyId) {
+                const familyResponse = await fetch(`/api/family/${beneficiary.familyId}`);
+                if (familyResponse.ok) {
+                  const familyData = await familyResponse.json();
+                  console.log('Family data fetched:', familyData);
+                  return {
+                    ...beneficiary,
+                    familyMember: familyData,
+                  };
+                } else {
+                  console.error(`Failed to fetch family details for ${beneficiary.familyId}:`, await familyResponse.text());
+                }
+              } else {
+                console.log('Skipping fetch for beneficiary without familyId:', beneficiary);
               }
             } catch (err) {
-              console.error(`Error fetching beneficiary ${beneficiary.id}:`, err);
+              console.error(`Error fetching beneficiary details:`, err);
             }
             return beneficiary;
           })
         );
+        
+        console.log('Beneficiaries with details:', beneficiariesWithDetails);
         data.distribution.beneficiaries = beneficiariesWithDetails;
       }
       
@@ -316,18 +360,27 @@ export default function AssetDetailsPage() {
     },
   });
 
-  // Fetch family members for distribution types that need signers
-  const { data: familyMembers = [] } = useQuery<FamilyMember[]>({
+  // Fetch family members regardless of selectedType to have them ready
+  const { data: familyData, isLoading: isFamilyMembersLoading, isSuccess: isFamilyMembersSuccess } = useQuery<FamilyData>({
     queryKey: ['familyMembers'],
     queryFn: async () => {
       const response = await fetch('/api/family');
-      if (!response.ok) throw new Error('Failed to fetch family members');
+      if (!response.ok) throw new Error('Failed to fetch family members: ' + response.statusText);
       const data = await response.json();
-      console.log('Fetched family members:', data);
+      console.log('Fetched family data:', data);
       return data;
     },
-    enabled: selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf',
   });
+
+  // Extract family members from the response
+  const familyMembers = familyData?.families || [];
+  
+  // Log family members whenever they change
+  useEffect(() => {
+    console.log('Family members updated:', familyMembers);
+    console.log('Family members loading:', isFamilyMembersLoading);
+    console.log('Family members success:', isFamilyMembersSuccess);
+  }, [familyMembers, isFamilyMembersLoading, isFamilyMembersSuccess]);
 
   // We'll handle distribution creation directly in the handleSubmit function
 
@@ -337,6 +390,17 @@ export default function AssetDetailsPage() {
     setNotes('');
     setOrganization('');
     setSelectedBeneficiaryId('');
+    setFaraidResults([]);
+  };
+
+  const handleFaraidCalculated = (results: FaraidResult[]) => {
+    setFaraidResults(results);
+    // Add a note about the Faraid calculation
+    setNotes(`Faraid distribution calculated according to Islamic inheritance law. ${results.length} beneficiaries identified.`);
+  };
+
+  const handleNotesChange = (newNotes: string) => {
+    setNotes(newNotes);
   };
 
   const updateProgressStep = (stepIndex: number, status: 'pending' | 'completed' | 'error') => {
@@ -364,10 +428,42 @@ export default function AssetDetailsPage() {
       return;
     }
 
+    if (selectedType === 'faraid' && faraidResults.length === 0) {
+      toast.error('Please add family members with valid relationships for Faraid calculation');
+      return;
+    }
+
+    // Check if family members are still loading for types that need them
+    if ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
+        isFamilyMembersLoading) {
+      toast.error('Still loading family members. Please wait a moment and try again.');
+      return;
+    }
+
+    // Check if we have family members for types that need them
+    if ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
+        (!familyMembers || familyMembers.length === 0)) {
+      toast.error('No family members found. Please add family members before creating this distribution.');
+      return;
+    }
+
     try {
       setIsProgressDialogOpen(true);
       setTransactionState('creating-agreement');
       updateProgressStep(0, 'pending');
+
+      // Prepare beneficiaries based on distribution type
+      let beneficiaries;
+      
+      if (selectedType === 'hibah') {
+        beneficiaries = [{ familyId: selectedBeneficiaryId, percentage: 100 }];
+      } else if (selectedType === 'faraid' && faraidResults.length > 0) {
+        // Map Faraid results to beneficiaries
+        beneficiaries = faraidResults.map(result => ({
+          familyId: result.familyId,
+          percentage: result.percentage
+        }));
+      }
 
       // First create the distribution and agreement in the database to get an ID
       const response = await fetch('/api/asset-distribution', {
@@ -377,7 +473,7 @@ export default function AssetDetailsPage() {
           type: selectedType,
           notes: notes,
           assetId: assetDetails!.id,
-          beneficiaries: selectedType === 'hibah' ? [{ familyId: selectedBeneficiaryId, percentage: 100 }] : undefined,
+          beneficiaries: beneficiaries,
           organization: selectedType === 'waqf' ? organization : undefined,
         }),
       });
@@ -389,52 +485,49 @@ export default function AssetDetailsPage() {
       }
 
       const distribution = await response.json();
-      const agreementId = distribution.agreement.id; // Get the database-generated ID
+      const agreementId = distribution.agreement.id; // Get the Agreement ID for the blockchain
 
-      // Create a provider and signer
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-      const signer = new ethers.Wallet(privateKey!, provider);
+      console.log('Creating agreement with ID:', agreementId);
 
-      // Create the agreement on the blockchain using the database ID
-      const tx = await createAgreement(
-        signer,
+      // Use contractService instead of direct contract calls
+      const createResult = await contractService!.createAgreement(
         agreementId,
         assetDetails!.name,
         assetDetails!.type,
         assetDetails!.value,
         selectedType,
-        'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreier5qlxlholbixx2vkgnp3ics2u7cvhmnmtkgeoovfdporvh35feu'
+        'https://plum-tough-mongoose-147.mypinata.cloud/ipfs/bafkreidybvfdia2pmocb6qp6qxcdbptst47pb5gdinbnvqqafa667ij4zy'
       );
 
-      // Store the transaction hash in the database
-      const transactionHash = tx.hash;
-      console.log('Transaction Hash:', transactionHash);
-      
-      // Update the agreement with the transaction hash
+      if (!createResult.success) {
+        throw new Error(`Failed to create agreement on blockchain: ${createResult.error}`);
+      }
+
+      const tokenId = createResult.tokenId;
+      if (!tokenId) {
+        throw new Error('Failed to get token ID from blockchain');
+      }
+
+      console.log('Agreement created successfully with token ID:', tokenId);
+
+      // Update the agreement with the transaction hash if it was returned from the database
       const updateResponse = await fetch(`/api/agreements/${agreementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionHash }),
+        body: JSON.stringify({ 
+          // Use the transaction hash from the createResult if available
+          transactionHash: createResult.transactionHash,
+          tokenId 
+        }),
       });
       
       if (!updateResponse.ok) {
-        console.warn('Failed to update agreement with transaction hash');
+        console.warn('Failed to update agreement with transaction hash and token ID');
       }
 
-      // Find the AgreementCreated event and get the tokenId
-      const agreementCreatedEvent = tx.logs.find(
-        (log: Log) => log.topics[0] === ethers.id(
-          "AgreementCreated(uint256,string,address,string)"
-        )
-      );
-
-      if (!agreementCreatedEvent) {
-        throw new Error('Failed to get tokenId from transaction receipt');
-      }
-
-      // Get the tokenId from the event (it's the first indexed parameter)
-      const tokenId = Number(agreementCreatedEvent.topics[1]);
-      console.log('Token ID:', tokenId); // Debug log
+      // Wait a bit for the blockchain to process the transaction
+      console.log('Waiting for blockchain to process the agreement creation...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       updateProgressStep(0, 'completed');
       setTransactionState('adding-signers');
@@ -455,33 +548,62 @@ export default function AssetDetailsPage() {
 
       // Then add family members based on distribution type
       if (selectedType === 'hibah' && selectedBeneficiaryId) {
-        const beneficiary = familyMembers.find(m => m.id === selectedBeneficiaryId);
+        const beneficiary = familyMembers?.find(m => m.id === selectedBeneficiaryId);
+        console.log('Selected beneficiary for hibah:', beneficiary);
         if (beneficiary) {
           signersToAdd.push({
             name: beneficiary.fullName,
             ic: beneficiary.ic
           });
+        } else {
+          console.warn(`Beneficiary with ID ${selectedBeneficiaryId} not found in family members`);
         }
       } else if (selectedType === 'faraid' || selectedType === 'will') {
-        signersToAdd = [
-          ...signersToAdd,
-          ...familyMembers.map(member => ({
-            name: member.fullName,
-            ic: member.ic
-          }))
-        ];
+        console.log('Adding family members for faraid/will:', familyMembers);
+        if (familyMembers && Array.isArray(familyMembers) && familyMembers.length > 0) {
+          const validFamilyMembers = familyMembers.filter(member => 
+            member.fullName && member.ic && member.ic.trim() !== ''
+          );
+          
+          if (validFamilyMembers.length !== familyMembers.length) {
+            console.warn(`${familyMembers.length - validFamilyMembers.length} family members were skipped due to missing required fields`);
+          }
+          
+          signersToAdd = [
+            ...signersToAdd,
+            ...validFamilyMembers.map(member => ({
+              name: member.fullName,
+              ic: member.ic
+            }))
+          ];
+        } else {
+          console.warn('No family members found for faraid/will distribution');
+        }
       } else if (selectedType === 'waqf') {
         // For waqf, we need to add all family members as signers
-        signersToAdd = [
-          ...signersToAdd,
-          ...familyMembers.map(member => ({
-            name: member.fullName,
-            ic: member.ic
-          }))
-        ];
+        console.log('Adding family members for waqf:', familyMembers);
+        if (familyMembers && Array.isArray(familyMembers) && familyMembers.length > 0) {
+          const validFamilyMembers = familyMembers.filter(member => 
+            member.fullName && member.ic && member.ic.trim() !== ''
+          );
+          
+          if (validFamilyMembers.length !== familyMembers.length) {
+            console.warn(`${familyMembers.length - validFamilyMembers.length} family members were skipped due to missing required fields`);
+          }
+          
+          signersToAdd = [
+            ...signersToAdd,
+            ...validFamilyMembers.map(member => ({
+              name: member.fullName,
+              ic: member.ic
+            }))
+          ];
+        } else {
+          console.warn('No family members found for waqf distribution');
+        }
       }
 
-      console.log('Signers to add:', signersToAdd); // Debug log
+      console.log('Signers to add:', signersToAdd);
       
       // Check if we have signers to add
       if (signersToAdd.length === 0) {
@@ -490,34 +612,85 @@ export default function AssetDetailsPage() {
         throw new Error('No signers to add');
       }
 
-      // Add each signer individually
+      // Validate that the token exists and we have permission before adding signers
+      try {
+        console.log('Validating token existence and permissions...');
+        const tokenValidation = await contractService!.getTokenIdFromAgreementId(agreementId);
+        if (!tokenValidation.success) {
+          throw new Error(`Token validation failed: ${tokenValidation.error}`);
+        }
+        console.log('Token validation successful, token ID:', tokenValidation.tokenId);
+        
+        // Check token ownership
+        const ownershipCheck = await contractService!.checkTokenOwnership(tokenId.toString());
+        if (!ownershipCheck.success) {
+          throw new Error(`Token ownership check failed: ${ownershipCheck.error}`);
+        }
+        console.log('Token ownership check successful, owner:', ownershipCheck.owner);
+        
+        // Get agreement details for debugging
+        try {
+          const agreementDetails = await contractService!.getAgreementDetails(tokenId.toString());
+          console.log('Agreement details before adding signers:', agreementDetails);
+        } catch (debugError) {
+          console.warn('Could not fetch agreement details for debugging:', debugError);
+        }
+      } catch (validationError) {
+        console.error('Token validation failed:', validationError);
+        throw new Error(`Token validation failed: ${validationError}`);
+      }
+
+      // Add each signer individually using contractService with proper error handling
+      let successfulSigners = 0;
+      let failedSigners = 0;
+
       for (const signerData of signersToAdd) {
         try {
-          console.log('Adding signer:', signerData); // Debug log
-          const receipt = await addSigner(
-            signer,
-            tokenId,
+          console.log('Adding signer:', signerData);
+          
+          // Validate signer data
+          if (!signerData.name || !signerData.ic) {
+            console.error('Invalid signer data:', signerData);
+            failedSigners++;
+            continue;
+          }
+
+          // Ensure tokenId is a string for the contract call
+          const tokenIdString = tokenId.toString();
+          
+          const addSignerResult = await contractService!.addSigner(
+            tokenIdString,
             signerData.name,
             signerData.ic
           );
 
-          // Find the SignerAdded event
-          const signerAddedEvent = receipt.logs.find(
-            (log: Log) => log.topics[0] === ethers.id(
-              "SignerAdded(uint256,string,string)"
-            )
-          );
-
-          if (!signerAddedEvent) {
-            throw new Error(`Failed to add signer ${signerData.name}`);
+          if (!addSignerResult.success) {
+            console.error(`Failed to add signer ${signerData.name}: ${addSignerResult.error}`);
+            failedSigners++;
+            continue;
           }
 
-          console.log('Signer added successfully:', signerData.name); // Debug log
+          console.log('Signer added successfully:', signerData.name);
+          successfulSigners++;
         } catch (error) {
           console.error('Error adding signer:', signerData.name, error);
-          throw error;
+          failedSigners++;
         }
+        
+        // Add a small delay between signer additions to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      console.log(`Signer addition completed: ${successfulSigners} successful, ${failedSigners} failed`);
+
+      // Check if we added at least some signers
+      if (successfulSigners === 0) {
+        throw new Error('Failed to add any signers to the agreement');
+      }
+
+      if (failedSigners > 0) {
+        console.warn(`${failedSigners} signers failed to be added, but ${successfulSigners} were successful`);
+        toast.warning(`${failedSigners} signers failed to be added, but the agreement was created successfully`);
       }
 
       updateProgressStep(1, 'completed');
@@ -571,7 +744,7 @@ export default function AssetDetailsPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container mx-auto py-6 px-4 sm:px-6">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
@@ -581,34 +754,36 @@ export default function AssetDetailsPage() {
 
   if (!assetDetails) {
     return (
-      <div className="container mx-auto py-10">
+      <div className="container mx-auto py-6 px-4 sm:px-6">
         <div className="text-center">Asset not found</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-6 px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Button 
           variant="outline" 
           onClick={() => router.back()}
           className="mb-4"
+          size="sm"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Assets
+          <span className="hidden sm:inline">Back to Assets</span>
+          <span className="sm:hidden">Back</span>
         </Button>
-        <h1 className="text-2xl font-bold">Asset Details</h1>
+        <h1 className="text-xl sm:text-2xl font-bold">Asset Details</h1>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{assetDetails.name}</CardTitle>
+      <div className="grid gap-4 sm:gap-6">
+        <Card className="overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl">{assetDetails.name}</CardTitle>
             <CardDescription>Asset Information</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-muted-foreground">Type</div>
                 <div className="font-medium">{assetDetails.type}</div>
@@ -623,13 +798,13 @@ export default function AssetDetailsPage() {
                 </div>
               </div>
               {assetDetails.description && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Description</div>
                   <div className="font-medium">{assetDetails.description}</div>
                 </div>
               )}
               {assetDetails.pdfFile && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Document</div>
                   <a
                     href={`/api/download/${encodeURIComponent(assetDetails.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
@@ -643,7 +818,7 @@ export default function AssetDetailsPage() {
                 </div>
               )}
               {assetDetails.distribution?.id && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Agreement</div>
                   <a
                     href={`/api/agreement-pdf/${assetDetails.distribution.id}`}
@@ -657,10 +832,10 @@ export default function AssetDetailsPage() {
                 </div>
               )}
               {assetDetails.distribution?.agreement?.transactionHash && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <div className="text-sm text-muted-foreground">Blockchain Transaction</div>
                   <a
-                    href={`https://sepolia.scrollscan.com/tx/${assetDetails.distribution.agreement.transactionHash}`}
+                    href={`https://sepolia.basescan.org/tx/${assetDetails.distribution.agreement.transactionHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-blue-600 hover:text-blue-800 truncate"
@@ -670,11 +845,12 @@ export default function AssetDetailsPage() {
                       <line x1="16" y1="8" x2="2" y2="22"></line>
                       <line x1="17.5" y1="15" x2="9" y2="15"></line>
                     </svg>
-                    View on Scrollscan
+                    <span className="hidden sm:inline">View on Blockchain</span>
+                    <span className="sm:hidden">View TX</span>
                   </a>
                 </div>
               )}
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <div className="text-sm text-muted-foreground">Created On</div>
                 <div className="font-medium">{format(new Date(assetDetails.createdAt), 'PPP')}</div>
               </div>
@@ -682,18 +858,18 @@ export default function AssetDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Distribution Method</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl">Distribution Method</CardTitle>
             <CardDescription>
               Select how you want to distribute this asset
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0">
             <div className="space-y-6">
               {assetDetails.distribution ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                     <Badge variant="outline" className="capitalize">
                       {assetDetails.distribution.type}
                     </Badge>
@@ -704,7 +880,7 @@ export default function AssetDetailsPage() {
                       {assetDetails.distribution.notes && (
                         <div>
                           <div className="text-sm text-muted-foreground">Notes</div>
-                          <div className="mt-1">{assetDetails.distribution.notes}</div>
+                          <div className="mt-1 break-words">{assetDetails.distribution.notes}</div>
                         </div>
                       )}
                       {assetDetails.distribution.organization && (
@@ -723,15 +899,23 @@ export default function AssetDetailsPage() {
                                 const nameB = b.familyMember?.fullName || b.firstName || '';
                                 return nameA.localeCompare(nameB);
                               })
-                              .map((beneficiary: Beneficiary, index: number) => (
-                                <div key={beneficiary.id || `beneficiary-${index}`} className="flex items-center gap-2 mb-2">
-                                  <span className="font-medium">
-                                    {beneficiary.familyMember?.fullName || beneficiary.firstName || 'Unknown'} 
-                                    {beneficiary.familyMember?.relationship && ` (${beneficiary.familyMember.relationship})`}
-                                  </span>
-                                  <span className="text-gray-600">- {beneficiary.percentage}%</span>
-                                </div>
-                              ))}
+                              .map((beneficiary: Beneficiary, index: number) => {
+                                // Get the family member from the familyMembers array if not already attached
+                                const familyMember = !beneficiary.familyMember && beneficiary.familyId 
+                                  ? familyMembers.find(m => m.id === beneficiary.familyId) 
+                                  : null;
+                                
+                                return (
+                                  <div key={beneficiary.id || `beneficiary-${index}`} className="flex flex-wrap items-center gap-2 mb-2">
+                                    <span className="font-medium">
+                                      {beneficiary.familyMember?.fullName || familyMember?.fullName || beneficiary.firstName || `Beneficiary ${index + 1}`} 
+                                      {(beneficiary.familyMember?.relationship || familyMember?.relationship) && 
+                                        ` (${beneficiary.familyMember?.relationship || familyMember?.relationship})`}
+                                    </span>
+                                    <span className="text-gray-600">- {beneficiary.percentage}%</span>
+                                  </div>
+                                );
+                              })}
                           </div>
                         </div>
                       )}
@@ -739,8 +923,8 @@ export default function AssetDetailsPage() {
                       <Separator className="my-4" />
                       
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between">
+                          <div className="flex items-center gap-2 mb-2 sm:mb-0">
                             <Users className="h-4 w-4" />
                             <span className="font-medium">Signing Status</span>
                           </div>
@@ -766,17 +950,15 @@ export default function AssetDetailsPage() {
 
                         <div className="space-y-2">
                           {assetDetails.distribution.agreements?.map((agreement: Agreement) => (
-                            <div key={agreement.id} className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <UserCircle2 className="h-4 w-4" />
-                                <span>
+                            <div key={agreement.id} className="flex flex-wrap items-center justify-between text-sm py-2">
+                              <div className="flex items-center gap-2 mb-1 sm:mb-0 w-full sm:w-auto">
+                                <UserCircle2 className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">
                                   {agreement.familyMember ? (
                                     <>
                                       {agreement.familyMember.fullName}
                                       <span className="text-muted-foreground ml-1">
                                         {(() => {
-                                          // Check if this signature belongs to the current user
-                                          // by comparing the signedById with current user's ID
                                           const isCurrentUser = currentUser && 
                                             agreement.signedById === currentUser.id;
                                           
@@ -870,13 +1052,15 @@ export default function AssetDetailsPage() {
                   )}
 
                   {selectedType === 'faraid' && (
-                    <div>
-                      <label className="text-sm font-medium">Additional Notes (Optional)</label>
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Add any additional notes about the faraid distribution"
-                        className="mt-1"
+                    <div className="space-y-4">
+                      <FaraidExplanation />
+                      <FaraidDistribution 
+                        assetValue={assetDetails.value}
+                        familyMembers={familyMembers}
+                        userGender={userGender}
+                        onDistributionCalculated={handleFaraidCalculated}
+                        onNotesChange={handleNotesChange}
+                        notes={notes}
                       />
                     </div>
                   )}
@@ -893,11 +1077,13 @@ export default function AssetDetailsPage() {
                             <SelectValue placeholder="Select a family member" />
                           </SelectTrigger>
                           <SelectContent>
-                            {familyMembers.map((member) => (
+                            {familyMembers && Array.isArray(familyMembers) ? familyMembers.map((member) => (
                               <SelectItem key={member.id} value={member.id}>
                                 {member.fullName} ({member.relationship})
                               </SelectItem>
-                            ))}
+                            )) : (
+                              <SelectItem disabled value="">No family members found</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -930,12 +1116,19 @@ export default function AssetDetailsPage() {
                     <Button
                       onClick={handleSubmit}
                       className="w-full"
-                      disabled={transactionState !== 'idle'}
+                      disabled={transactionState !== 'idle' || 
+                        ((selectedType === 'hibah' || selectedType === 'faraid' || selectedType === 'will' || selectedType === 'waqf') && 
+                          isFamilyMembersLoading) ||
+                        (selectedType === 'faraid' && faraidResults.length === 0)}
                     >
                       {transactionState !== 'idle' && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
-                      {getSubmitButtonText()}
+                      {isFamilyMembersLoading && selectedType !== '' ? 
+                        'Loading Family Members...' : 
+                        selectedType === 'faraid' && faraidResults.length === 0 ?
+                        'Calculate Faraid First' :
+                        getSubmitButtonText()}
                     </Button>
                   )}
                 </div>
@@ -946,9 +1139,9 @@ export default function AssetDetailsPage() {
       </div>
 
       <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <div className="space-y-6 py-4">
-            <DialogTitle className="text-center text-xl font-semibold">Creating Agreement</DialogTitle>
+        <DialogContent className="sm:max-w-md max-w-[90vw] p-4 sm:p-6">
+          <div className="space-y-6 py-2 sm:py-4">
+            <DialogTitle className="text-center text-lg sm:text-xl font-semibold">Creating Agreement</DialogTitle>
             <div className="space-y-6">
               {progressSteps.map((step, index) => (
                 <div key={index} className="flex items-center gap-3">
@@ -992,7 +1185,7 @@ export default function AssetDetailsPage() {
                   </div>
                   <div className="flex-1">
                     <p className={cn(
-                      "font-medium",
+                      "font-medium text-sm sm:text-base",
                       step.status === 'completed' && "text-green-600",
                       step.status === 'error' && "text-destructive"
                     )}>

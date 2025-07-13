@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const userId = request.cookies.get('userId');
   const adminId = request.cookies.get('adminId');
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
                      request.nextUrl.pathname.startsWith('/signup');
   const isAdminAuthPage = request.nextUrl.pathname.startsWith('/admin/login');
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin') && !isAdminAuthPage;
+  
+  // Public routes that don't require authentication
+  const isPublicRoute = request.nextUrl.pathname.startsWith('/pages/family/direct-accept');
+
+  // If it's a public route, allow access without authentication
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
 
   // Handle admin routes
   if (isAdminPage) {

@@ -22,6 +22,7 @@ export async function GET() {
       },
     });
 
+    // console.log('Assets with distributions:', assetsWithDistributions);
     return NextResponse.json(assetsWithDistributions);
   } catch (error) {
     console.error('Error fetching asset distributions:', error);

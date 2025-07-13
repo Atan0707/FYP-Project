@@ -30,6 +30,9 @@ model User {
   assets    Asset[]
   pendingAssets PendingAsset[]
   signatures FamilySignature[]
+  // Add relation to family invitations
+  sentInvitations FamilyInvitation[] @relation("SentInvitations")
+  receivedInvitations FamilyInvitation[] @relation("ReceivedInvitations")
 }
 
 model Admin {
@@ -53,6 +56,18 @@ model TemporaryUser {
   expiresAt     DateTime
   @@index([email])
   @@index([verificationCode])
+}
+
+// Password reset token model
+model PasswordResetToken {
+  id            String   @id @default(cuid())
+  email         String
+  token         String   @unique
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  
+  @@index([email])
+  @@index([token])
 }
 
 // Temporary model for agreement signing verification
@@ -84,6 +99,32 @@ model Family {
   inverseRelationship String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// Model for family invitations
+model FamilyInvitation {
+  id              String   @id @default(cuid())
+  relationship    String
+  status          String   @default("pending") // pending, accepted, rejected
+  invitationToken String   @unique
+  // The user who sent the invitation
+  inviter         User     @relation("SentInvitations", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviterId       String
+  // The user who received the invitation (if registered)
+  invitee         User?    @relation("ReceivedInvitations", fields: [inviteeId], references: [id], onDelete: SetNull)
+  inviteeId       String?
+  // For non-registered users, store their details
+  inviteeEmail    String
+  inviteeIC       String
+  inviteeFullName String
+  inviteePhone    String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([inviterId])
+  @@index([inviteeId])
+  @@index([invitationToken])
 }
 
 model Asset {

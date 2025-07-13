@@ -40,7 +40,10 @@ import {
   Clock, 
   Filter, 
   Eye,
-  XCircle
+  XCircle,
+  Mail,
+  FileText,
+  Download
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -70,6 +73,10 @@ interface Agreement {
   createdAt: string;
   updatedAt: string;
   distribution: AssetDistribution;
+  family?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface AssetDistribution {
@@ -82,6 +89,10 @@ interface AssetDistribution {
   beneficiaries?: Array<{
     familyId: string;
     percentage: number;
+    family?: {
+      id: string;
+      name: string;
+    };
   }>;
   organization?: string;
   asset: {
@@ -96,18 +107,41 @@ interface AssetDistribution {
 
 // API functions
 const fetchPendingAdminAgreements = async () => {
-  const response = await fetch('/api/admin/agreements/pending');
+  const response = await fetch('/api/admin/agreements/pending?includeFamilyInfo=true');
   if (!response.ok) throw new Error('Failed to fetch pending admin agreements');
   return response.json();
 };
 
 const fetchAllAgreements = async () => {
-  const response = await fetch('/api/admin/agreements');
+  const response = await fetch('/api/admin/agreements?includeFamilyInfo=true');
   if (!response.ok) throw new Error('Failed to fetch all agreements');
   return response.json();
 };
 
+const sendCompletionEmails = async (agreementId: string) => {
+  try {
+    const response = await fetch(`/api/admin/agreements/${agreementId}/notify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send completion emails');
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error sending completion emails:', error);
+    throw error;
+  }
+};
+
 const signAdminAgreement = async ({ distributionId, notes, agreementId }: { distributionId: string; notes?: string; agreementId: string }) => {
+
+  console.log("Signing admin agreement with distributionId:", distributionId, "notes:", notes, "agreementId:", agreementId)
   try {
     // Check if contract service is initialized
     if (!contractService) {
@@ -129,7 +163,8 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
       throw new Error('Admin not authenticated or session expired. Please log in again.');
     }
     const adminData = await adminResponse.json();
-    const adminName = adminData.username;
+    const adminName = adminData.admin.username;
+    console.log("Admin name:", adminName)
 
     // Now sign on the smart contract using the tokenId
     const contractResponse = await contractService.adminSignAgreement(
@@ -150,7 +185,39 @@ const signAdminAgreement = async ({ distributionId, notes, agreementId }: { dist
     });
 
     if (!response.ok) throw new Error('Failed to sign agreement');
-    return response.json();
+    
+    // Get the updated agreement data
+    const agreementData = await response.json();
+    
+    // After successful signing, send email notifications to all participants via API
+    try {
+      const emailResponse = await fetch(`/api/admin/agreements/${agreementId}/notify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+             if (emailResponse.ok) {
+         const emailResult = await emailResponse.json();
+         if (emailResult.success) {
+           if (emailResult.emailsFailed && emailResult.emailsFailed > 0) {
+             toast.warning(`Agreement signed successfully. ${emailResult.emailsSent} completion emails sent, ${emailResult.emailsFailed} failed. Each email includes PDF document link.`);
+           } else {
+             toast.success(`Successfully sent completion emails with PDF document links to all ${emailResult.emailsSent} participants.`);
+           }
+         } else {
+           toast.warning('Agreement signed successfully, but there was an issue sending email notifications.');
+         }
+       } else {
+         toast.warning('Agreement signed successfully, but failed to send email notifications.');
+       }
+    } catch (emailError) {
+      console.error('Failed to send agreement completion emails:', emailError);
+      toast.warning('Agreement signed successfully, but failed to send email notifications.');
+    }
+    
+    return agreementData;
   } catch (error) {
     console.error('Error in signAdminAgreement:', error);
     throw error;
@@ -268,6 +335,25 @@ const AdminAgreements = () => {
       } else {
         toast.error('Failed to sign agreement: ' + errorMessage);
       }
+    },
+  });
+
+  const sendEmailsMutation = useMutation({
+    mutationFn: sendCompletionEmails,
+    onSuccess: (result) => {
+               if (result.success) {
+           if (result.emailsFailed && result.emailsFailed > 0) {
+             toast.warning(`${result.emailsSent} completion emails sent, ${result.emailsFailed} failed. Each email includes PDF document link.`);
+           } else {
+             toast.success(`Successfully sent completion emails with PDF document links to all ${result.emailsSent} participants.`);
+           }
+         } else {
+           toast.error('Failed to send completion emails');
+         }
+    },
+    onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error('Failed to send completion emails: ' + errorMessage);
     },
   });
 
@@ -668,12 +754,12 @@ const AdminAgreements = () => {
                       </TableCell>
                       <TableCell>{format(new Date(agreement.createdAt), 'dd/MM/yyyy')}</TableCell>
                       <TableCell className="text-right">
-                        {agreement.status === 'pending_admin' && (
-                          <>
+                        <div className="flex items-center justify-end gap-2">
+                          {agreement.status === 'pending_admin' && (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 mr-2"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
                               onClick={() => {
                                 setSelectedAgreement(agreement);
                                 setIsSignDialogOpen(true);
@@ -682,20 +768,67 @@ const AdminAgreements = () => {
                               <CheckCircle className="mr-1 h-4 w-4" />
                               Sign Agreement
                             </Button>
-                          </>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-primary hover:text-primary/80"
-                          onClick={() => {
-                            setSelectedAgreement(agreement);
-                            setIsViewDialogOpen(true);
-                          }}
-                        >
-                          <Eye className="mr-1 h-4 w-4" />
-                          View
-                        </Button>
+                          )}
+                          
+                          {(agreement.status === 'completed' || agreement.status === 'signed') && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => sendEmailsMutation.mutate(agreement.id)}
+                                disabled={sendEmailsMutation.isPending}
+                              >
+                                {sendEmailsMutation.isPending ? (
+                                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Mail className="mr-1 h-4 w-4" />
+                                )}
+                                Send Emails
+                              </Button>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                onClick={() => window.open(`/api/agreement-pdf/${agreement.distributionId}`, '_blank')}
+                              >
+                                <FileText className="mr-1 h-4 w-4" />
+                                View Agreement
+                              </Button>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = `/api/agreement-pdf/${agreement.distributionId}`;
+                                  link.download = `agreement-${agreement.distribution.asset.name}-${agreement.id}.pdf`;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                              >
+                                <Download className="mr-1 h-4 w-4" />
+                                Download PDF
+                              </Button>
+                            </>
+                          )}
+                          
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-primary hover:text-primary/80"
+                            onClick={() => {
+                              setSelectedAgreement(agreement);
+                              setIsViewDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="mr-1 h-4 w-4" />
+                            View
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -858,7 +991,7 @@ const AdminAgreements = () => {
                       <Table>
                         <TableHeader className="sticky top-0 bg-background">
                           <TableRow>
-                            <TableHead>Family ID</TableHead>
+                            <TableHead>Participant</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Signed At</TableHead>
                             <TableHead>Admin Signed At</TableHead>
@@ -868,7 +1001,7 @@ const AdminAgreements = () => {
                         <TableBody>
                           {selectedAgreement.distribution.agreements.map((agreement) => (
                             <TableRow key={agreement.id}>
-                              <TableCell className="text-sm">{agreement.familyId}</TableCell>
+                              <TableCell className="text-sm">{agreement.family?.name || agreement.familyId}</TableCell>
                               <TableCell className="text-sm">{getStatusBadge(agreement.status, 'signature')}</TableCell>
                               <TableCell className="text-sm">
                                 {agreement.signedAt 
@@ -907,14 +1040,14 @@ const AdminAgreements = () => {
                           <Table>
                             <TableHeader className="sticky top-0 bg-background">
                               <TableRow>
-                                <TableHead>Family ID</TableHead>
+                                <TableHead>Participant</TableHead>
                                 <TableHead>Percentage</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {selectedAgreement.distribution.beneficiaries.map((beneficiary, index) => (
                                 <TableRow key={index}>
-                                  <TableCell className="text-sm">{beneficiary.familyId}</TableCell>
+                                  <TableCell className="text-sm">{beneficiary.family?.name || beneficiary.familyId}</TableCell>
                                   <TableCell className="text-sm">{beneficiary.percentage}%</TableCell>
                                 </TableRow>
                               ))}
@@ -937,6 +1070,55 @@ const AdminAgreements = () => {
                   <CardContent className="pt-2">
                     <div className="p-3 border rounded-lg text-sm">
                       {selectedAgreement.distribution.organization || 'No organization specified'}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {(selectedAgreement.status === 'completed' || selectedAgreement.status === 'signed') && (
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Agreement Document</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <div className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-green-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">
+                            📄 View Your Agreement Here
+                          </h4>
+                          <p className="text-sm text-gray-600 mb-3">
+                            The official agreement document is ready for viewing and download.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                          onClick={() => window.open(`/api/agreement-pdf/${selectedAgreement.distributionId}`, '_blank')}
+                        >
+                          <FileText className="mr-1 h-4 w-4" />
+                          View Agreement
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = `/api/agreement-pdf/${selectedAgreement.distributionId}`;
+                            link.download = `agreement-${selectedAgreement.distribution.asset.name}-${selectedAgreement.id}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                        >
+                          <Download className="mr-1 h-4 w-4" />
+                          Download PDF
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

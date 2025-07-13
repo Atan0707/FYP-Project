@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import {
   Table,
   TableBody,
@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlusCircle, Pencil, Trash2, Search, RefreshCw } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Search, Clock } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import {
@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getAvailableRelationships } from '@/lib/relationships';
+import { useSearchParams } from 'next/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Get available relationships
 const relationships = getAvailableRelationships();
@@ -71,15 +73,31 @@ interface Family {
   isRegistered: boolean;
 }
 
+interface PendingInvitation {
+  id: string;
+  inviteeFullName: string;
+  inviteeIC: string;
+  relationship: string;
+  inviteePhone: string;
+  status: string;
+  createdAt: string;
+}
+
+interface FamilyData {
+  families: Family[];
+  pendingInvitations: PendingInvitation[];
+}
+
 interface User {
   id: string;
   fullName: string;
   ic: string;
   phone: string;
+  email?: string;
 }
 
 // API functions
-const fetchFamilies = async () => {
+const fetchFamilies = async (): Promise<FamilyData> => {
   const response = await fetch('/api/family');
   if (!response.ok) {
     throw new Error('Network response was not ok');
@@ -124,6 +142,50 @@ const createFamily = async (data: Omit<Family, 'id'>) => {
   return response.json();
 };
 
+const sendInvitation = async (data: {
+  fullName: string;
+  ic: string;
+  email: string;
+  phone: string;
+  relationship: string;
+}) => {
+  const response = await fetch('/api/family/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  
+  if (!response.ok) {
+    // Try to extract error message from response
+    const errorData = await response.json().catch(() => null);
+    if (errorData && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    throw new Error(`Server error: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
+const respondToInvitation = async (token: string, action: 'accept' | 'reject') => {
+  const response = await fetch('/api/family/invite', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, action }),
+  });
+  
+  if (!response.ok) {
+    // Try to extract error message from response
+    const errorData = await response.json().catch(() => null);
+    if (errorData && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    throw new Error(`Server error: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
 const updateFamily = async ({ id, ...data }: Family) => {
   const response = await fetch('/api/family', {
     method: 'PUT',
@@ -153,16 +215,47 @@ const deleteFamily = async (id: string) => {
   return response.json();
 };
 
-// Add a new function to update family relationships
-const updateFamilyRelationships = async () => {
-  const response = await fetch('/api/cron/update-family-relationships');
+const cancelInvitation = async (id: string) => {
+  const response = await fetch(`/api/family/invite/details`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ invitationId: id }),
+  });
   if (!response.ok) {
     throw new Error('Network response was not ok');
   }
   return response.json();
 };
 
-export default function FamilyPage() {
+// Add a new function to update family relationships
+// const updateFamilyRelationships = async () => {
+//   const response = await fetch('/api/cron/update-family-relationships');
+//   if (!response.ok) {
+//     throw new Error('Network response was not ok');
+//   }
+//   return response.json();
+// };
+
+// Add new API function for updating only the relationship
+const updateFamilyRelationship = async (data: { id: string; relationship: string }) => {
+  const response = await fetch('/api/family/relationship', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    if (errorData && errorData.error) {
+      throw new Error(errorData.error);
+    }
+    throw new Error(`Server error: ${response.status}`);
+  }
+  
+  return response.json();
+};
+
+function FamilyPageContent() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState<Family | null>(null);
   const [searchIC, setSearchIC] = useState('');
@@ -170,13 +263,27 @@ export default function FamilyPage() {
   const [showForm, setShowForm] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [selectedRelationship, setSelectedRelationship] = useState<string>('');
+  const [processingInvitation, setProcessingInvitation] = useState(false);
+  
+  // Add new states for relationship editing
+  const [isRelationshipDialogOpen, setIsRelationshipDialogOpen] = useState(false);
+  const [editingRelationship, setEditingRelationship] = useState<Family | null>(null);
+  const [newRelationship, setNewRelationship] = useState<string>('');
+  
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  
+  // Check if there's an invitation token in the URL
+  const invitationToken = searchParams.get('token');
 
   // Queries
-  const { data: families = [], isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['families'],
     queryFn: fetchFamilies,
   });
+
+  const families = data?.families || [];
+  const pendingInvitations = data?.pendingInvitations || [];
 
   // Mutations
   const createMutation = useMutation({
@@ -196,6 +303,40 @@ export default function FamilyPage() {
       // Don't close the dialog on error so the user can fix the issue
       // Still refresh the data to be sure
       await queryClient.invalidateQueries({ queryKey: ['families'] });
+    },
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: sendInvitation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success('Invitation sent successfully');
+      setIsOpen(false);
+      setFoundUser(null);
+      setSearchIC('');
+      setShowForm(false);
+      setSelectedRelationship('');
+    },
+    onError: (error: Error) => {
+      console.error('Error sending invitation:', error);
+      toast.error(`Failed to send invitation: ${error.message}`);
+    },
+  });
+
+  const respondInvitationMutation = useMutation({
+    mutationFn: ({ token, action }: { token: string; action: 'accept' | 'reject' }) => 
+      respondToInvitation(token, action),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success(data.message);
+      setProcessingInvitation(false);
+      // Remove the token from the URL
+      window.history.replaceState({}, '', '/pages/family');
+    },
+    onError: (error: Error) => {
+      console.error('Error responding to invitation:', error);
+      toast.error(`Failed to process invitation: ${error.message}`);
+      setProcessingInvitation(false);
     },
   });
 
@@ -226,21 +367,69 @@ export default function FamilyPage() {
     },
   });
 
-  // Add a new mutation for updating family relationships
-  const updateRelationshipsMutation = useMutation({
-    mutationFn: updateFamilyRelationships,
-    onSuccess: (data) => {
+  const cancelInvitationMutation = useMutation({
+    mutationFn: cancelInvitation,
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['families'] });
-      if (data.updated > 0) {
-        toast.success(`Updated ${data.updated} family relationships`);
-      } else {
-        toast.info('No family relationships needed updating');
-      }
+      toast.success('Invitation cancelled successfully');
     },
     onError: (error) => {
-      toast.error('Failed to update family relationships: ' + error.message);
+      toast.error('Failed to cancel invitation: ' + error.message);
     },
   });
+
+  // Add new mutation for updating relationship only
+  const updateRelationshipMutation = useMutation({
+    mutationFn: updateFamilyRelationship,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['families'] });
+      toast.success('Family relationship updated successfully');
+      setIsRelationshipDialogOpen(false);
+      setEditingRelationship(null);
+      setNewRelationship('');
+    },
+    onError: (error: Error) => {
+      console.error('Error updating family relationship:', error);
+      toast.error(`Failed to update relationship: ${error.message}`);
+    },
+  });
+
+  // Handle invitation token if present
+  const handleInvitation = (token: string, action: 'accept' | 'reject') => {
+    setProcessingInvitation(true);
+    respondInvitationMutation.mutate({ token, action });
+  };
+
+  // Check for invitation token on component mount
+  if (invitationToken && !processingInvitation) {
+    return (
+      <div className="container mx-auto py-10">
+        <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md">
+          <h2 className="text-2xl font-bold mb-4">Family Invitation</h2>
+          <p className="mb-6">You have received an invitation to connect as a family member. Would you like to accept or reject this invitation?</p>
+          
+          <div className="flex gap-4">
+            <Button 
+              variant="default" 
+              className="flex-1"
+              onClick={() => handleInvitation(invitationToken, 'accept')}
+              disabled={processingInvitation}
+            >
+              Accept
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1"
+              onClick={() => handleInvitation(invitationToken, 'reject')}
+              disabled={processingInvitation}
+            >
+              Reject
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleSearch = async () => {
     if (!searchIC.trim()) {
@@ -283,16 +472,17 @@ export default function FamilyPage() {
       return;
     }
 
-    const familyData = {
+    // Always send an invitation for registered users
+    const invitationData = {
       fullName: foundUser.fullName,
       ic: foundUser.ic,
+      email: foundUser.email || `${foundUser.ic}@placeholder.com`, // Use placeholder if no email
       phone: foundUser.phone,
       relationship: selectedRelationship,
-      isRegistered: true,
     };
     
-    toast.info('Adding family member...');
-    createMutation.mutate(familyData);
+    toast.info('Sending invitation...');
+    inviteMutation.mutate(invitationData);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -311,6 +501,7 @@ export default function FamilyPage() {
     const fullName = formData.get('fullName') as string;
     const ic = formData.get('ic') as string;
     const phone = formData.get('phone') as string;
+    const email = formData.get('email') as string;
     
     // Validate required fields
     if (!fullName || !ic || !phone) {
@@ -324,21 +515,49 @@ export default function FamilyPage() {
       return;
     }
     
-    const familyData = {
-      fullName,
-      ic,
-      relationship,
-      phone,
-      isRegistered: false,
-    };
-
-    toast.info(editingFamily ? 'Updating family member...' : 'Adding family member...');
-    
-    if (editingFamily) {
-      updateMutation.mutate({ ...familyData, id: editingFamily.id });
+    // If email is provided, send an invitation
+    if (email) {
+      const invitationData = {
+        fullName,
+        ic,
+        email,
+        phone,
+        relationship,
+      };
+      
+      toast.info('Sending invitation...');
+      inviteMutation.mutate(invitationData);
     } else {
-      createMutation.mutate(familyData);
+      // If no email, add as a non-registered family member
+      const familyData = {
+        fullName,
+        ic,
+        relationship,
+        phone,
+        isRegistered: false,
+      };
+  
+      toast.info(editingFamily ? 'Updating family member...' : 'Adding family member...');
+      
+      if (editingFamily) {
+        updateMutation.mutate({ ...familyData, id: editingFamily.id });
+      } else {
+        createMutation.mutate(familyData);
+      }
     }
+  };
+
+  // Add handler for relationship update
+  const handleRelationshipUpdate = () => {
+    if (!editingRelationship || !newRelationship) {
+      toast.error('Please select a relationship');
+      return;
+    }
+
+    updateRelationshipMutation.mutate({
+      id: editingRelationship.id,
+      relationship: newRelationship,
+    });
   };
 
   if (isLoading) {
@@ -354,14 +573,14 @@ export default function FamilyPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Family Members</h1>
         <div className="flex gap-2">
-          <Button 
+          {/* <Button 
             variant="outline" 
             onClick={() => updateRelationshipsMutation.mutate()}
             disabled={updateRelationshipsMutation.isPending}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${updateRelationshipsMutation.isPending ? 'animate-spin' : ''}`} />
             Update Relationships
-          </Button>
+          </Button> */}
           <Dialog open={isOpen} onOpenChange={(open) => {
             setIsOpen(open);
             if (!open) {
@@ -444,6 +663,15 @@ export default function FamilyPage() {
                           <Badge variant="success">Registered User</Badge>
                         </div>
                       </div>
+                      
+                      {foundUser.email && (
+                        <Alert className="bg-blue-50 border-blue-200">
+                          <AlertDescription>
+                            This user has an email address. An invitation will be sent to them to accept or reject the family connection.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      
                       <div className="grid gap-2">
                         <Label htmlFor="relationship">Relationship</Label>
                         <Select
@@ -475,7 +703,7 @@ export default function FamilyPage() {
                           onClick={handleConfirmRegistered}
                           disabled={!selectedRelationship}
                         >
-                          Add as Family Member
+                          {foundUser.email ? 'Send Invitation' : 'Add as Family Member'}
                         </Button>
                       </div>
                     </div>
@@ -528,6 +756,19 @@ export default function FamilyPage() {
                             required
                           />
                         </div>
+                        {!editingFamily && (
+                          <div className="grid gap-2">
+                            <Label htmlFor="email">Email (Optional)</Label>
+                            <Input
+                              id="email"
+                              name="email"
+                              type="email"
+                            />
+                            <div className="text-xs text-muted-foreground">
+                              If provided, an invitation will be sent to this email
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <Button type="submit" className="w-full">
                         {editingFamily ? 'Update' : 'Add'} Family Member
@@ -541,6 +782,53 @@ export default function FamilyPage() {
         </div>
       </div>
 
+      {pendingInvitations.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Pending Invitations</h2>
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Full Name</TableHead>
+                  <TableHead>IC Number</TableHead>
+                  <TableHead>Relationship</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Sent On</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingInvitations.map((invitation) => (
+                  <TableRow key={invitation.id}>
+                    <TableCell>{invitation.inviteeFullName}</TableCell>
+                    <TableCell>{invitation.inviteeIC}</TableCell>
+                    <TableCell>{invitation.relationship}</TableCell>
+                    <TableCell>{invitation.inviteePhone}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                        <Clock className="h-3 w-3 mr-1" /> Pending
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(invitation.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => cancelInvitationMutation.mutate(invitation.id)}
+                      >
+                        Cancel
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      <h2 className="text-xl font-semibold mb-4">Confirmed Family Members</h2>
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -566,18 +854,27 @@ export default function FamilyPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right space-x-2">
+                  {/* Single Edit Button - Handles both relationship and full edits */}
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      setEditingFamily(family);
-                      setIsOpen(true);
+                      if (family.isRegistered) {
+                        // For registered users, open relationship update dialog
+                        setEditingRelationship(family);
+                        setNewRelationship(family.relationship);
+                        setIsRelationshipDialogOpen(true);
+                      } else {
+                        // For non-registered users, open full edit dialog
+                        setEditingFamily(family);
+                        setIsOpen(true);
+                      }
                     }}
-                    disabled={family.isRegistered}
-                    title={family.isRegistered ? "Registered family members cannot be edited. Their information is synchronized with their account." : "Edit family member"}
+                    title={family.isRegistered ? "Update relationship" : "Edit family member"}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  
                   <Button
                     variant="destructive"
                     size="icon"
@@ -591,6 +888,93 @@ export default function FamilyPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Relationship Update Dialog */}
+      <Dialog open={isRelationshipDialogOpen} onOpenChange={(open) => {
+        setIsRelationshipDialogOpen(open);
+        if (!open) {
+          setEditingRelationship(null);
+          setNewRelationship('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Family Relationship</DialogTitle>
+          </DialogHeader>
+          {editingRelationship && (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-4 space-y-3">
+                <div>
+                  <Label>Family Member</Label>
+                  <div className="font-medium">{editingRelationship.fullName}</div>
+                </div>
+                <div>
+                  <Label>IC Number</Label>
+                  <div className="font-medium">{editingRelationship.ic}</div>
+                </div>
+                <div>
+                  <Label>Current Relationship</Label>
+                  <div className="font-medium capitalize">{editingRelationship.relationship}</div>
+                </div>
+                {editingRelationship.isRegistered && (
+                  <div className="pt-2">
+                    <Badge variant="success">Registered User</Badge>
+                  </div>
+                )}
+              </div>
+
+              <Alert className="bg-blue-50 border-blue-200">
+                <AlertDescription>
+                  Updating the relationship will automatically update the relationship for both family members.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="newRelationship">New Relationship</Label>
+                <Select
+                  onValueChange={(value) => setNewRelationship(value)}
+                  value={newRelationship}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select new relationship" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {relationships.map((relationship) => (
+                      <SelectItem key={relationship} value={relationship}>
+                        {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => {
+                  setIsRelationshipDialogOpen(false);
+                  setEditingRelationship(null);
+                  setNewRelationship('');
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleRelationshipUpdate}
+                  disabled={!newRelationship || newRelationship === editingRelationship.relationship || updateRelationshipMutation.isPending}
+                >
+                  {updateRelationshipMutation.isPending ? 'Updating...' : 'Update Relationship'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function FamilyPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <FamilyPageContent />
+    </Suspense>
   );
 }
