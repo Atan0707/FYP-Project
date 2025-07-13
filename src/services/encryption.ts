@@ -8,12 +8,16 @@ import CryptoJS from 'crypto-js';
 // The secret key should be stored in an environment variable
 const SECRET_KEY = process.env.SECRET_KEY || 'your-secret-key-here';
 
+// Add kill switch to disable encryption
+const isEncryptionEnabled = true;
+
 /**
  * Encrypts a string using AES encryption
  * @param text - The plain text to encrypt
  * @returns The encrypted cipher text
  */
 export const encrypt = (text: string): string => {
+  if (!isEncryptionEnabled) return text;
   return CryptoJS.AES.encrypt(text, SECRET_KEY).toString();
 };
 
@@ -23,6 +27,7 @@ export const encrypt = (text: string): string => {
  * @returns The decrypted plain text
  */
 export const decrypt = (ciphertext: string): string => {
+  if (!isEncryptionEnabled) return ciphertext;
   const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
   return bytes.toString(CryptoJS.enc.Utf8);
 };
@@ -33,6 +38,7 @@ export const decrypt = (ciphertext: string): string => {
  * @returns The encrypted cipher text
  */
 export const encryptObject = <T>(data: T): string => {
+  if (!isEncryptionEnabled) return JSON.stringify(data);
   const jsonString = JSON.stringify(data);
   return encrypt(jsonString);
 };
@@ -43,6 +49,14 @@ export const encryptObject = <T>(data: T): string => {
  * @returns The decrypted object
  */
 export const decryptObject = <T>(ciphertext: string): T => {
+  if (!isEncryptionEnabled) {
+    try {
+      return JSON.parse(ciphertext) as T;
+    } catch (error) {
+      console.error('Error parsing JSON:', error);
+      throw new Error('Invalid JSON string');
+    }
+  }
   const decryptedString = decrypt(ciphertext);
   return JSON.parse(decryptedString) as T;
 };
@@ -53,6 +67,7 @@ export const decryptObject = <T>(ciphertext: string): T => {
  * @returns The hash as a hex string
  */
 export const generateHash = (input: string): string => {
+  if (!isEncryptionEnabled) return input;
   return CryptoJS.SHA256(input).toString();
 };
 
@@ -63,6 +78,7 @@ export const generateHash = (input: string): string => {
  * @returns True if the input matches the hash
  */
 export const verifyHash = (input: string, hash: string): boolean => {
+  if (!isEncryptionEnabled) return input === hash;
   const inputHash = generateHash(input);
   return inputHash === hash;
 };
