@@ -487,6 +487,8 @@ export default function AssetDetailsPage() {
       const distribution = await response.json();
       const agreementId = distribution.agreement.id; // Get the Agreement ID for the blockchain
 
+      console.log('Creating agreement with ID:', agreementId);
+
       // Use contractService instead of direct contract calls
       const createResult = await contractService!.createAgreement(
         agreementId,
@@ -506,6 +508,8 @@ export default function AssetDetailsPage() {
         throw new Error('Failed to get token ID from blockchain');
       }
 
+      console.log('Agreement created successfully with token ID:', tokenId);
+
       // Update the agreement with the transaction hash if it was returned from the database
       const updateResponse = await fetch(`/api/agreements/${agreementId}`, {
         method: 'PATCH',
@@ -521,7 +525,9 @@ export default function AssetDetailsPage() {
         console.warn('Failed to update agreement with transaction hash and token ID');
       }
 
-      console.log('Token ID:', tokenId); // Debug log
+      // Wait a bit for the blockchain to process the transaction
+      console.log('Waiting for blockchain to process the agreement creation...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       updateProgressStep(0, 'completed');
       setTransactionState('adding-signers');
@@ -597,7 +603,7 @@ export default function AssetDetailsPage() {
         }
       }
 
-      console.log('Signers to add:', signersToAdd); // Debug log
+      console.log('Signers to add:', signersToAdd);
       
       // Check if we have signers to add
       if (signersToAdd.length === 0) {
@@ -606,28 +612,85 @@ export default function AssetDetailsPage() {
         throw new Error('No signers to add');
       }
 
-      // Add each signer individually using contractService
+      // Validate that the token exists and we have permission before adding signers
+      try {
+        console.log('Validating token existence and permissions...');
+        const tokenValidation = await contractService!.getTokenIdFromAgreementId(agreementId);
+        if (!tokenValidation.success) {
+          throw new Error(`Token validation failed: ${tokenValidation.error}`);
+        }
+        console.log('Token validation successful, token ID:', tokenValidation.tokenId);
+        
+        // Check token ownership
+        const ownershipCheck = await contractService!.checkTokenOwnership(tokenId.toString());
+        if (!ownershipCheck.success) {
+          throw new Error(`Token ownership check failed: ${ownershipCheck.error}`);
+        }
+        console.log('Token ownership check successful, owner:', ownershipCheck.owner);
+        
+        // Get agreement details for debugging
+        try {
+          const agreementDetails = await contractService!.getAgreementDetails(tokenId.toString());
+          console.log('Agreement details before adding signers:', agreementDetails);
+        } catch (debugError) {
+          console.warn('Could not fetch agreement details for debugging:', debugError);
+        }
+      } catch (validationError) {
+        console.error('Token validation failed:', validationError);
+        throw new Error(`Token validation failed: ${validationError}`);
+      }
+
+      // Add each signer individually using contractService with proper error handling
+      let successfulSigners = 0;
+      let failedSigners = 0;
+
       for (const signerData of signersToAdd) {
         try {
-          console.log('Adding signer:', signerData); // Debug log
+          console.log('Adding signer:', signerData);
+          
+          // Validate signer data
+          if (!signerData.name || !signerData.ic) {
+            console.error('Invalid signer data:', signerData);
+            failedSigners++;
+            continue;
+          }
+
+          // Ensure tokenId is a string for the contract call
+          const tokenIdString = tokenId.toString();
+          
           const addSignerResult = await contractService!.addSigner(
-            tokenId,
+            tokenIdString,
             signerData.name,
             signerData.ic
           );
 
           if (!addSignerResult.success) {
             console.error(`Failed to add signer ${signerData.name}: ${addSignerResult.error}`);
-            // Continue with other signers even if one fails
+            failedSigners++;
             continue;
           }
 
-          console.log('Signer added successfully:', signerData.name); // Debug log
+          console.log('Signer added successfully:', signerData.name);
+          successfulSigners++;
         } catch (error) {
           console.error('Error adding signer:', signerData.name, error);
-          // Continue with other signers even if one fails
+          failedSigners++;
         }
+        
+        // Add a small delay between signer additions to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      console.log(`Signer addition completed: ${successfulSigners} successful, ${failedSigners} failed`);
+
+      // Check if we added at least some signers
+      if (successfulSigners === 0) {
+        throw new Error('Failed to add any signers to the agreement');
+      }
+
+      if (failedSigners > 0) {
+        console.warn(`${failedSigners} signers failed to be added, but ${successfulSigners} were successful`);
+        toast.warning(`${failedSigners} signers failed to be added, but the agreement was created successfully`);
       }
 
       updateProgressStep(1, 'completed');

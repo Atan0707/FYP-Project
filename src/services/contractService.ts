@@ -170,16 +170,63 @@ class ContractService {
           throw new Error('Contract not initialized');
         }
 
+        // Validate inputs
+        if (!tokenId || tokenId.trim() === '') {
+          throw new Error('Token ID is required');
+        }
+
+        if (!signerName || signerName.trim() === '') {
+          throw new Error('Signer name is required');
+        }
+
+        if (!signerIC || signerIC.trim() === '') {
+          throw new Error('Signer IC is required');
+        }
+
+        // Convert tokenId to number for the contract call
+        const tokenIdNumber = parseInt(tokenId, 10);
+        if (isNaN(tokenIdNumber) || tokenIdNumber < 0) {
+          throw new Error(`Invalid token ID: ${tokenId}`);
+        }
+
+        console.log(`Adding signer to token ${tokenIdNumber}: ${signerName} (${signerIC})`);
+
         // Call the contract's addSigner function
-        const tx = await this.contract.addSigner(tokenId, signerName, signerIC);
+        const tx = await this.contract.addSigner(tokenIdNumber, signerName, signerIC);
         await tx.wait();
 
+        console.log(`Signer added successfully. Transaction hash: ${tx.hash}`);
         return { success: true };
       } catch (error) {
         console.error('Error adding signer:', error);
+        
+        // Parse the error to provide more specific error messages
+        let errorMessage = 'Unknown error occurred';
+        
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          
+          // Check for specific contract errors
+          if (error.message.includes('Agreement does not exist')) {
+            errorMessage = 'Agreement does not exist or you do not have permission to add signers';
+          } else if (error.message.includes('Only owner or admin can add signers')) {
+            errorMessage = 'Only the agreement owner or admin can add signers';
+          } else if (error.message.includes('Agreement is already completed')) {
+            errorMessage = 'Cannot add signers to a completed agreement';
+          } else if (error.message.includes('execution reverted')) {
+            errorMessage = 'Transaction failed: The smart contract rejected the operation. Please check if the agreement exists and you have permission to add signers.';
+          } else if (error.message.includes('insufficient funds')) {
+            errorMessage = 'Insufficient funds to complete the transaction';
+          } else if (error.message.includes('nonce')) {
+            errorMessage = 'Transaction nonce error. Please try again.';
+          } else if (error.message.includes('gas')) {
+            errorMessage = 'Gas estimation failed. The transaction might fail or require more gas.';
+          }
+        }
+        
         return { 
           success: false, 
-          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+          error: errorMessage
         };
       }
     });
@@ -246,11 +293,75 @@ class ContractService {
           throw new Error('Contract not initialized');
         }
 
-        const agreement = await this.contract.agreements(tokenId);
+        // Convert tokenId to number for the contract call
+        const tokenIdNumber = parseInt(tokenId, 10);
+        if (isNaN(tokenIdNumber) || tokenIdNumber < 0) {
+          throw new Error(`Invalid token ID: ${tokenId}`);
+        }
+
+        console.log(`Fetching agreement details for token ${tokenIdNumber}`);
+        const agreement = await this.contract.agreements(tokenIdNumber);
+        
+        console.log('Agreement details:', {
+          id: agreement.id?.toString(),
+          agreementId: agreement.agreementId,
+          status: agreement.status,
+          owner: agreement.owner,
+          adminAddress: agreement.adminAddress,
+          isActive: agreement.isActive
+        });
+        
         return agreement;
       } catch (error) {
         console.error('Error fetching agreement details:', error);
         throw error;
+      }
+    });
+  }
+
+  async checkTokenOwnership(tokenId: string): Promise<{ success: boolean; owner?: string; error?: string }> {
+    return retryOperation(async () => {
+      try {
+        if (!this.contract) {
+          throw new Error('Contract not initialized');
+        }
+
+        // Convert tokenId to number for the contract call
+        const tokenIdNumber = parseInt(tokenId, 10);
+        if (isNaN(tokenIdNumber) || tokenIdNumber < 0) {
+          throw new Error(`Invalid token ID: ${tokenId}`);
+        }
+
+        console.log(`Checking ownership for token ${tokenIdNumber}`);
+        
+        // Check if token exists first
+        try {
+          const owner = await this.contract.ownerOf(tokenIdNumber);
+          console.log(`Token ${tokenIdNumber} owner:`, owner);
+          console.log(`Current signer address:`, this.signer.address);
+          
+          return { 
+            success: true, 
+            owner: owner 
+          };
+        } catch (ownerError) {
+          console.error('Error checking token ownership:', ownerError);
+          
+          if (ownerError instanceof Error && ownerError.message.includes('ERC721NonexistentToken')) {
+            return { 
+              success: false, 
+              error: `Token ${tokenIdNumber} does not exist` 
+            };
+          }
+          
+          throw ownerError;
+        }
+      } catch (error) {
+        console.error('Error checking token ownership:', error);
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
       }
     });
   }
