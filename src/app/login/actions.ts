@@ -3,6 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -55,10 +56,28 @@ export async function login(formData: FormData) {
   }
 
   try {
-    // First, check if user exists in the main User table
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // First, check if user exists in the main User table by decrypting emails
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        password: true,
+      }
     });
+
+    let user = null;
+    for (const u of users) {
+      try {
+        const decryptedEmail = decrypt(u.email);
+        if (decryptedEmail === email) {
+          user = u;
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting user email:', error);
+        continue;
+      }
+    }
 
     if (user) {
       // User exists, proceed with normal login
@@ -80,10 +99,38 @@ export async function login(formData: FormData) {
       return { success: true };
     }
 
-    // User doesn't exist in main table, check temporary users
-    const tempUser = await prisma.temporaryUser.findFirst({
-      where: { email }
+    // User doesn't exist in main table, check temporary users by decrypting emails
+    const tempUsers = await prisma.temporaryUser.findMany({
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        fullName: true,
+        verificationCode: true,
+        expiresAt: true,
+      }
     });
+
+    let tempUser = null;
+    for (const tu of tempUsers) {
+      try {
+        const decryptedEmail = decrypt(tu.email);
+        if (decryptedEmail === email) {
+          tempUser = {
+            id: tu.id,
+            email: tu.email,
+            password: tu.password,
+            fullName: decrypt(tu.fullName),
+            verificationCode: tu.verificationCode,
+            expiresAt: tu.expiresAt,
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting temp user email:', error);
+        continue;
+      }
+    }
 
     if (tempUser) {
       // Check if password matches
@@ -114,7 +161,7 @@ export async function login(formData: FormData) {
         return { 
           requiresVerification: true, 
           message: 'Your verification code expired. A new code has been sent to your email.',
-          email: tempUser.email,
+          email: email,
           fullName: tempUser.fullName
         };
       }
@@ -125,7 +172,7 @@ export async function login(formData: FormData) {
       return { 
         requiresVerification: true, 
         message: 'Please verify your email address. A verification code has been sent to your email.',
-        email: tempUser.email,
+        email: email,
         fullName: tempUser.fullName
       };
     }
@@ -179,10 +226,32 @@ export async function resendVerificationCodeLogin(formData: FormData) {
   }
 
   try {
-    // Find the temporary user
-    const tempUser = await prisma.temporaryUser.findFirst({
-      where: { email }
+    // Find the temporary user by decrypting emails
+    const tempUsers = await prisma.temporaryUser.findMany({
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+      }
     });
+
+    let tempUser = null;
+    for (const user of tempUsers) {
+      try {
+        const decryptedEmail = decrypt(user.email);
+        if (decryptedEmail === email) {
+          tempUser = {
+            id: user.id,
+            email: user.email,
+            fullName: decrypt(user.fullName),
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting temp user email:', error);
+        continue;
+      }
+    }
 
     if (!tempUser) {
       return { error: 'No pending verification found for this email' };
@@ -204,7 +273,7 @@ export async function resendVerificationCodeLogin(formData: FormData) {
       }
     });
 
-    // Send new verification email
+    // Send new verification email (use original unencrypted data)
     await sendVerificationEmail(email, verificationCode, tempUser.fullName);
 
     return { 

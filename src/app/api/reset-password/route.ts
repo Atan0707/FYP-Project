@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -17,12 +18,29 @@ export async function POST(request: Request) {
 
     // If only email is provided, initiate the password reset
     if (email && !token && !newPassword && action === 'initiate') {
-      // Check if user exists
-      const user = await prisma.user.findUnique({
-        where: { email },
+      // Check if user exists by decrypting stored emails
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+        }
       });
 
-      if (!user) {
+      let foundUser = null;
+      for (const user of users) {
+        try {
+          const decryptedEmail = decrypt(user.email);
+          if (decryptedEmail === email) {
+            foundUser = user;
+            break;
+          }
+        } catch (error) {
+          console.error('Error decrypting user email:', error);
+          continue;
+        }
+      }
+
+      if (!foundUser) {
         // For security reasons, don't reveal if the email exists or not
         return NextResponse.json({ success: true, message: 'If your email is registered, you will receive a password reset code.' });
       }
@@ -39,7 +57,7 @@ export async function POST(request: Request) {
         where: { email },
       });
 
-      // Create a new token
+      // Create a new token (store the original email, not encrypted)
       await prisma.passwordResetToken.create({
         data: {
           email,
@@ -128,12 +146,29 @@ Islamic Inheritance System Team`
         }, { status: 400 });
       }
 
-      // Find the user
-      const user = await prisma.user.findUnique({
-        where: { email },
+      // Find the user by decrypting stored emails
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+        }
       });
 
-      if (!user) {
+      let foundUser = null;
+      for (const user of users) {
+        try {
+          const decryptedEmail = decrypt(user.email);
+          if (decryptedEmail === email) {
+            foundUser = user;
+            break;
+          }
+        } catch (error) {
+          console.error('Error decrypting user email:', error);
+          continue;
+        }
+      }
+
+      if (!foundUser) {
         return NextResponse.json({ 
           success: false, 
           error: 'User not found' 
@@ -145,7 +180,7 @@ Islamic Inheritance System Team`
 
       // Update the user's password
       await prisma.user.update({
-        where: { id: user.id },
+        where: { id: foundUser.id },
         data: { password: hashedPassword },
       });
 

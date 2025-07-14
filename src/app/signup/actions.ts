@@ -2,6 +2,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { encrypt, decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -138,34 +139,62 @@ export async function signUp(formData: FormData) {
   }
 
   try {
-    // Check if user already exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { ic }
-        ]
+    // Encrypt sensitive data
+    const encryptedEmail = encrypt(email);
+    const encryptedFullName = encrypt(fullName);
+    const encryptedIC = encrypt(ic);
+    const encryptedPhone = encrypt(phone);
+
+    // Check if user already exists by searching encrypted fields
+    const existingUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        ic: true,
       }
     });
 
-    if (existingUser) {
+    // Decrypt and check for existing user
+    const userExists = existingUsers.some(user => {
+      try {
+        const decryptedEmail = decrypt(user.email);
+        const decryptedIC = decrypt(user.ic);
+        return decryptedEmail === email || decryptedIC === ic;
+      } catch (error) {
+        console.error('Error decrypting user data during check:', error);
+        return false;
+      }
+    });
+
+    if (userExists) {
       return { error: 'User already exists with this email or IC' };
     }
 
     // Check if there's already a temporary user with this email or IC
-    const existingTempUser = await prisma.temporaryUser.findFirst({
-      where: {
-        OR: [
-          { email },
-          { ic }
-        ]
+    const existingTempUsers = await prisma.temporaryUser.findMany({
+      select: {
+        id: true,
+        email: true,
+        ic: true,
       }
     });
 
-    if (existingTempUser) {
+    // Decrypt and check for existing temporary user
+    const tempUserExists = existingTempUsers.find(tempUser => {
+      try {
+        const decryptedEmail = decrypt(tempUser.email);
+        const decryptedIC = decrypt(tempUser.ic);
+        return decryptedEmail === email || decryptedIC === ic;
+      } catch (error) {
+        console.error('Error decrypting temp user data during check:', error);
+        return null;
+      }
+    });
+
+    if (tempUserExists) {
       // Delete the existing temporary user before creating a new one
       await prisma.temporaryUser.delete({
-        where: { id: existingTempUser.id }
+        where: { id: tempUserExists.id }
       });
     }
 
@@ -179,20 +208,20 @@ export async function signUp(formData: FormData) {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
 
-    // Create temporary user
+    // Create temporary user with encrypted data
     await prisma.temporaryUser.create({
       data: {
-        email,
+        email: encryptedEmail,
         password: hashedPassword,
-        fullName,
-        ic,
-        phone,
+        fullName: encryptedFullName,
+        ic: encryptedIC,
+        phone: encryptedPhone,
         verificationCode,
         expiresAt,
       },
     });
 
-    // Send verification email
+    // Send verification email (use original unencrypted data)
     await sendVerificationEmail(email, verificationCode, fullName);
 
     return { 
@@ -247,10 +276,32 @@ export async function resendVerificationCode(formData: FormData) {
   }
 
   try {
-    // Find the temporary user
-    const tempUser = await prisma.temporaryUser.findFirst({
-      where: { email }
+    // Find the temporary user by decrypting emails
+    const tempUsers = await prisma.temporaryUser.findMany({
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+      }
     });
+
+    let tempUser = null;
+    for (const user of tempUsers) {
+      try {
+        const decryptedEmail = decrypt(user.email);
+        if (decryptedEmail === email) {
+          tempUser = {
+            id: user.id,
+            email: user.email,
+            fullName: decrypt(user.fullName),
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting temp user email:', error);
+        continue;
+      }
+    }
 
     if (!tempUser) {
       return { error: 'No pending verification found for this email' };
@@ -272,7 +323,7 @@ export async function resendVerificationCode(formData: FormData) {
       }
     });
 
-    // Send new verification email
+    // Send new verification email (use original unencrypted data)
     await sendVerificationEmail(email, verificationCode, tempUser.fullName);
 
     return { 
