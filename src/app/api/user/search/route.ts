@@ -25,6 +25,7 @@ export async function POST(request: Request) {
         fullName: true,
         ic: true,
         phone: true,
+        email: true,
       },
     });
 
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
     let decryptedFullName = foundUser.fullName;
     let decryptedIC = foundUser.ic;
     let decryptedPhone = foundUser.phone;
+    let decryptedEmail = foundUser.email;
 
     try {
       decryptedFullName = decrypt(foundUser.fullName);
@@ -75,11 +77,19 @@ export async function POST(request: Request) {
       // Use as-is if decryption fails (for backward compatibility)
     }
 
+    try {
+      decryptedEmail = decrypt(foundUser.email);
+    } catch (error) {
+      console.error('Error decrypting email:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
     return NextResponse.json({
       id: foundUser.id,
       fullName: decryptedFullName,
       ic: decryptedIC,
       phone: decryptedPhone,
+      email: decryptedEmail,
     });
   } catch (error) {
     console.error('Error searching user:', error);
