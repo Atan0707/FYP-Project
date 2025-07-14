@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as jose from 'jose';
+import { decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -9,10 +10,25 @@ export async function POST(request: Request) {
   try {
     const { username, password } = await request.json();
 
-    // Find admin by username
-    const admin = await prisma.admin.findUnique({
-      where: { username },
-    });
+    // Find all admins and decrypt usernames to find match
+    const admins = await prisma.admin.findMany();
+    let admin = null;
+    
+    for (const adminRecord of admins) {
+      try {
+        const decryptedUsername = decrypt(adminRecord.username);
+        if (decryptedUsername === username) {
+          admin = adminRecord;
+          break;
+        }
+      } catch {
+        // Handle case where username might not be encrypted (backward compatibility)
+        if (adminRecord.username === username) {
+          admin = adminRecord;
+          break;
+        }
+      }
+    }
 
     if (!admin) {
       return NextResponse.json(
@@ -33,7 +49,16 @@ export async function POST(request: Request) {
 
     // Generate JWT token using jose
     const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
-    const token = await new jose.SignJWT({ adminId: admin.id, username: admin.username })
+    
+    // Decrypt username for token (or use original if decryption fails)
+    let tokenUsername = username;
+    try {
+      tokenUsername = decrypt(admin.username);
+    } catch {
+      tokenUsername = admin.username; // Fallback for backward compatibility
+    }
+    
+    const token = await new jose.SignJWT({ adminId: admin.id, username: tokenUsername })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('1d')
       .sign(secret);

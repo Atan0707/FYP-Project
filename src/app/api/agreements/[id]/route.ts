@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { decrypt } from '@/services/encryption';
 
 // GET endpoint to fetch a specific agreement
 export async function GET(
@@ -36,7 +37,34 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(agreement);
+    // Decrypt user data in signatures
+    const decryptedAgreement = {
+      ...agreement,
+      signatures: agreement.signatures.map(signature => {
+        let decryptedUser = signature.signedBy;
+        
+        if (signature.signedBy) {
+          try {
+            decryptedUser = {
+              ...signature.signedBy,
+              fullName: decrypt(signature.signedBy.fullName),
+              email: decrypt(signature.signedBy.email),
+            };
+          } catch (error) {
+            console.error('Error decrypting user data in signature:', error);
+            // Use as-is if decryption fails (for backward compatibility)
+            decryptedUser = signature.signedBy;
+          }
+        }
+        
+        return {
+          ...signature,
+          signedBy: decryptedUser,
+        };
+      }),
+    };
+
+    return NextResponse.json(decryptedAgreement);
   } catch (error) {
     console.error('Error fetching agreement:', error);
     return NextResponse.json(

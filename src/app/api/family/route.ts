@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { getInverseRelationship } from '@/lib/relationships';
+import { encrypt, decrypt } from '@/services/encryption';
 
 export async function GET() {
   try {
@@ -22,6 +23,41 @@ export async function GET() {
       },
     });
 
+    // Decrypt family data before returning
+    const decryptedFamilies = families.map(family => {
+      let decryptedFullName = family.fullName;
+      let decryptedIC = family.ic;
+      let decryptedPhone = family.phone;
+
+      try {
+        decryptedFullName = decrypt(family.fullName);
+      } catch (error) {
+        console.error('Error decrypting family fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedIC = decrypt(family.ic);
+      } catch (error) {
+        console.error('Error decrypting family IC:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedPhone = decrypt(family.phone);
+      } catch (error) {
+        console.error('Error decrypting family phone:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      return {
+        ...family,
+        fullName: decryptedFullName,
+        ic: decryptedIC,
+        phone: decryptedPhone,
+      };
+    });
+
     // Get pending invitations
     const pendingInvitations = await prisma.familyInvitation.findMany({
       where: {
@@ -33,9 +69,44 @@ export async function GET() {
       },
     });
 
+    // Decrypt invitation data before returning
+    const decryptedInvitations = pendingInvitations.map(invitation => {
+      let decryptedFullName = invitation.inviteeFullName;
+      let decryptedIC = invitation.inviteeIC;
+      let decryptedPhone = invitation.inviteePhone;
+
+      try {
+        decryptedFullName = decrypt(invitation.inviteeFullName);
+      } catch (error) {
+        console.error('Error decrypting invitation fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedIC = decrypt(invitation.inviteeIC);
+      } catch (error) {
+        console.error('Error decrypting invitation IC:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedPhone = decrypt(invitation.inviteePhone);
+      } catch (error) {
+        console.error('Error decrypting invitation phone:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      return {
+        ...invitation,
+        inviteeFullName: decryptedFullName,
+        inviteeIC: decryptedIC,
+        inviteePhone: decryptedPhone,
+      };
+    });
+
     return NextResponse.json({
-      families,
-      pendingInvitations
+      families: decryptedFamilies,
+      pendingInvitations: decryptedInvitations
     });
   } catch (error) {
     console.error('Error fetching families:', error);
@@ -63,29 +134,70 @@ export async function POST(request: Request) {
     }
 
     // Check if a family member with this IC already exists for the current user
-    const existingFamily = await prisma.family.findFirst({
-      where: { 
-        ic: body.ic,
-        userId: userId
-      },
+    // Need to decrypt stored ICs to check for duplicates
+    const existingFamilies = await prisma.family.findMany({
+      where: { userId: userId },
+      select: { id: true, ic: true }
     });
 
-    if (existingFamily) {
+    const icExists = existingFamilies.some(family => {
+      try {
+        const decryptedIC = decrypt(family.ic);
+        return decryptedIC === body.ic;
+      } catch (error) {
+        console.error('Error decrypting family IC for duplicate check:', error);
+        // Try direct comparison for backward compatibility
+        return family.ic === body.ic;
+      }
+    });
+
+    if (icExists) {
       return NextResponse.json(
         { error: 'Family member with this IC already exists for your account' },
         { status: 400 }
       );
     }
 
-    // Check if the IC belongs to a registered user
-    const registeredUser = await prisma.user.findUnique({
-      where: { ic: body.ic },
+    // Check if the IC belongs to a registered user by decrypting stored ICs
+    const users = await prisma.user.findMany({
+      select: { id: true, fullName: true, ic: true, phone: true }
     });
+
+    let registeredUser = null;
+    for (const user of users) {
+      try {
+        const decryptedIC = decrypt(user.ic);
+        if (decryptedIC === body.ic) {
+          registeredUser = {
+            id: user.id,
+            fullName: user.fullName,
+            ic: user.ic,
+            phone: user.phone,
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting user IC:', error);
+        // Try direct comparison for backward compatibility
+        if (user.ic === body.ic) {
+          registeredUser = user;
+          break;
+        }
+      }
+    }
+
+    // Encrypt family data before storing
+    const encryptedFullName = encrypt(body.fullName);
+    const encryptedIC = encrypt(body.ic);
+    const encryptedPhone = encrypt(body.phone);
 
     // Create the family member entry
     const family = await prisma.family.create({
       data: {
-        ...body,
+        fullName: encryptedFullName,
+        ic: encryptedIC,
+        relationship: body.relationship,
+        phone: encryptedPhone,
         isRegistered: !!registeredUser,
         userId: userId,
         // If the person is registered, set up the bidirectional relationship
@@ -105,44 +217,51 @@ export async function POST(request: Request) {
 
       if (currentUser) {
         // Check if the current user is already a family member of the registered user
-        const existingReciprocal = await prisma.family.findFirst({
-          where: {
-            ic: currentUser.ic,
-            userId: registeredUser.id
+        // Need to decrypt stored ICs to check for existing reciprocal relationship
+        const existingReciprocalFamilies = await prisma.family.findMany({
+          where: { userId: registeredUser.id },
+          select: { id: true, ic: true }
+        });
+
+        const reciprocalExists = existingReciprocalFamilies.some(family => {
+          try {
+            const decryptedIC = decrypt(family.ic);
+            const currentUserIC = decrypt(currentUser.ic);
+            return decryptedIC === currentUserIC;
+          } catch (error) {
+            console.error('Error decrypting ICs for reciprocal check:', error);
+            // Try direct comparison for backward compatibility
+            return family.ic === currentUser.ic;
           }
         });
 
         // Only create the reciprocal relationship if it doesn't exist
-        if (!existingReciprocal) {
+        if (!reciprocalExists) {
           await prisma.family.create({
             data: {
-              fullName: currentUser.fullName,
-              ic: currentUser.ic,
-              phone: currentUser.phone,
+              fullName: currentUser.fullName, // Already encrypted
+              ic: currentUser.ic, // Already encrypted
               relationship: getInverseRelationship(body.relationship),
+              phone: currentUser.phone, // Already encrypted
               isRegistered: true,
               userId: registeredUser.id,
               relatedUserId: userId,
               inverseRelationship: body.relationship,
             },
           });
-        } else {
-          // Update the existing reciprocal relationship
-          await prisma.family.update({
-            where: { id: existingReciprocal.id },
-            data: {
-              relationship: getInverseRelationship(body.relationship),
-              inverseRelationship: body.relationship,
-              relatedUserId: userId,
-            }
-          });
         }
       }
     }
 
-    return NextResponse.json(family);
+    // Return decrypted data to frontend
+    return NextResponse.json({
+      ...family,
+      fullName: body.fullName,
+      ic: body.ic,
+      phone: body.phone,
+    });
   } catch (error) {
-    console.error('Error creating family:', error);
+    console.error('Error creating family member:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
@@ -157,136 +276,116 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, fullName, ic, relationship, phone } = body;
 
-    // Get the existing family record
-    const existingFamily = await prisma.family.findUnique({
-      where: { id },
-      include: { relatedToUser: true },
-    });
-
-    if (!existingFamily) {
-      return new NextResponse('Family member not found', { status: 404 });
-    }
-
-    // Prevent editing registered family members
-    if (existingFamily.isRegistered) {
+    // Validate required fields
+    if (!id || !fullName || !ic || !relationship || !phone) {
       return NextResponse.json(
-        { error: 'Cannot edit registered family members. Their information is synchronized with their account.' },
-        { status: 403 }
+        { error: 'Missing required fields' },
+        { status: 400 }
       );
     }
 
-    // Check if the IC belongs to a registered user
-    const registeredUser = await prisma.user.findUnique({
-      where: { ic: data.ic },
-    });
-
-    // If IC has changed, check if the new IC already exists for this user
-    if (existingFamily.ic !== data.ic) {
-      const duplicateIC = await prisma.family.findFirst({
-        where: {
-          ic: data.ic,
-          userId: userId,
-          id: { not: id } // Exclude the current record
-        }
-      });
-
-      if (duplicateIC) {
-        return NextResponse.json(
-          { error: 'Another family member with this IC already exists for your account' },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Update the family member entry
-    const family = await prisma.family.update({
+    // Check if family member exists and belongs to current user
+    const existingFamily = await prisma.family.findFirst({
       where: {
-        id,
+        id: id,
         userId: userId,
       },
-      data: {
-        ...data,
-        isRegistered: !!registeredUser,
-        // If the person is registered, update the bidirectional relationship
-        ...(registeredUser && {
-          relatedUserId: registeredUser.id,
-          inverseRelationship: getInverseRelationship(data.relationship),
-        }),
-        // If the person is not registered, clear the relationship fields
-        ...(!registeredUser && {
-          relatedUserId: null,
-          inverseRelationship: null,
-        }),
-      },
     });
 
-    // If there's a related user, update their reciprocal relationship
-    if (registeredUser) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { fullName: true, ic: true, phone: true },
-      });
+    if (!existingFamily) {
+      return NextResponse.json(
+        { error: 'Family member not found' },
+        { status: 404 }
+      );
+    }
 
-      if (currentUser) {
-        // Find the reciprocal relationship
-        const reciprocalRelationship = await prisma.family.findFirst({
-          where: {
-            userId: registeredUser.id,
-            relatedUserId: userId,
-          },
-        });
+    // Check if another family member with this IC already exists for the current user (excluding current record)
+    const otherFamilies = await prisma.family.findMany({
+      where: { 
+        userId: userId,
+        id: { not: id }
+      },
+      select: { id: true, ic: true }
+    });
 
-        if (reciprocalRelationship) {
-          // Update the existing reciprocal relationship
-          await prisma.family.update({
-            where: { id: reciprocalRelationship.id },
-            data: {
-              relationship: getInverseRelationship(data.relationship),
-              inverseRelationship: data.relationship,
-            },
-          });
-        } else {
-          // Create a new reciprocal relationship if it doesn't exist
-          const existingReciprocal = await prisma.family.findFirst({
-            where: {
-              ic: currentUser.ic,
-              userId: registeredUser.id
-            }
-          });
+    const icExistsInOthers = otherFamilies.some(family => {
+      try {
+        const decryptedIC = decrypt(family.ic);
+        return decryptedIC === ic;
+      } catch (error) {
+        console.error('Error decrypting family IC for duplicate check:', error);
+        // Try direct comparison for backward compatibility
+        return family.ic === ic;
+      }
+    });
 
-          if (!existingReciprocal) {
-            await prisma.family.create({
-              data: {
-                fullName: currentUser.fullName,
-                ic: currentUser.ic,
-                phone: currentUser.phone,
-                relationship: getInverseRelationship(data.relationship),
-                isRegistered: true,
-                userId: registeredUser.id,
-                relatedUserId: userId,
-                inverseRelationship: data.relationship,
-              },
-            });
-          } else {
-            // Update the existing record
-            await prisma.family.update({
-              where: { id: existingReciprocal.id },
-              data: {
-                relationship: getInverseRelationship(data.relationship),
-                inverseRelationship: data.relationship,
-                relatedUserId: userId,
-              }
-            });
-          }
+    if (icExistsInOthers) {
+      return NextResponse.json(
+        { error: 'Another family member with this IC already exists for your account' },
+        { status: 400 }
+      );
+    }
+
+    // Check if the IC belongs to a registered user by decrypting stored ICs
+    const users = await prisma.user.findMany({
+      select: { id: true, fullName: true, ic: true, phone: true }
+    });
+
+    let registeredUser = null;
+    for (const user of users) {
+      try {
+        const decryptedIC = decrypt(user.ic);
+        if (decryptedIC === ic) {
+          registeredUser = {
+            id: user.id,
+            fullName: user.fullName,
+            ic: user.ic,
+            phone: user.phone,
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting user IC:', error);
+        // Try direct comparison for backward compatibility
+        if (user.ic === ic) {
+          registeredUser = user;
+          break;
         }
       }
     }
 
-    return NextResponse.json(family);
+    // Encrypt family data before storing
+    const encryptedFullName = encrypt(fullName);
+    const encryptedIC = encrypt(ic);
+    const encryptedPhone = encrypt(phone);
+
+    // Update the family member
+    const updatedFamily = await prisma.family.update({
+      where: { id: id },
+      data: {
+        fullName: encryptedFullName,
+        ic: encryptedIC,
+        relationship: relationship,
+        phone: encryptedPhone,
+        isRegistered: !!registeredUser,
+        ...(registeredUser && {
+          relatedUserId: registeredUser.id,
+          inverseRelationship: getInverseRelationship(relationship),
+        }),
+      },
+    });
+
+    // Return decrypted data to frontend
+    return NextResponse.json({
+      ...updatedFamily,
+      fullName: fullName,
+      ic: ic,
+      phone: phone,
+    });
   } catch (error) {
-    console.error('Error updating family:', error);
+    console.error('Error updating family member:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 } 

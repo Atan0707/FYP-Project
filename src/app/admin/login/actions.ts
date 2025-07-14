@@ -3,6 +3,8 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
+
 const prisma = new PrismaClient();
 
 export async function adminLogin(formData: FormData) {
@@ -14,10 +16,31 @@ export async function adminLogin(formData: FormData) {
   }
 
   try {
-    // Find admin by username
-    const admin = await prisma.admin.findUnique({
-      where: { username },
+    // Find all admins and decrypt usernames to find match
+    const admins = await prisma.admin.findMany({
+      select: {
+        id: true,
+        username: true,
+        password: true,
+      }
     });
+
+    let admin = null;
+    for (const adminRecord of admins) {
+      try {
+        const decryptedUsername = decrypt(adminRecord.username);
+        if (decryptedUsername === username) {
+          admin = adminRecord;
+          break;
+        }
+      } catch {
+        // Handle case where username might not be encrypted (backward compatibility)
+        if (adminRecord.username === username) {
+          admin = adminRecord;
+          break;
+        }
+      }
+    }
 
     if (!admin) {
       return { error: 'Invalid credentials' };

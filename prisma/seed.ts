@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { encrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -31,29 +32,38 @@ async function main() {
 
   for (const user of users) {
     const hashedPassword = await bcrypt.hash(user.password, 10);
+    
+    // Encrypt sensitive user data
+    const encryptedEmail = encrypt(user.email);
+    const encryptedFullName = encrypt(user.fullName);
+    const encryptedIC = encrypt(user.ic);
+    const encryptedPhone = encrypt(user.phone);
+    
     await prisma.user.create({
       data: {
-        email: user.email,
+        email: encryptedEmail,
         password: hashedPassword,
-        fullName: user.fullName,
-        ic: user.ic || '',
-        phone: user.phone || '',
+        fullName: encryptedFullName,
+        ic: encryptedIC,
+        phone: encryptedPhone,
       },
     });
   }
 
-  console.log('Users seeded successfully');
+  console.log('Users seeded successfully with encrypted data');
 
   // Create admin account
   const adminPassword = await bcrypt.hash('root', 10);
+  const encryptedUsername = encrypt('admin');
+  
   await prisma.admin.create({
     data: {
-      username: 'admin',
+      username: encryptedUsername,
       password: adminPassword,
     },
   });
 
-  console.log('Admin account seeded successfully');
+  console.log('Admin account seeded successfully with encrypted username');
 }
 
 main()
