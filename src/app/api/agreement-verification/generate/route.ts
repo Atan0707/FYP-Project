@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 // Function to generate 5-digit verification code
 function generateVerificationCode(): string {
@@ -108,8 +109,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Decrypt user data for validation and email
+    let decryptedFullName = user.fullName;
+    let decryptedEmail = user.email;
+    let decryptedIC = user.ic;
+
+    try {
+      decryptedFullName = decrypt(user.fullName);
+    } catch (error) {
+      console.error('Error decrypting user fullName:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    try {
+      decryptedEmail = decrypt(user.email);
+    } catch (error) {
+      console.error('Error decrypting user email:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    try {
+      decryptedIC = decrypt(user.ic);
+    } catch (error) {
+      console.error('Error decrypting user IC:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
     // Validate that the provided IC matches the user's IC
-    if (user.ic !== signerIC) {
+    if (decryptedIC !== signerIC) {
       return NextResponse.json({ error: 'IC number does not match your registered IC number.' }, { status: 400 });
     }
 
@@ -190,17 +217,17 @@ export async function POST(request: Request) {
       data: {
         agreementId,
         userId: userId,
-        email: user?.email || '',
+        email: decryptedEmail,
         verificationCode,
         expiresAt,
       },
     });
 
-    // Send verification email
+    // Send verification email with decrypted data
     await sendVerificationEmail(
-      user?.email || '', 
+      decryptedEmail, 
       verificationCode, 
-      user?.fullName || '', 
+      decryptedFullName, 
       agreement.agreement.distribution.asset.name
     );
 
