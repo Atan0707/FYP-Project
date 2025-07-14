@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 export async function DELETE(
   request: Request,
@@ -129,7 +130,19 @@ export async function GET(
       return NextResponse.json({ error: 'Family member not found' }, { status: 404 });
     }
 
-    return NextResponse.json(familyMember);
+    // Decrypt family member name before returning
+    let decryptedFullName = familyMember.fullName;
+    try {
+      decryptedFullName = decrypt(familyMember.fullName);
+    } catch (error) {
+      console.error('Error decrypting family member fullName:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    return NextResponse.json({
+      ...familyMember,
+      fullName: decryptedFullName
+    });
   } catch (error) {
     console.error('Error fetching family member:', error);
     return NextResponse.json(

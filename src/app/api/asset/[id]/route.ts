@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 // Define interfaces for type safety
 interface FormattedAgreement {
@@ -116,9 +117,25 @@ export async function GET(
           }
         });
         
+        // Decrypt family member names
+        const decryptedFamilyMembers = familyMembers.map(member => {
+          let decryptedFullName = member.fullName;
+          try {
+            decryptedFullName = decrypt(member.fullName);
+          } catch (error) {
+            console.error('Error decrypting family member fullName:', error);
+            // Use as-is if decryption fails (for backward compatibility)
+          }
+          
+          return {
+            ...member,
+            fullName: decryptedFullName
+          };
+        });
+        
         // Map signatures to agreements with family member details
         agreements = agreement.signatures.map(signature => {
-          const familyMember = familyMembers.find(f => f.id === signature.familyId);
+          const familyMember = decryptedFamilyMembers.find(f => f.id === signature.familyId);
           
           return {
             id: signature.id,
