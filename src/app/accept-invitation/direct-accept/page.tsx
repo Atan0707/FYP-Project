@@ -4,8 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
 import { toast } from 'sonner';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
@@ -23,7 +22,6 @@ function DirectAcceptInvitationContent() {
   const [processing, setProcessing] = useState(false);
   const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ic, setIc] = useState('');
   const [success, setSuccess] = useState<boolean | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   
@@ -81,8 +79,7 @@ function DirectAcceptInvitationContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           token, 
-          action, 
-          ic: ic.trim() // Send IC for verification
+          action
         }),
       });
       
@@ -250,24 +247,13 @@ function DirectAcceptInvitationContent() {
             }
           </p>
           
-          <div className="space-y-2">
-            <Label htmlFor="ic">Please verify your IC number</Label>
-            <Input
-              id="ic"
-              placeholder="Enter your IC number"
-              value={ic}
-              onChange={(e) => setIc(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              For security purposes, please enter your IC number to verify your identity.
-            </p>
-          </div>
+
         </CardContent>
         <CardFooter>
           <Button
             className="w-full"
             onClick={handleDirectResponse}
-            disabled={processing || !ic.trim()}
+            disabled={processing}
           >
             {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             {action === 'accept' ? 'Accept Invitation' : 'Reject Invitation'}
