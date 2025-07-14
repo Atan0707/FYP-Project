@@ -29,15 +29,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { FaraidInfoDialog } from "@/components/ui/faraid-info-dialog";
 
 // Dynamically import the FaraidDistribution to avoid SSR issues
 const FaraidDistribution = dynamic(
   () => import('../distribution/FaraidDistribution'),
-  { ssr: false }
-);
-
-const FaraidExplanation = dynamic(
-  () => import('../distribution/FaraidExplanation'),
   { ssr: false }
 );
 
@@ -396,12 +392,10 @@ export default function AssetDetailsPage() {
   const handleFaraidCalculated = (results: FaraidResult[]) => {
     setFaraidResults(results);
     // Add a note about the Faraid calculation
-    setNotes(`Faraid distribution calculated according to Islamic inheritance law. ${results.length} beneficiaries identified.`);
+    setNotes(`Faraid distribution calculated according to Islamic inheritance law. ${results.length} beneficiaries identified with shares: ${results.map(r => `${r.fullName} (${r.percentage}%)`).join(', ')}.`);
   };
 
-  const handleNotesChange = (newNotes: string) => {
-    setNotes(newNotes);
-  };
+
 
   const updateProgressStep = (stepIndex: number, status: 'pending' | 'completed' | 'error') => {
     setProgressSteps(steps => 
@@ -1010,18 +1004,32 @@ export default function AssetDetailsPage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="flex-grow">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-lg font-medium">Choose Distribution Method</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Select how you want to distribute this asset among your family members
+                      </p>
+                    </div>
                     <Select
                       value={selectedType}
                       onValueChange={handleDistributionSelect}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-12">
                         <SelectValue placeholder="Select distribution type" />
                       </SelectTrigger>
                       <SelectContent>
                         {distributionTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
+                          <SelectItem key={type.value} value={type.value} className="py-3">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">{type.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {type.value === 'faraid' && 'Islamic inheritance law'}
+                                {type.value === 'hibah' && 'Gift to one beneficiary'}
+                                {type.value === 'will' && 'Custom distribution plan'}
+                                {type.value === 'waqf' && 'Charitable donation'}
+                              </span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1031,21 +1039,28 @@ export default function AssetDetailsPage() {
                   {selectedType === 'waqf' && (
                     <div className="space-y-4">
                       <div>
+                        <h3 className="text-lg font-medium mb-2">Waqf Distribution</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Waqf is a religious donation where property is dedicated for charitable purposes. All family members will be involved in the agreement process.
+                        </p>
+                      </div>
+                      <div>
                         <label className="text-sm font-medium">Organization (Optional)</label>
                         <Input
                           value={organization}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrganization(e.target.value)}
-                          placeholder="Enter organization name"
+                          placeholder="Enter the name of the charitable organization or mosque"
                           className="mt-1"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Additional Notes (Optional)</label>
+                        <label className="text-sm font-medium">Purpose and Notes (Optional)</label>
                         <Textarea
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Add any additional notes about the waqf"
+                          placeholder="Describe the charitable purpose and any specific conditions for this waqf"
                           className="mt-1"
+                          rows={3}
                         />
                       </div>
                     </div>
@@ -1053,14 +1068,20 @@ export default function AssetDetailsPage() {
 
                   {selectedType === 'faraid' && (
                     <div className="space-y-4">
-                      <FaraidExplanation />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium">Faraid Distribution Calculator</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Calculate inheritance shares according to Islamic law
+                          </p>
+                        </div>
+                        <FaraidInfoDialog />
+                      </div>
                       <FaraidDistribution 
                         assetValue={assetDetails.value}
                         familyMembers={familyMembers}
                         userGender={userGender}
                         onDistributionCalculated={handleFaraidCalculated}
-                        onNotesChange={handleNotesChange}
-                        notes={notes}
                       />
                     </div>
                   )}
@@ -1068,12 +1089,18 @@ export default function AssetDetailsPage() {
                   {selectedType === 'hibah' && (
                     <div className="space-y-4">
                       <div>
+                        <h3 className="text-lg font-medium mb-2">Hibah Distribution</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Hibah is a voluntary gift given during the lifetime of the giver. Select one beneficiary to receive the entire asset.
+                        </p>
+                      </div>
+                      <div>
                         <label className="text-sm font-medium">Select Beneficiary</label>
                         <Select
                           value={selectedBeneficiaryId}
                           onValueChange={setSelectedBeneficiaryId}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Select a family member" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1100,15 +1127,24 @@ export default function AssetDetailsPage() {
                   )}
 
                   {selectedType === 'will' && (
-                    <div>
-                      <label className="text-sm font-medium">Will Description (Required)</label>
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Describe the details of your will"
-                        className="mt-1"
-                        required
-                      />
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-medium mb-2">Will Distribution</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          A will allows you to specify how you want your assets distributed. All family members will be involved in the agreement process.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Will Description (Required)</label>
+                        <Textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Describe in detail how you want this asset to be distributed among your family members"
+                          className="mt-1"
+                          rows={4}
+                          required
+                        />
+                      </div>
                     </div>
                   )}
 

@@ -13,12 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+
 import { isValidFaraidRelationship, getDisplayRelationshipName } from '@/lib/relationships';
 
 interface FaraidDistributionProps {
@@ -33,59 +28,7 @@ interface FaraidDistributionProps {
   onDistributionCalculated?: (results: FaraidResult[]) => void;
 }
 
-// Malaysian Faraid references in English
-const malaysianFaraidReferences = [
-  {
-    title: "One Half (1/2)",
-    conditions: [
-      "Husband - if no descendants",
-      "1 Daughter - if no sons", 
-      "1 Granddaughter - if no children/grandsons",
-      "1 Sister (same father & mother) - specific conditions",
-      "1 Sister (same father only) - specific conditions"
-    ]
-  },
-  {
-    title: "One Third (1/3)",
-    conditions: [
-      "Mother - if no descendants and less than 2 siblings",
-      "2 or more maternal siblings - specific conditions"
-    ]
-  },
-  {
-    title: "One Quarter (1/4)",
-    conditions: [
-      "Husband - if has descendants",
-      "Wife - if no descendants"
-    ]
-  },
-  {
-    title: "Two Thirds (2/3)",
-    conditions: [
-      "2 or more daughters - if no sons",
-      "2 or more granddaughters - specific conditions",
-      "2 or more sisters (same father & mother) - specific conditions",
-      "2 or more sisters (same father only) - specific conditions"
-    ]
-  },
-  {
-    title: "One Sixth (1/6)",
-    conditions: [
-      "Father - if has descendants",
-      "Mother - if has descendants or multiple siblings",
-      "Grandfather - specific conditions",
-      "Grandmother - specific conditions",
-      "Granddaughter - if 1 daughter exists",
-      "1 Maternal sibling - specific conditions"
-    ]
-  },
-  {
-    title: "One Eighth (1/8)",
-    conditions: [
-      "Wife - if has descendants"
-    ]
-  }
-];
+
 
 export default function FaraidDistribution({ 
   assetValue, 
@@ -144,29 +87,6 @@ export default function FaraidDistribution({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Accordion type="single" collapsible className="w-full mb-4">
-          <AccordionItem value="references">
-            <AccordionTrigger className="text-sm">
-              Malaysian Faraid Law References
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-4 text-sm">
-                {malaysianFaraidReferences.map((ref, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="font-medium text-blue-700">{ref.title}</div>
-                    <div className="space-y-1">
-                      {ref.conditions.map((condition, condIndex) => (
-                        <div key={condIndex} className="text-xs bg-muted/50 p-2 rounded-md">
-                          • {condition}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
 
         {validFamilyMembers.length === 0 ? (
           <Alert variant="destructive">
