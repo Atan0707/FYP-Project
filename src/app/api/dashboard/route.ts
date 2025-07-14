@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 export async function GET() {
   try {
@@ -20,6 +21,26 @@ export async function GET() {
       },
     });
 
+    // Decrypt user data
+    let decryptedFullName = user?.fullName || '';
+    let decryptedEmail = user?.email || '';
+
+    if (user) {
+      try {
+        decryptedFullName = decrypt(user.fullName);
+      } catch (error) {
+        console.error('Error decrypting user fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedEmail = decrypt(user.email);
+      } catch (error) {
+        console.error('Error decrypting user email:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+    }
+
     // Get family members count
     const familyCount = await prisma.family.count({
       where: { userId },
@@ -37,7 +58,7 @@ export async function GET() {
     const totalAssetValue = assets.reduce((sum, asset) => sum + asset.value, 0);
 
     // Get recent family members (last 5)
-    const recentFamily = await prisma.family.findMany({
+    const recentFamilyRaw = await prisma.family.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -47,6 +68,23 @@ export async function GET() {
         relationship: true,
         createdAt: true,
       },
+    });
+
+    // Decrypt family member names
+    const recentFamily = recentFamilyRaw.map(member => {
+      let decryptedFullName = member.fullName;
+      
+      try {
+        decryptedFullName = decrypt(member.fullName);
+      } catch (error) {
+        console.error('Error decrypting family member fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      return {
+        ...member,
+        fullName: decryptedFullName,
+      };
     });
 
     // Get recent assets (last 5)
@@ -64,7 +102,10 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      user,
+      user: {
+        fullName: decryptedFullName,
+        email: decryptedEmail,
+      },
       stats: {
         familyCount,
         assetsCount,

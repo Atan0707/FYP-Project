@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { decrypt, encrypt } from '@/services/encryption'
 
 export async function GET() {
   try {
@@ -30,13 +31,47 @@ export async function GET() {
         return NextResponse.json({ error: 'User not found' }, { status: 404 })
       }
 
+      // Decrypt user data before returning
+      let decryptedEmail = fullUser.email;
+      let decryptedFullName = fullUser.fullName;
+      let decryptedIC = fullUser.ic;
+      let decryptedPhone = fullUser.phone;
+
+      try {
+        decryptedEmail = decrypt(fullUser.email);
+      } catch (error) {
+        console.error('Error decrypting email:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedFullName = decrypt(fullUser.fullName);
+      } catch (error) {
+        console.error('Error decrypting fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedIC = decrypt(fullUser.ic);
+      } catch (error) {
+        console.error('Error decrypting IC:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedPhone = decrypt(fullUser.phone);
+      } catch (error) {
+        console.error('Error decrypting phone:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
       // Format the response to match your User type
       return NextResponse.json({
         id: fullUser.id,
-        name: fullUser.fullName,
-        email: fullUser.email,
-        ic: fullUser.ic,
-        phone: fullUser.phone,
+        name: decryptedFullName,
+        email: decryptedEmail,
+        ic: decryptedIC,
+        phone: decryptedPhone,
         address: fullUser.address || '',
         photo: fullUser.photo || '/images/default-avatar.jpg'
       })
@@ -76,12 +111,16 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Encrypt sensitive data before storing
+    const encryptedFullName = encrypt(fullName);
+    const encryptedPhone = encrypt(phone);
+
     // Update user profile
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        fullName,
-        phone,
+        fullName: encryptedFullName,
+        phone: encryptedPhone,
         address,
         photo,
         updatedAt: new Date(),
@@ -97,6 +136,36 @@ export async function PUT(request: Request) {
       },
     });
 
+    // Decrypt user data before returning
+    let decryptedEmail = updatedUser.email;
+    let decryptedFullName = updatedUser.fullName;
+    let decryptedIC = updatedUser.ic;
+    let decryptedPhone = updatedUser.phone;
+
+    try {
+      decryptedEmail = decrypt(updatedUser.email);
+    } catch (error) {
+      console.error('Error decrypting email:', error);
+    }
+
+    try {
+      decryptedFullName = decrypt(updatedUser.fullName);
+    } catch (error) {
+      console.error('Error decrypting fullName:', error);
+    }
+
+    try {
+      decryptedIC = decrypt(updatedUser.ic);
+    } catch (error) {
+      console.error('Error decrypting IC:', error);
+    }
+
+    try {
+      decryptedPhone = decrypt(updatedUser.phone);
+    } catch (error) {
+      console.error('Error decrypting phone:', error);
+    }
+
     // Update all family records where this user is referenced
     await prisma.family.updateMany({
       where: {
@@ -105,17 +174,17 @@ export async function PUT(request: Request) {
         isRegistered: true,
       },
       data: {
-        fullName,
-        phone,
+        fullName: encryptedFullName,
+        phone: encryptedPhone,
       },
     });
 
     return NextResponse.json({
       id: updatedUser.id,
-      name: updatedUser.fullName,
-      email: updatedUser.email,
-      ic: updatedUser.ic,
-      phone: updatedUser.phone,
+      name: decryptedFullName,
+      email: decryptedEmail,
+      ic: decryptedIC,
+      phone: decryptedPhone,
       address: updatedUser.address || '',
       photo: updatedUser.photo || '/images/default-avatar.jpg'
     });
