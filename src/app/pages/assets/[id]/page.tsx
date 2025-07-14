@@ -187,7 +187,7 @@ const getStatusBadge = (status: string, transactionHash?: string) => {
   if (transactionHash && (status === 'signed' || status === 'completed' || status === 'pending_admin')) {
     return (
       <a
-        href={`https://sepolia.scrollscan.com/tx/${transactionHash}`}
+        href={`https://sepolia.basescan.org/tx/${transactionHash}`}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-block transition-opacity hover:opacity-80"
@@ -251,9 +251,10 @@ export default function AssetDetailsPage() {
     queryKey: ['asset', params.id],
     queryFn: async () => {
       const response = await fetch(`/api/asset/${params.id}`);
+      // console.log('Asset details response:', response);
       if (!response.ok) throw new Error('Failed to fetch asset');
       const data = await response.json();
-      
+      console.log('Asset details data:', data);
       // If we have a distribution with an agreement, fetch the agreement details
       if (data.distribution?.id) {
         try {
@@ -503,20 +504,46 @@ export default function AssetDetailsPage() {
       }
 
       console.log('Agreement created successfully with token ID:', tokenId);
+      console.log('Agreement created successfully with transaction hash:', createResult.transactionHash);
 
       // Update the agreement with the transaction hash if it was returned from the database
+      console.log('Updating agreement with ID:', agreementId);
+      console.log('Updating with transaction hash:', createResult.transactionHash);
+      console.log('Token ID (for blockchain operations only):', tokenId);
+      
+      const updatePayload = { 
+        transactionHash: createResult.transactionHash
+        // Note: tokenId is not stored in database, only used for blockchain operations
+      };
+      
+      console.log('Update payload:', updatePayload);
+      
       const updateResponse = await fetch(`/api/agreements/${agreementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          // Use the transaction hash from the createResult if available
-          transactionHash: createResult.transactionHash,
-          tokenId 
-        }),
+        body: JSON.stringify(updatePayload),
       });
       
+      console.log('Update response status:', updateResponse.status);
+      
       if (!updateResponse.ok) {
-        console.warn('Failed to update agreement with transaction hash and token ID');
+        const errorText = await updateResponse.text();
+        console.error('Failed to update agreement with transaction hash and token ID');
+        console.error('Error response:', errorText);
+        console.error('Response status:', updateResponse.status);
+        
+        // Try to parse the error if it's JSON
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error('Parsed error data:', errorData);
+        } catch {
+          console.error('Could not parse error response as JSON');
+        }
+        
+        toast.warning('Agreement created successfully but failed to save blockchain transaction details');
+      } else {
+        const updateData = await updateResponse.json();
+        console.log('Successfully updated agreement with transaction details:', updateData);
       }
 
       // Wait a bit for the blockchain to process the transaction
