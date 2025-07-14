@@ -50,15 +50,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { 
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { contractService } from '@/services/contractService';
 
@@ -1121,95 +1112,269 @@ export default function AgreementsPage() {
       </Dialog>
 
       {/* Agreement Details Dialog */}
-      <AlertDialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
-        <AlertDialogContent className="max-w-[95vw] sm:max-w-2xl overflow-y-auto max-h-[90vh]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Agreement Details</AlertDialogTitle>
-            <AlertDialogDescription>
-              Detailed information about this agreement
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+      <Dialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl overflow-y-auto max-h-[90vh] p-0">
+          <div className="sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b px-6 py-4">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">Agreement Details</DialogTitle>
+              <DialogDescription>
+                Detailed information about this agreement
+              </DialogDescription>
+            </DialogHeader>
+          </div>
           
           {selectedAgreement && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium">Asset Information</h3>
-                  <div className="bg-muted p-3 rounded-md mt-1">
-                    <p className="text-sm"><span className="font-medium">Name:</span> {selectedAgreement.distribution.asset.name}</p>
-                    <p className="text-sm"><span className="font-medium">Type:</span> {selectedAgreement.distribution.asset.type}</p>
-                    <p className="text-sm"><span className="font-medium">Value:</span> RM {selectedAgreement.distribution.asset.value.toFixed(2)}</p>
+            <div className="px-6 pb-6 space-y-6">
+              {/* Header Section with Asset Name and Status */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-lg p-6 border border-blue-200/50 dark:border-blue-800/50">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                          {selectedAgreement.distribution.asset.name}
+                        </h2>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Agreement ID: {selectedAgreement.id.slice(0, 8)}...
+                        </p>
+                      </div>
+                    </div>
+                    {getAgreementRole(selectedAgreement)}
                   </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium">Distribution Information</h3>
-                  <div className="bg-muted p-3 rounded-md mt-1">
-                    <p className="text-sm"><span className="font-medium">Type:</span> {selectedAgreement.distribution.type.charAt(0).toUpperCase() + selectedAgreement.distribution.type.slice(1)}</p>
-                    <p className="text-sm"><span className="font-medium">Status:</span> {selectedAgreement.distribution.status}</p>
-                    {selectedAgreement.distribution.notes && (
-                      <p className="text-sm"><span className="font-medium">Notes:</span> {selectedAgreement.distribution.notes}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium">Agreement Status</h3>
-                <div className="bg-muted p-3 rounded-md mt-1 flex flex-col sm:flex-row justify-between gap-2">
-                  <div>
-                    <p className="text-sm"><span className="font-medium">Current Status:</span> {selectedAgreement.status}</p>
-                    <p className="text-sm"><span className="font-medium">Created:</span> {format(new Date(selectedAgreement.createdAt), 'MMM d, yyyy h:mm a')}</p>
-                    {selectedAgreement.signedAt && (
-                      <p className="text-sm"><span className="font-medium">Signed:</span> {format(new Date(selectedAgreement.signedAt), 'MMM d, yyyy h:mm a')}</p>
-                    )}
-                  </div>
-                  <div className="self-start">
+                  <div className="flex flex-col items-start sm:items-end gap-2">
                     {getStatusBadge(selectedAgreement.status, selectedAgreement.transactionHash)}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Last updated: {format(new Date(selectedAgreement.updatedAt), 'MMM d, h:mm a')}
+                    </p>
                   </div>
                 </div>
               </div>
-              
-              {selectedAgreement.notes && (
-                <div>
-                  <h3 className="text-sm font-medium">Notes</h3>
-                  <div className="bg-muted p-3 rounded-md mt-1">
-                    <p className="text-sm">{selectedAgreement.notes}</p>
+
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Asset Information Card */}
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-green-800 dark:text-green-200">
+                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      Asset Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 border-b border-green-200/50 dark:border-green-800/50">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Name</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedAgreement.distribution.asset.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-green-200/50 dark:border-green-800/50">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</span>
+                        <Badge variant="outline" className="bg-white/50 dark:bg-gray-800/50">
+                          {selectedAgreement.distribution.asset.type}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Value</span>
+                        <span className="text-lg font-bold text-green-700 dark:text-green-300">
+                          RM {selectedAgreement.distribution.asset.value.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Distribution Information Card */}
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/20 dark:to-violet-950/20">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-purple-800 dark:text-purple-200">
+                      <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      Distribution Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 border-b border-purple-200/50 dark:border-purple-800/50">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</span>
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200">
+                          {selectedAgreement.distribution.type.charAt(0).toUpperCase() + selectedAgreement.distribution.type.slice(1)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-purple-200/50 dark:border-purple-800/50">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white capitalize">
+                          {selectedAgreement.distribution.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      {selectedAgreement.distribution.notes && (
+                        <div className="py-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">Notes</span>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 bg-white/50 dark:bg-gray-800/50 p-3 rounded-md">
+                            {selectedAgreement.distribution.notes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Timeline Section */}
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-orange-800 dark:text-orange-200">
+                    <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    Agreement Timeline
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">Agreement Created</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {format(new Date(selectedAgreement.createdAt), 'EEEE, MMMM d, yyyy')}
+                          </p>
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          {format(new Date(selectedAgreement.createdAt), 'h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {selectedAgreement.signedAt && (
+                      <div className="flex items-start gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          {selectedAgreement.transactionHash && (
+                            <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">Agreement Signed</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {format(new Date(selectedAgreement.signedAt), 'EEEE, MMMM d, yyyy')}
+                            </p>
+                          </div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                            {format(new Date(selectedAgreement.signedAt), 'h:mm a')}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedAgreement.transactionHash && (
+                      <div className="flex items-start gap-4">
+                        <div className="flex flex-col items-center">
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">Blockchain Record</p>
+                            <a
+                              href={`https://sepolia.scrollscan.com/tx/${selectedAgreement.transactionHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                            >
+                              View on Explorer
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          </div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 font-mono">
+                            {selectedAgreement.transactionHash.slice(0, 20)}...
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+
+              {/* Additional Notes Section */}
+              {selectedAgreement.notes && (
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-950/20 dark:to-slate-950/20">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                      <div className="w-8 h-8 bg-gray-100 dark:bg-gray-900/50 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </div>
+                      Additional Notes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-white/70 dark:bg-gray-800/70 p-4 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                        {selectedAgreement.notes}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
               
+              {/* Action Buttons */}
               {selectedAgreement.status === 'pending' && (
-                <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <Button
                     variant="outline"
-                    className="w-full sm:w-auto"
+                    className="flex-1 sm:flex-none sm:w-auto"
                     onClick={() => {
                       setIsInfoDialogOpen(false);
                       setIsRejectDialogOpen(true);
                     }}
                   >
-                    Reject
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Reject Agreement
                   </Button>
                   <Button
-                    className="w-full sm:w-auto"
+                    className="flex-1 sm:flex-none sm:w-auto"
                     onClick={() => {
                       setIsInfoDialogOpen(false);
                       setIsSignDialogOpen(true);
                     }}
                   >
-                    Sign
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Sign Agreement
                   </Button>
                 </div>
               )}
             </div>
           )}
           
-          <AlertDialogFooter>
-            <AlertDialogCancel className="w-full sm:w-auto">Close</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <div className="sticky bottom-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t px-6 py-4">
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setIsInfoDialogOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
