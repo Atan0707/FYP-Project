@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pdf, Document } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { AgreementPDF } from '@/components/AgreementPDF';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 // Define a simpler user type that matches what getCurrentUser returns
@@ -221,24 +221,37 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verify user authentication
+    // Check both user and admin authentication
     const user = await getCurrentUser();
-    if (!user) {
+    const admin = await getCurrentAdmin();
+    
+    if (!user && !admin) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
+    // Create a unified user object for authorization checks
+    const authenticatedUser: ExtendedUser = admin ? {
+      id: admin.id,
+      email: admin.username, // Use username as email for admin
+      role: 'ADMIN'
+    } : {
+      id: user!.id,
+      email: user!.email,
+      role: 'USER'
+    };
+
     const id = (await params).id;
     const format = request.nextUrl.searchParams.get('format');
     
     // If format is JSON, return JSON data instead of PDF
     if (format === 'json') {
-      return await handleJsonRequest(id, user as ExtendedUser);
+      return await handleJsonRequest(id, authenticatedUser);
     }
 
-    const data = await getDistributionData(id, user as ExtendedUser);
+    const data = await getDistributionData(id, authenticatedUser);
     
     if (!data) {
       return NextResponse.json(

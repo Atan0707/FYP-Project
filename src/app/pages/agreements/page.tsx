@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { CheckCircle, Clock, Loader2, XCircle } from 'lucide-react';
@@ -101,24 +100,12 @@ const fetchMyAgreements = async () => {
   return response.json();
 };
 
-const rejectAgreement = async ({ id, notes }: { id: string; notes?: string }) => {
-  const response = await fetch(`/api/agreements/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ notes }),
-  });
-  if (!response.ok) throw new Error('Failed to reject agreement');
-  return response.json();
-};
-
 export default function AgreementsPage() {
   const queryClient = useQueryClient();
   const { addNotification } = useNotifications();
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
-  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
-  const [notes, setNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
@@ -289,33 +276,6 @@ export default function AgreementsPage() {
     },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: rejectAgreement,
-    onSuccess: async () => {
-      // Force refetch both queries to ensure data is up-to-date
-      await Promise.all([
-        refetchPending(),
-        refetchMyAgreements()
-      ]);
-      
-      queryClient.invalidateQueries({ queryKey: ['pendingAgreements'] });
-      queryClient.invalidateQueries({ queryKey: ['myAgreements'] });
-      
-      const message = `Agreement for ${selectedAgreement?.distribution.asset.name} rejected`;
-      toast.success(message);
-      addNotification(message, 'warning');
-      
-      setIsRejectDialogOpen(false);
-      setSelectedAgreement(null);
-      setNotes('');
-    },
-    onError: (error) => {
-      const message = 'Failed to reject agreement: ' + (error as Error).message;
-      toast.error(message);
-      addNotification(message, 'error');
-    },
-  });
-
   const handleSign = () => {
     if (!selectedAgreement) return;
     
@@ -350,14 +310,6 @@ export default function AgreementsPage() {
     generateVerificationMutation.mutate({
       agreementId: selectedAgreement.id,
       signerIC,
-    });
-  };
-
-  const handleReject = () => {
-    if (!selectedAgreement) return;
-    rejectMutation.mutate({
-      id: selectedAgreement.id,
-      notes: notes || undefined,
     });
   };
 
@@ -721,18 +673,7 @@ export default function AgreementsPage() {
                           </div>
                         </div>
                       </CardContent>
-                      <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() => {
-                            setSelectedAgreement(agreement);
-                            setIsRejectDialogOpen(true);
-                          }}
-                        >
-                          Reject
-                        </Button>
+                      <CardFooter className="flex justify-end pt-4">
                         <Button
                           size="sm"
                           className="w-full sm:w-auto"
@@ -1056,61 +997,6 @@ export default function AgreementsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
-      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent className="sm:max-w-md max-w-[95vw]">
-          <DialogHeader>
-            <DialogTitle>Reject Agreement</DialogTitle>
-            <DialogDescription>
-              You are about to reject the agreement for{' '}
-              <span className="font-medium">{selectedAgreement?.distribution.asset.name}</span>.
-              Please provide a reason for rejection.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="reject-notes">Reason for Rejection <span className="text-red-500">*</span></Label>
-              <Textarea
-                id="reject-notes"
-                placeholder="Explain why you are rejecting this agreement"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                required
-              />
-              {notes.length === 0 && (
-                <p className="text-sm text-red-500 mt-1">
-                  A reason is required when rejecting an agreement
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              className="mt-2 sm:mt-0 w-full sm:w-auto"
-              onClick={() => setIsRejectDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              className="w-full sm:w-auto"
-              onClick={handleReject}
-              disabled={rejectMutation.isPending || notes.length === 0}
-            >
-              {rejectMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Rejecting...
-                </>
-              ) : (
-                'Reject Agreement'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Agreement Details Dialog */}
       <Dialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-4xl overflow-y-auto max-h-[90vh] p-0">
@@ -1339,20 +1225,8 @@ export default function AgreementsPage() {
               
               {/* Action Buttons */}
               {selectedAgreement.status === 'pending' && (
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
                   <Button
-                    variant="outline"
-                    className="flex-1 sm:flex-none sm:w-auto"
-                    onClick={() => {
-                      setIsInfoDialogOpen(false);
-                      setIsRejectDialogOpen(true);
-                    }}
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Reject Agreement
-                  </Button>
-                  <Button
-                    className="flex-1 sm:flex-none sm:w-auto"
                     onClick={() => {
                       setIsInfoDialogOpen(false);
                       setIsSignDialogOpen(true);
