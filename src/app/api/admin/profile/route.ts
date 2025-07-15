@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -29,11 +30,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Admin not found' }, { status: 404 });
     }
 
+    // Decrypt username before returning
+    let decryptedUsername = admin.username;
+    try {
+      decryptedUsername = decrypt(admin.username);
+    } catch (error) {
+      console.error('Error decrypting admin username:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
     // Return in consistent format
     return NextResponse.json({ 
       admin: {
         id: admin.id,
-        username: admin.username,
+        username: decryptedUsername,
         createdAt: admin.createdAt,
         updatedAt: admin.updatedAt
       } 

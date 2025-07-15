@@ -3,6 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { getCurrentAdmin } from '@/lib/auth';
+import { encrypt, decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -11,11 +12,8 @@ async function isSuperAdmin() {
   const admin = await getCurrentAdmin();
   if (!admin) return false;
   
-  const adminDetails = await prisma.admin.findUnique({
-    where: { id: admin.id }
-  });
-  
-  return adminDetails?.username === 'admin';
+  // getCurrentAdmin now returns decrypted username, so we can compare directly
+  return admin.username === 'admin';
 }
 
 // Get all admins
@@ -34,7 +32,23 @@ export async function getAdmins() {
       }
     });
     
-    return { admins };
+    // Decrypt usernames before returning
+    const decryptedAdmins = admins.map(admin => {
+      let decryptedUsername = admin.username;
+      try {
+        decryptedUsername = decrypt(admin.username);
+      } catch (error) {
+        console.error('Error decrypting admin username:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+      
+      return {
+        ...admin,
+        username: decryptedUsername
+      };
+    });
+    
+    return { admins: decryptedAdmins };
   } catch (error) {
     console.error('Error fetching admins:', error);
     return { error: 'Failed to fetch admins' };
@@ -55,27 +69,42 @@ export async function createAdmin(formData: FormData) {
   }
   
   try {
-    // Check if username already exists
-    const existingAdmin = await prisma.admin.findUnique({
-      where: { username }
+    // Encrypt the username before checking for duplicates
+    const encryptedUsername = encrypt(username);
+    
+    // Check if username already exists by checking all admins and decrypting
+    const allAdmins = await prisma.admin.findMany({
+      select: {
+        username: true
+      }
     });
     
-    if (existingAdmin) {
+    const usernameExists = allAdmins.some(admin => {
+      try {
+        const decryptedUsername = decrypt(admin.username);
+        return decryptedUsername === username;
+      } catch {
+        // If decryption fails, compare directly (for backward compatibility)
+        return admin.username === username;
+      }
+    });
+    
+    if (usernameExists) {
       return { error: 'Username already exists' };
     }
     
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Create new admin
+    // Create new admin with encrypted username
     const newAdmin = await prisma.admin.create({
       data: {
-        username,
+        username: encryptedUsername,
         password: hashedPassword
       }
     });
     
-    return { success: true, admin: { id: newAdmin.id, username: newAdmin.username } };
+    return { success: true, admin: { id: newAdmin.id, username: username } };
   } catch (error) {
     console.error('Error creating admin:', error);
     return { error: 'Failed to create admin' };
@@ -91,7 +120,6 @@ export async function updateAdmin(formData: FormData) {
   const id = formData.get('id') as string;
   const username = formData.get('username') as string;
   const password = formData.get('password') as string | null;
-//   console.log(id, username, password);
   
   if (!id || !username) {
     return { error: 'Admin ID and username are required' };
@@ -107,11 +135,36 @@ export async function updateAdmin(formData: FormData) {
       return { error: 'Admin not found' };
     }
     
-    // Check if username is taken by another admin
-    if (username !== existingAdmin.username) {
-      const usernameExists = await prisma.admin.findUnique({
-        where: { username }
+    // Decrypt existing username for comparison
+    let existingDecryptedUsername = existingAdmin.username;
+    try {
+      existingDecryptedUsername = decrypt(existingAdmin.username);
+    } catch (error) {
+      console.error('Error decrypting existing admin username:', error);
+    }
+    
+    // Check if username is taken by another admin (only if username is being changed)
+    if (username !== existingDecryptedUsername) {
+      const allAdmins = await prisma.admin.findMany({
+        where: {
+          id: {
+            not: id
+          }
+        },
+        select: {
+          username: true
+        }
       });
+      
+             const usernameExists = allAdmins.some(admin => {
+         try {
+           const decryptedUsername = decrypt(admin.username);
+           return decryptedUsername === username;
+         } catch {
+           // If decryption fails, compare directly (for backward compatibility)
+           return admin.username === username;
+         }
+       });
       
       if (usernameExists) {
         return { error: 'Username already exists' };
@@ -119,11 +172,21 @@ export async function updateAdmin(formData: FormData) {
     }
     
     // Prepare update data
-    const updateData: { username: string; password?: string } = { username };
+    const updateData: { username?: string; password?: string } = {};
+    
+    // Encrypt username if it's being changed
+    if (username !== existingDecryptedUsername) {
+      updateData.username = encrypt(username);
+    }
     
     // If password is provided, hash it
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
+    }
+    
+    // Only update if there's something to update
+    if (Object.keys(updateData).length === 0) {
+      return { success: true, admin: { id, username, updatedAt: existingAdmin.updatedAt } };
     }
     
     // Update admin
@@ -137,7 +200,21 @@ export async function updateAdmin(formData: FormData) {
       }
     });
     
-    return { success: true, admin: updatedAdmin };
+    // Return with decrypted username
+    let decryptedUsername = updatedAdmin.username;
+    try {
+      decryptedUsername = decrypt(updatedAdmin.username);
+    } catch (error) {
+      console.error('Error decrypting updated admin username:', error);
+    }
+    
+    return { 
+      success: true, 
+      admin: {
+        ...updatedAdmin,
+        username: decryptedUsername
+      }
+    };
   } catch (error) {
     console.error('Error updating admin:', error);
     return { error: 'Failed to update admin' };
@@ -166,8 +243,16 @@ export async function deleteAdmin(formData: FormData) {
       return { error: 'Admin not found' };
     }
     
-    // Prevent deleting super   admin account
-    if (existingAdmin.username === 'admin') {
+    // Decrypt username to check if it's the superadmin
+    let decryptedUsername = existingAdmin.username;
+    try {
+      decryptedUsername = decrypt(existingAdmin.username);
+    } catch (error) {
+      console.error('Error decrypting admin username for deletion check:', error);
+    }
+    
+    // Prevent deleting superadmin account
+    if (decryptedUsername === 'admin') {
       return { error: 'Cannot delete superadmin account' };
     }
     
