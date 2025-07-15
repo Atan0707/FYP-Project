@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { LayoutDashboard, Users, 
   // Settings, 
-  LogOut, FileText, Gavel, Shield } from "lucide-react";
+  LogOut, FileText, Gavel, Shield, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { adminLogout } from "../actions";
@@ -102,13 +102,13 @@ export default function AdminLayout({
         ),
       }
     ] : []),
-    // {
-    //   label: "Settings",
-    //   href: "/admin/pages/settings",
-    //   icon: (
-    //     <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-    //   ),
-    // },
+    {
+      label: "Profile",
+      href: "/admin/pages/profile",
+      icon: (
+        <UserCircle className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
     {
       label: "Logout",
       href: "#",
@@ -137,7 +137,7 @@ export default function AdminLayout({
               <SidebarLink
                 link={{
                   label: "Admin",
-                  href: "/admin/profile",
+                  href: "/admin/pages/profile",
                   icon: (
                     <div className="h-7 w-7 rounded-full bg-neutral-800 dark:bg-neutral-200" />
                   ),
