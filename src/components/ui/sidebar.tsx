@@ -31,7 +31,7 @@ interface Links {
   href: string
   icon: React.JSX.Element | React.ReactNode
   onClick?: () => void
-  badge?: number | string // Optional notification badge
+  badge?: number | string | undefined // Optional notification badge - undefined means no badge
 }
 
 interface SidebarContextProps {
@@ -228,7 +228,7 @@ export const SidebarLink = ({
     >
       <div className="relative">
         {link.icon}
-        {link.badge && Number(link.badge) > 0 && (
+        {link.badge !== undefined && link.badge !== null && Number(link.badge) > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center min-w-[16px] text-[10px] font-medium">
             {Number(link.badge) > 99 ? '99+' : link.badge}
           </span>

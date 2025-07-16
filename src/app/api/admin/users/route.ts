@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { decrypt, encrypt } from '@/services/encryption';
+import bcrypt from 'bcryptjs';
 
 // Get all users
 export async function GET() {
@@ -126,16 +127,19 @@ export async function POST(request: Request) {
             { status: 400 }
           );
         }
-             } catch {
-         // Try unencrypted data for backward compatibility
-         if (existingUser.email === email || existingUser.ic === ic) {
-           return NextResponse.json(
-             { error: 'User with this email or IC already exists' },
-             { status: 400 }
-           );
-         }
-       }
+      } catch {
+        // Try unencrypted data for backward compatibility
+        if (existingUser.email === email || existingUser.ic === ic) {
+          return NextResponse.json(
+            { error: 'User with this email or IC already exists' },
+            { status: 400 }
+          );
+        }
+      }
     }
+
+    // Hash the password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Encrypt sensitive data before storing
     const encryptedEmail = encrypt(email);
@@ -147,7 +151,7 @@ export async function POST(request: Request) {
     const newUser = await prisma.user.create({
       data: {
         email: encryptedEmail,
-        password, // In a real app, you should hash this password
+        password: hashedPassword,
         fullName: encryptedFullName,
         ic: encryptedIC,
         phone: encryptedPhone,

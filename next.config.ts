@@ -3,6 +3,7 @@ import TerserPlugin from "terser-webpack-plugin";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  output: 'standalone',
   experimental: {
     turbo: {
     }

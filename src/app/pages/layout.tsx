@@ -164,7 +164,10 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(true);
-  const { data: pendingCount = 0 } = usePendingAgreements();
+  const { data: pendingCount = 0, isLoading, error } = usePendingAgreements();
+
+  // Only show badge if count is actually greater than 0 and not loading
+  const shouldShowBadge = !isLoading && !error && pendingCount > 0;
 
   const links = [
     {
@@ -194,7 +197,7 @@ export default function AdminLayout({
       icon: (
         <FileText className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
-      badge: pendingCount,
+      badge: shouldShowBadge ? pendingCount : undefined,
     },
     {
       label: "Profile",
@@ -311,7 +314,7 @@ export default function AdminLayout({
                     >
                       <div className="relative">
                         {link.icon}
-                        {link.badge && Number(link.badge) > 0 && (
+                        {link.badge !== undefined && link.badge !== null && Number(link.badge) > 0 && (
                           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center min-w-[16px] text-[10px] font-medium">
                             {Number(link.badge) > 99 ? '99+' : link.badge}
                           </span>
