@@ -38,7 +38,8 @@ import {
   Calendar, 
   Download, 
   Filter, 
-  Search 
+  Search,
+  FileText 
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
@@ -83,6 +84,7 @@ interface AssetDistribution {
     type: string;
     value: number;
     userId: string;
+    pdfFile?: string;
   };
   agreements: Agreement[];
 }
@@ -672,6 +674,30 @@ export default function AgreementsPage() {
                             </p>
                           </div>
                         </div>
+                        
+                        {/* Document Links */}
+                        <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
+                          {agreement.distribution.asset.pdfFile && (
+                            <a
+                              href={`/api/download/${encodeURIComponent(agreement.distribution.asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              Asset Document
+                            </a>
+                          )}
+                          <a
+                            href={`/api/agreement-pdf/${agreement.distributionId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            <FileText className="mr-1 h-4 w-4" />
+                            Agreement PDF
+                          </a>
+                        </div>
                       </CardContent>
                       <CardFooter className="flex justify-end pt-4">
                         <Button
@@ -833,6 +859,30 @@ export default function AgreementsPage() {
                               </div>
                             )}
                           </div>
+                        </div>
+                        
+                        {/* Document Links */}
+                        <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
+                          {agreement.distribution.asset.pdfFile && (
+                            <a
+                              href={`/api/download/${encodeURIComponent(agreement.distribution.asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              <Download className="mr-1 h-4 w-4" />
+                              Asset Document
+                            </a>
+                          )}
+                          <a
+                            href={`/api/agreement-pdf/${agreement.distributionId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            <FileText className="mr-1 h-4 w-4" />
+                            Agreement PDF
+                          </a>
                         </div>
                       </CardContent>
                       <CardFooter className="flex justify-end">
@@ -1040,6 +1090,42 @@ export default function AgreementsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Document Links Section */}
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    Documents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-4">
+                    {selectedAgreement.distribution.asset.pdfFile && (
+                      <a
+                        href={`/api/download/${encodeURIComponent(selectedAgreement.distribution.asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 bg-white/70 dark:bg-gray-800/70 rounded-lg border border-blue-200/50 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span className="text-sm font-medium">Asset Document</span>
+                      </a>
+                    )}
+                    <a
+                      href={`/api/agreement-pdf/${selectedAgreement.distributionId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-white/70 dark:bg-gray-800/70 rounded-lg border border-blue-200/50 dark:border-blue-800/50 text-blue-700 dark:text-blue-300 hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm font-medium">Agreement PDF</span>
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Main Content Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
