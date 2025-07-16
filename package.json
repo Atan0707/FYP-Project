@@ -6,6 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "prisma generate && next build",
     "start": "next start",
+    "start:pm2": "pm2 start ecosystem.config.js",
+    "stop:pm2": "pm2 stop fyp-project",
+    "restart:pm2": "pm2 restart fyp-project",
+    "reload:pm2": "pm2 reload fyp-project",
+    "delete:pm2": "pm2 delete fyp-project",
+    "logs:pm2": "pm2 logs fyp-project",
+    "monit:pm2": "pm2 monit",
     "lint": "next lint"
   },
   "prisma": {
