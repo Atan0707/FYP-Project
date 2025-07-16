@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { FaraidInfoDialog } from "@/components/ui/faraid-info-dialog";
+import { AgreementActivitiesTable } from "@/components/ui/agreement-activities-table";
 
 // Dynamically import the FaraidDistribution to avoid SSR issues
 const FaraidDistribution = dynamic(
@@ -1199,6 +1200,11 @@ export default function AssetDetailsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Blockchain Activities Section */}
+        {assetDetails.distribution?.agreement?.id && (
+          <AgreementActivitiesTable agreementId={assetDetails.distribution.agreement.id} />
+        )}
       </div>
 
       <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
