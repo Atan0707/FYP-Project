@@ -30,7 +30,11 @@ export async function GET() {
           include: {
             distribution: {
               include: {
-                asset: true,
+                asset: {
+                  include: {
+                    user: true, // Include asset owner information
+                  },
+                },
               },
             },
             signatures: true,
@@ -76,6 +80,21 @@ export async function GET() {
       // Get decrypted family name
       const decryptedFamilyName = familyNameMap[signature.familyId] || '';
       
+      // Decrypt asset owner information
+      let assetOwner = distribution.asset.user;
+      try {
+        assetOwner = {
+          ...assetOwner,
+          fullName: decrypt(assetOwner.fullName),
+          email: decrypt(assetOwner.email),
+          ic: decrypt(assetOwner.ic),
+          phone: decrypt(assetOwner.phone),
+        };
+      } catch (error) {
+        console.error('Error decrypting asset owner data:', error);
+        // Use original data if decryption fails
+      }
+      
       // Create a formatted agreement with the old structure
       return {
         id: signature.id,
@@ -89,6 +108,10 @@ export async function GET() {
         familyName: decryptedFamilyName, // Add decrypted family name
         distribution: {
           ...distribution,
+          asset: {
+            ...distribution.asset,
+            user: assetOwner, // Include decrypted owner information
+          },
           agreements: agreement.signatures.map((sig) => ({
             id: sig.id,
             familyId: sig.familyId,
