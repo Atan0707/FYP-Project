@@ -747,3 +747,291 @@ Please do not reply to this email.
   }
 }
 
+export async function sendAgreementCreationNotifications(agreementId: string) {
+  try {
+    // Get agreement details with all related data
+    const agreement = await prisma.agreement.findFirst({
+      where: { id: agreementId },
+      include: {
+        distribution: {
+          include: {
+            asset: {
+              include: {
+                user: true, // Asset owner
+              },
+            },
+          },
+        },
+        signatures: {
+          include: {
+            signedBy: true, // Family members who need to sign
+          },
+        },
+      },
+    });
+
+    if (!agreement) {
+      throw new Error('Agreement not found');
+    }
+
+    // Collect all participants who need to sign
+    const participants: AgreementParticipant[] = [];
+    
+    // Add all family members who need to sign with decrypted data
+    agreement.signatures.forEach(signature => {
+      const signedBy = signature.signedBy;
+      const decryptedEmail = decryptUserData(signedBy.email);
+      const decryptedFullName = decryptUserData(signedBy.fullName);
+      
+      // Determine relationship - check if this is the asset owner
+      let relationship = 'Family Member';
+      if (signedBy.id === agreement.distribution.asset.user.id) {
+        relationship = 'Owner';
+      }
+      
+      if (!participants.some(p => p.email === decryptedEmail)) {
+        participants.push({
+          email: decryptedEmail,
+          fullName: decryptedFullName,
+          relationship,
+        });
+      }
+    });
+
+    // Add beneficiaries from distribution if they have contact info
+    if (agreement.distribution.beneficiaries) {
+      const beneficiaries = agreement.distribution.beneficiaries as Beneficiary[];
+      
+      for (const beneficiary of beneficiaries) {
+        if (beneficiary.email && beneficiary.fullName) {
+          const decryptedEmail = decryptUserData(beneficiary.email);
+          const decryptedFullName = decryptUserData(beneficiary.fullName);
+          if (!participants.some(p => p.email === decryptedEmail)) {
+            participants.push({
+              email: decryptedEmail,
+              fullName: decryptedFullName,
+              relationship: 'Beneficiary',
+            });
+          }
+        }
+      }
+    }
+
+    // Prepare email data
+    const emailData = {
+      assetName: agreement.distribution.asset.name,
+      assetType: agreement.distribution.asset.type,
+      distributionType: agreement.distribution.type,
+      ownerName: decryptUserData(agreement.distribution.asset.user.fullName),
+      totalSigners: participants.length,
+      createdAt: agreement.createdAt,
+    };
+
+    // Send initial agreement creation emails to all participants
+    const emailPromises = participants.map(participant => 
+      sendAgreementCreationEmail(participant, emailData)
+    );
+
+    const emailResults = await Promise.allSettled(emailPromises);
+    
+    // Count successful emails
+    const successfulEmails = emailResults.filter(result => result.status === 'fulfilled').length;
+    const failedEmails = emailResults.filter(result => result.status === 'rejected').length;
+
+    return { success: true, emailsSent: successfulEmails, emailsFailed: failedEmails };
+  } catch (error) {
+    console.error('Error sending agreement creation notification emails:', error);
+    throw error;
+  }
+}
+
+async function sendAgreementCreationEmail(
+  participant: AgreementParticipant,
+  emailData: {
+    assetName: string;
+    assetType: string;
+    distributionType: string;
+    ownerName: string;
+    totalSigners: number;
+    createdAt: Date;
+  }
+) {
+  const subject = `New Agreement Ready for Signature: ${emailData.assetName}`;
+  
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #d1ecf1; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h2 style="color: #0c5460; margin: 0 0 10px 0;">📋 New Agreement Requires Your Signature</h2>
+        <p style="color: #0c5460; margin: 0;">A new asset distribution agreement has been created and requires your signature to proceed.</p>
+      </div>
+      
+      <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px;">
+        <h3 style="color: #495057; margin-top: 0;">Hello ${participant.fullName},</h3>
+        
+        <p style="color: #6c757d; margin-bottom: 20px;">
+          An asset distribution agreement for <strong>${emailData.assetName}</strong> has been created by ${emailData.ownerName} and requires your signature as a ${participant.relationship?.toLowerCase() || 'family member'}.
+        </p>
+        
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h4 style="color: #495057; margin: 0 0 15px 0;">📋 Agreement Details</h4>
+          <div style="margin-bottom: 10px;">
+            <strong>Asset:</strong> ${emailData.assetName}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Asset Type:</strong> ${emailData.assetType}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Distribution Type:</strong> ${emailData.distributionType.toUpperCase()}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Created By:</strong> ${emailData.ownerName}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Your Role:</strong> ${participant.relationship}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Total Signers Required:</strong> ${emailData.totalSigners}
+          </div>
+          <div style="color: #6c757d; font-size: 14px;">
+            <strong>Created On:</strong> ${emailData.createdAt.toLocaleString()}
+          </div>
+        </div>
+        
+        <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ Action Required</h4>
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>Your signature is required</strong> for this asset distribution agreement. 
+            Please review the agreement details and provide your digital signature to proceed with the distribution process.
+          </p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.NEXTAUTH_URL}/pages/agreements" 
+             style="display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+            📝 Review & Sign Agreement
+          </a>
+        </div>
+        
+        <div style="background-color: #d4edda; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
+          <h4 style="color: #155724; margin: 0 0 10px 0;">📚 What You Need to Know</h4>
+          <ul style="color: #155724; margin: 0; padding-left: 20px; font-size: 14px;">
+            <li>This agreement outlines how the asset will be distributed</li>
+            <li>All required signers must approve before final completion</li>
+            <li>Your signature will be recorded on the blockchain for security</li>
+            <li>You can review all details before signing</li>
+          </ul>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <h4 style="color: #495057; margin-bottom: 10px;">🕒 Next Steps</h4>
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px;">
+            <ol style="color: #6c757d; margin: 0; padding-left: 20px; font-size: 14px;">
+              <li>Click the "Review & Sign Agreement" button above</li>
+              <li>Log in to your account if prompted</li>
+              <li>Review the agreement details carefully</li>
+              <li>Provide your digital signature when ready</li>
+              <li>You'll receive updates as other family members sign</li>
+            </ol>
+          </div>
+        </div>
+        
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #17a2b8;">
+          <h4 style="color: #495057; margin: 0 0 10px 0;">💡 Questions?</h4>
+          <p style="color: #6c757d; margin: 0; font-size: 14px;">
+            If you have any questions about this agreement or the signing process, please contact the agreement creator 
+            or reach out to our support team for assistance.
+          </p>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <h4 style="color: #495057; margin-bottom: 10px;">🔒 Security & Privacy</h4>
+          <p style="color: #6c757d; margin-bottom: 10px;">
+            Your signature will be securely recorded on the blockchain, ensuring the agreement's authenticity and immutability.
+          </p>
+          <p style="color: #6c757d; margin: 0;">
+            All personal information is encrypted and protected according to our privacy policy.
+          </p>
+        </div>
+      </div>
+      
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+        <p style="color: #6c757d; font-size: 14px; margin: 0;">
+          This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+        </p>
+        <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+          Please do not reply to this email.
+        </p>
+      </div>
+    </div>
+  `;
+
+  const textContent = `
+New Agreement Ready for Signature: ${emailData.assetName}
+
+Hello ${participant.fullName},
+
+An asset distribution agreement for ${emailData.assetName} has been created by ${emailData.ownerName} and requires your signature as a ${participant.relationship?.toLowerCase() || 'family member'}.
+
+Agreement Details:
+- Asset: ${emailData.assetName}
+- Asset Type: ${emailData.assetType}
+- Distribution Type: ${emailData.distributionType.toUpperCase()}
+- Created By: ${emailData.ownerName}
+- Your Role: ${participant.relationship}
+- Total Signers Required: ${emailData.totalSigners}
+- Created On: ${emailData.createdAt.toLocaleString()}
+
+⚠️ Action Required:
+Your signature is required for this asset distribution agreement. Please review the agreement details and provide your digital signature to proceed with the distribution process.
+
+Review & Sign Agreement: ${process.env.NEXTAUTH_URL}/pages/agreements
+
+What You Need to Know:
+- This agreement outlines how the asset will be distributed
+- All required signers must approve before final completion
+- Your signature will be recorded on the blockchain for security
+- You can review all details before signing
+
+Next Steps:
+1. Click the "Review & Sign Agreement" link above
+2. Log in to your account if prompted
+3. Review the agreement details carefully
+4. Provide your digital signature when ready
+5. You'll receive updates as other family members sign
+
+Questions?
+If you have any questions about this agreement or the signing process, please contact the agreement creator or reach out to our support team for assistance.
+
+Security & Privacy:
+Your signature will be securely recorded on the blockchain, ensuring the agreement's authenticity and immutability.
+All personal information is encrypted and protected according to our privacy policy.
+
+This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+Please do not reply to this email.
+  `;
+
+  try {
+    const response = await fetch(process.env.NEXTAUTH_URL + '/api/send-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: participant.email,
+        subject,
+        text: textContent,
+        html: htmlContent,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to send email to ${participant.email}`);
+    }
+
+    console.log(`Agreement creation notification email sent successfully to ${participant.email}`);
+  } catch (error) {
+    console.error(`Error sending agreement creation notification email to ${participant.email}:`, error);
+    throw error;
+  }
+}
+

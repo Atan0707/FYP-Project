@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { sendAgreementCreationNotifications } from '@/services/agreementEmailService';
 
 // GET all asset distributions for the current user
 export async function GET() {
@@ -165,6 +166,17 @@ export async function POST(request: Request) {
 
       return distribution;
     });
+
+    // Send notification emails to all signers after successful agreement creation
+    if (result.agreement) {
+      try {
+        await sendAgreementCreationNotifications(result.agreement.id);
+        console.log('Agreement creation notifications sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send agreement creation notifications:', emailError);
+        // Don't fail the entire request if email fails
+      }
+    }
 
     return NextResponse.json(result);
   } catch (error) {
