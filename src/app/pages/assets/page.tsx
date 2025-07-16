@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, Pencil, Trash2, FileText, Upload, Download } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, FileText, Upload, Download, Users } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -851,119 +851,170 @@ export default function AssetsPage() {
         </div>
 
         {/* Family Assets Section */}
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Family Assets</h2>
+        <div className="border rounded-lg">
+          <div className="p-4 border-b">
+            <div className="flex items-center gap-2 mb-2">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-xl font-semibold">Family Assets</h2>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              View assets from all registered family members
+            </p>
+          </div>
+          
           {isFamilyAssetsLoading ? (
-            <div className="flex justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             </div>
           ) : familyAssetsError ? (
-            <div className="text-center py-10 text-red-500">
+            <div className="text-center py-8 text-red-500">
               Error loading family assets: {(familyAssetsError as Error).message}
             </div>
           ) : familyAssets.length === 0 ? (
-            <div className="text-center py-10 text-muted-foreground border rounded-lg">
+            <div className="text-center py-8 text-muted-foreground">
               No family members with assets found. Family members need to be registered users and have assets for them to appear here.
             </div>
           ) : (
-            <Accordion type="single" collapsible className="w-full">
-              {familyAssets.map((familyAssetGroup: FamilyAsset) => (
-                <AccordionItem 
-                  key={familyAssetGroup.familyMember.id} 
-                  value={familyAssetGroup.familyMember.id}
-                >
-                  <AccordionTrigger className="hover:bg-accent hover:text-accent-foreground px-4 rounded-md">
-                    <div className="flex flex-wrap items-center gap-y-2">
-                      <span className="font-medium mr-2">{familyAssetGroup.familyMember.fullName}</span>
-                      <Badge variant="outline" className="capitalize">
-                        {familyAssetGroup.familyMember.relationship}
-                      </Badge>
-                      <Badge variant="secondary" className="ml-2">
-                        {familyAssetGroup.assets.length} assets
-                      </Badge>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="border rounded-lg mt-2 overflow-x-auto">
-                      <div className="min-w-full">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[120px]">Name</TableHead>
-                              <TableHead className="hidden md:table-cell">Type</TableHead>
-                              <TableHead className="hidden md:table-cell">Value (RM)</TableHead>
-                              <TableHead className="hidden md:table-cell">Description</TableHead>
-                              <TableHead className="hidden md:table-cell">Document</TableHead>
-                              <TableHead className="hidden md:table-cell">Added On</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {familyAssetGroup.assets.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
-                                  No assets found for this family member.
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              familyAssetGroup.assets.map((asset) => (
-                                <TableRow key={asset.id}>
-                                  <TableCell className="font-medium">
-                                    <a 
-                                      href={`/pages/assets/${asset.id}`}
-                                      className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                                    >
-                                      {asset.name}
-                                    </a>
-                                    <div className="md:hidden text-xs text-muted-foreground mt-1">
-                                      {asset.type} • RM{asset.value.toFixed(2)}
-                                      <br />
-                                      {format(new Date(asset.createdAt || ''), 'dd/MM/yy')}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="hidden md:table-cell">{asset.type}</TableCell>
-                                  <TableCell className="hidden md:table-cell">{asset.value.toFixed(2)}</TableCell>
-                                  <TableCell className="hidden md:table-cell">{asset.description}</TableCell>
-                                  <TableCell className="hidden md:table-cell">
-                                    {asset.pdfFile ? (
-                                      <a
-                                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center text-blue-600 hover:text-blue-800"
-                                      >
-                                        <Download className="mr-1 h-4 w-4" />
-                                        <span className="hidden sm:inline">View PDF</span>
-                                      </a>
-                                    ) : (
-                                      <span className="text-gray-400">No document</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="hidden md:table-cell">
-                                    {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
-                                  </TableCell>
-                                  <TableCell className="md:hidden">
-                                    {asset.pdfFile && (
-                                      <a
-                                        href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center text-blue-600 hover:text-blue-800"
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </a>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            <div className="p-4 space-y-4">
+              {/* Compact Summary Row */}
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <div className="text-lg font-semibold">{familyAssets.length}</div>
+                  <div className="text-xs text-muted-foreground">Members</div>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <div className="text-lg font-semibold">
+                    {familyAssets.reduce((total: number, family: FamilyAsset) => total + family.assets.length, 0)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Assets</div>
+                </div>
+                                 <div className="bg-muted/50 rounded-lg p-3">
+                   <div className="text-lg font-semibold">
+                     RM {familyAssets.reduce((total: number, family: FamilyAsset) => 
+                       total + family.assets.reduce((assetTotal: number, asset: Asset & { user: { fullName: string }, createdAt: string }) => assetTotal + asset.value, 0), 0
+                     ).toLocaleString()}
+                   </div>
+                   <div className="text-xs text-muted-foreground">Total Value</div>
+                 </div>
+              </div>
+
+                             {/* Detailed Family Assets */}
+               <Accordion type="single" collapsible className="w-full space-y-2">
+                 {familyAssets.map((familyAssetGroup: FamilyAsset) => (
+                   <AccordionItem 
+                     key={familyAssetGroup.familyMember.id} 
+                     value={familyAssetGroup.familyMember.id}
+                     className="border rounded-lg overflow-hidden bg-white"
+                   >
+                     <AccordionTrigger className="hover:bg-muted/50 px-4 py-3 border-none">
+                       <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
+                         <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                             <span className="text-sm font-medium text-primary">
+                               {familyAssetGroup.familyMember.fullName.charAt(0).toUpperCase()}
+                             </span>
+                           </div>
+                           <div className="text-left">
+                             <div className="font-medium">
+                               {familyAssetGroup.familyMember.fullName}
+                             </div>
+                             <div className="text-sm text-muted-foreground">
+                               {familyAssetGroup.familyMember.relationship}
+                             </div>
+                           </div>
+                         </div>
+                         <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                           <Badge variant="secondary">
+                             {familyAssetGroup.assets.length} assets
+                           </Badge>
+                           <Badge variant="outline">
+                             RM {familyAssetGroup.assets.reduce((total, asset) => total + asset.value, 0).toLocaleString()}
+                           </Badge>
+                         </div>
+                       </div>
+                     </AccordionTrigger>
+                     <AccordionContent className="px-4 pb-4">
+                       <div className="border rounded-lg mt-2 overflow-x-auto">
+                         <div className="min-w-full">
+                           <Table>
+                             <TableHeader>
+                               <TableRow>
+                                 <TableHead className="w-[120px]">Name</TableHead>
+                                 <TableHead className="hidden md:table-cell">Type</TableHead>
+                                 <TableHead className="hidden md:table-cell">Value (RM)</TableHead>
+                                 <TableHead className="hidden md:table-cell">Description</TableHead>
+                                 <TableHead className="hidden md:table-cell">Document</TableHead>
+                                 <TableHead className="hidden md:table-cell">Added On</TableHead>
+                               </TableRow>
+                             </TableHeader>
+                             <TableBody>
+                               {familyAssetGroup.assets.length === 0 ? (
+                                 <TableRow>
+                                   <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                                     No assets found for this family member.
+                                   </TableCell>
+                                 </TableRow>
+                               ) : (
+                                 familyAssetGroup.assets.map((asset) => (
+                                   <TableRow key={asset.id}>
+                                     <TableCell className="font-medium">
+                                       <a 
+                                         href={`/pages/assets/${asset.id}`}
+                                         className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                       >
+                                         {asset.name}
+                                       </a>
+                                       <div className="md:hidden text-xs text-muted-foreground mt-1">
+                                         {asset.type} • RM{asset.value.toFixed(2)}
+                                         <br />
+                                         {format(new Date(asset.createdAt || ''), 'dd/MM/yy')}
+                                       </div>
+                                     </TableCell>
+                                     <TableCell className="hidden md:table-cell">{asset.type}</TableCell>
+                                     <TableCell className="hidden md:table-cell">{asset.value.toFixed(2)}</TableCell>
+                                     <TableCell className="hidden md:table-cell">{asset.description}</TableCell>
+                                     <TableCell className="hidden md:table-cell">
+                                       {asset.pdfFile ? (
+                                         <a
+                                           href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           className="flex items-center text-blue-600 hover:text-blue-800"
+                                         >
+                                           <Download className="mr-1 h-4 w-4" />
+                                           <span className="hidden sm:inline">View PDF</span>
+                                         </a>
+                                       ) : (
+                                         <span className="text-gray-400">No document</span>
+                                       )}
+                                     </TableCell>
+                                     <TableCell className="hidden md:table-cell">
+                                       {format(new Date(asset.createdAt || ''), 'dd/MM/yyyy')}
+                                     </TableCell>
+                                     <TableCell className="md:hidden">
+                                       {asset.pdfFile && (
+                                         <a
+                                           href={`/api/download/${encodeURIComponent(asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           className="flex items-center text-blue-600 hover:text-blue-800"
+                                         >
+                                           <Download className="h-4 w-4" />
+                                         </a>
+                                       )}
+                                     </TableCell>
+                                   </TableRow>
+                                 ))
+                               )}
+                             </TableBody>
+                           </Table>
+                         </div>
+                       </div>
+                     </AccordionContent>
+                   </AccordionItem>
+                 ))}
+               </Accordion>
+            </div>
           )}
         </div>
       </div>

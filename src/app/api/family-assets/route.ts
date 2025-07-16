@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 export async function GET() {
   try {
@@ -56,13 +57,41 @@ export async function GET() {
           },
         });
 
+        // Decrypt family member name
+        let decryptedFamilyMemberName = member.fullName;
+        try {
+          decryptedFamilyMemberName = decrypt(member.fullName);
+        } catch (error) {
+          console.error('Error decrypting family member fullName:', error);
+          // Use as-is if decryption fails (for backward compatibility)
+        }
+
+        // Decrypt user fullNames in assets
+        const decryptedAssets = assets.map(asset => {
+          let decryptedUserFullName = asset.user.fullName;
+          try {
+            decryptedUserFullName = decrypt(asset.user.fullName);
+          } catch (error) {
+            console.error('Error decrypting asset user fullName:', error);
+            // Use as-is if decryption fails (for backward compatibility)
+          }
+
+          return {
+            ...asset,
+            user: {
+              ...asset.user,
+              fullName: decryptedUserFullName,
+            },
+          };
+        });
+
         return {
           familyMember: {
             id: member.id,
-            fullName: member.fullName,
+            fullName: decryptedFamilyMemberName,
             relationship: member.relationship,
           },
-          assets,
+          assets: decryptedAssets,
         };
       })
     );

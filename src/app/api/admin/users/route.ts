@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt, encrypt } from '@/services/encryption';
+import bcrypt from 'bcryptjs';
 
 // Get all users
 export async function GET() {
@@ -29,7 +31,51 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(users);
+    // Decrypt user data before returning to admin
+    const decryptedUsers = users.map(user => {
+      let decryptedEmail = user.email;
+      let decryptedFullName = user.fullName;
+      let decryptedIC = user.ic;
+      let decryptedPhone = user.phone;
+
+      try {
+        decryptedEmail = decrypt(user.email);
+      } catch (error) {
+        console.error('Error decrypting user email:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedFullName = decrypt(user.fullName);
+      } catch (error) {
+        console.error('Error decrypting user fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedIC = decrypt(user.ic);
+      } catch (error) {
+        console.error('Error decrypting user IC:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      try {
+        decryptedPhone = decrypt(user.phone);
+      } catch (error) {
+        console.error('Error decrypting user phone:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+      }
+
+      return {
+        ...user,
+        email: decryptedEmail,
+        fullName: decryptedFullName,
+        ic: decryptedIC,
+        phone: decryptedPhone,
+      };
+    });
+
+    return NextResponse.json(decryptedUsers);
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(
@@ -60,31 +106,55 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user with email or IC already exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { ic },
-        ],
+    // Check if user with email or IC already exists (need to decrypt stored data)
+    const existingUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        ic: true,
       },
     });
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'User with this email or IC already exists' },
-        { status: 400 }
-      );
+    // Check for duplicates by decrypting stored data
+    for (const existingUser of existingUsers) {
+      try {
+        const decryptedEmail = decrypt(existingUser.email);
+        const decryptedIC = decrypt(existingUser.ic);
+        
+        if (decryptedEmail === email || decryptedIC === ic) {
+          return NextResponse.json(
+            { error: 'User with this email or IC already exists' },
+            { status: 400 }
+          );
+        }
+      } catch {
+        // Try unencrypted data for backward compatibility
+        if (existingUser.email === email || existingUser.ic === ic) {
+          return NextResponse.json(
+            { error: 'User with this email or IC already exists' },
+            { status: 400 }
+          );
+        }
+      }
     }
+
+    // Hash the password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Encrypt sensitive data before storing
+    const encryptedEmail = encrypt(email);
+    const encryptedFullName = encrypt(fullName);
+    const encryptedIC = encrypt(ic);
+    const encryptedPhone = encrypt(phone);
 
     // Create new user
     const newUser = await prisma.user.create({
       data: {
-        email,
-        password, // In a real app, you should hash this password
-        fullName,
-        ic,
-        phone,
+        email: encryptedEmail,
+        password: hashedPassword,
+        fullName: encryptedFullName,
+        ic: encryptedIC,
+        phone: encryptedPhone,
         address,
       },
       select: {
@@ -100,7 +170,14 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json(newUser, { status: 201 });
+    // Return decrypted data to admin
+    return NextResponse.json({
+      ...newUser,
+      email: email,
+      fullName: fullName,
+      ic: ic,
+      phone: phone,
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating user:', error);
     return NextResponse.json(
@@ -142,14 +219,20 @@ export async function PUT(request: Request) {
       );
     }
 
+    // Encrypt sensitive data before storing
+    const encryptedEmail = encrypt(email);
+    const encryptedFullName = encrypt(fullName);
+    const encryptedIC = encrypt(ic);
+    const encryptedPhone = encrypt(phone);
+
     // Update user
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        email,
-        fullName,
-        ic,
-        phone,
+        email: encryptedEmail,
+        fullName: encryptedFullName,
+        ic: encryptedIC,
+        phone: encryptedPhone,
         address,
         photo,
         updatedAt: new Date(),
@@ -167,7 +250,14 @@ export async function PUT(request: Request) {
       },
     });
 
-    return NextResponse.json(updatedUser);
+    // Return decrypted data to admin
+    return NextResponse.json({
+      ...updatedUser,
+      email: email,
+      fullName: fullName,
+      ic: ic,
+      phone: phone,
+    });
   } catch (error) {
     console.error('Error updating user:', error);
     return NextResponse.json(

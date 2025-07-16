@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pdf, Document } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { AgreementPDF } from '@/components/AgreementPDF';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser, getCurrentAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { decrypt } from '@/services/encryption';
 
 // Define a simpler user type that matches what getCurrentUser returns
 interface ExtendedUser {
@@ -169,20 +170,38 @@ async function getDistributionData(id: string, user: ExtendedUser): Promise<Dist
       familyMemberFound: !!familyMember
     });
     
+    let decryptedFamilyMember = undefined;
+    if (familyMember) {
+      try {
+        decryptedFamilyMember = {
+          id: familyMember.id,
+          fullName: decrypt(familyMember.fullName),
+          relationship: familyMember.relationship,
+          ic: decrypt(familyMember.ic),
+          email: familyMember.user?.email ? decrypt(familyMember.user.email) : undefined,
+          phone: familyMember.phone ? decrypt(familyMember.phone) : undefined,
+        };
+      } catch (error) {
+        console.error('Error decrypting family member data:', error);
+        // Fallback to original data if decryption fails
+        decryptedFamilyMember = {
+          id: familyMember.id,
+          fullName: familyMember.fullName,
+          relationship: familyMember.relationship,
+          ic: familyMember.ic,
+          email: familyMember.user?.email,
+          phone: familyMember.phone || undefined,
+        };
+      }
+    }
+    
     return {
       id: signature.id,
       status: signature.status,
       signedAt: signature.signedAt?.toISOString(),
       notes: signature.notes || undefined,
       transactionHash: signature.transactionHash || undefined,
-      familyMember: familyMember ? {
-        id: familyMember.id,
-        fullName: familyMember.fullName,
-        relationship: familyMember.relationship,
-        ic: familyMember.ic,
-        email: familyMember.user?.email,
-        phone: familyMember.phone || undefined,
-      } : undefined
+      familyMember: decryptedFamilyMember
     };
   }) || [];
 
@@ -221,24 +240,37 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Verify user authentication
+    // Check both user and admin authentication
     const user = await getCurrentUser();
-    if (!user) {
+    const admin = await getCurrentAdmin();
+    
+    if (!user && !admin) {
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       );
     }
 
+    // Create a unified user object for authorization checks
+    const authenticatedUser: ExtendedUser = admin ? {
+      id: admin.id,
+      email: admin.username, // Use username as email for admin
+      role: 'ADMIN'
+    } : {
+      id: user!.id,
+      email: user!.email,
+      role: 'USER'
+    };
+
     const id = (await params).id;
     const format = request.nextUrl.searchParams.get('format');
     
     // If format is JSON, return JSON data instead of PDF
     if (format === 'json') {
-      return await handleJsonRequest(id, user as ExtendedUser);
+      return await handleJsonRequest(id, authenticatedUser);
     }
 
-    const data = await getDistributionData(id, user as ExtendedUser);
+    const data = await getDistributionData(id, authenticatedUser);
     
     if (!data) {
       return NextResponse.json(
@@ -265,6 +297,17 @@ export async function GET(
 
     console.log('Creating PDF document...');
     try {
+      // Decrypt benefactor data for PDF generation
+      let decryptedBenefactorName = distribution.asset.user.fullName;
+      let decryptedBenefactorIC = distribution.asset.user.ic;
+      try {
+        decryptedBenefactorName = decrypt(distribution.asset.user.fullName);
+        decryptedBenefactorIC = decrypt(distribution.asset.user.ic);
+      } catch (error) {
+        console.error('Error decrypting benefactor data for PDF:', error);
+        // Use original data if decryption fails
+      }
+
       // Create the PDF document with proper Document wrapper
       const pdfInstance = pdf(
         createElement(Document, {},
@@ -273,8 +316,8 @@ export async function GET(
             distributionType: distribution.type,
             agreements: agreementsWithDetails,
             createdAt: distribution.createdAt.toISOString(),
-            benefactorName: distribution.asset.user.fullName,
-            benefactorIC: distribution.asset.user.ic,
+            benefactorName: decryptedBenefactorName,
+            benefactorIC: decryptedBenefactorIC,
             assetValue: distribution.asset.value,
             assetDescription: distribution.asset.description,
             agreementId: distribution.agreement?.id,
@@ -354,6 +397,17 @@ async function handleJsonRequest(id: string, user: ExtendedUser) {
       );
     }
 
+    // Also decrypt benefactor data
+    let decryptedBenefactorName = distribution.asset.user.fullName;
+    let decryptedBenefactorIC = distribution.asset.user.ic;
+    try {
+      decryptedBenefactorName = decrypt(distribution.asset.user.fullName);
+      decryptedBenefactorIC = decrypt(distribution.asset.user.ic);
+    } catch (error) {
+      console.error('Error decrypting benefactor data:', error);
+      // Use original data if decryption fails
+    }
+
     // Return JSON data
     return NextResponse.json({
       id: distribution.agreement?.id,
@@ -365,8 +419,8 @@ async function handleJsonRequest(id: string, user: ExtendedUser) {
       distributionId: distribution.id,
       createdAt: distribution.createdAt.toISOString(),
       updatedAt: distribution.updatedAt.toISOString(),
-      benefactorName: distribution.asset.user.fullName,
-      benefactorIC: distribution.asset.user.ic,
+      benefactorName: decryptedBenefactorName,
+      benefactorIC: decryptedBenefactorIC,
       agreements: agreementsWithDetails,
       adminSignedAt: distribution.agreement?.adminSignedAt ? distribution.agreement.adminSignedAt.toISOString() : undefined,
       adminNotes: adminNotes,

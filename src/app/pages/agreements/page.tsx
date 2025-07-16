@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { CheckCircle, Clock, Loader2, XCircle } from 'lucide-react';
@@ -39,7 +38,8 @@ import {
   Calendar, 
   Download, 
   Filter, 
-  Search 
+  Search,
+  FileText 
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
@@ -50,15 +50,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { 
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { contractService } from '@/services/contractService';
 
@@ -93,6 +84,14 @@ interface AssetDistribution {
     type: string;
     value: number;
     userId: string;
+    pdfFile?: string;
+    user?: {
+      id: string;
+      fullName: string;
+      email: string;
+      ic: string;
+      phone: string;
+    };
   };
   agreements: Agreement[];
 }
@@ -110,24 +109,12 @@ const fetchMyAgreements = async () => {
   return response.json();
 };
 
-const rejectAgreement = async ({ id, notes }: { id: string; notes?: string }) => {
-  const response = await fetch(`/api/agreements/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ notes }),
-  });
-  if (!response.ok) throw new Error('Failed to reject agreement');
-  return response.json();
-};
-
 export default function AgreementsPage() {
   const queryClient = useQueryClient();
   const { addNotification } = useNotifications();
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false);
-  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isInfoDialogOpen, setIsInfoDialogOpen] = useState(false);
-  const [notes, setNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
@@ -298,33 +285,6 @@ export default function AgreementsPage() {
     },
   });
 
-  const rejectMutation = useMutation({
-    mutationFn: rejectAgreement,
-    onSuccess: async () => {
-      // Force refetch both queries to ensure data is up-to-date
-      await Promise.all([
-        refetchPending(),
-        refetchMyAgreements()
-      ]);
-      
-      queryClient.invalidateQueries({ queryKey: ['pendingAgreements'] });
-      queryClient.invalidateQueries({ queryKey: ['myAgreements'] });
-      
-      const message = `Agreement for ${selectedAgreement?.distribution.asset.name} rejected`;
-      toast.success(message);
-      addNotification(message, 'warning');
-      
-      setIsRejectDialogOpen(false);
-      setSelectedAgreement(null);
-      setNotes('');
-    },
-    onError: (error) => {
-      const message = 'Failed to reject agreement: ' + (error as Error).message;
-      toast.error(message);
-      addNotification(message, 'error');
-    },
-  });
-
   const handleSign = () => {
     if (!selectedAgreement) return;
     
@@ -359,14 +319,6 @@ export default function AgreementsPage() {
     generateVerificationMutation.mutate({
       agreementId: selectedAgreement.id,
       signerIC,
-    });
-  };
-
-  const handleReject = () => {
-    if (!selectedAgreement) return;
-    rejectMutation.mutate({
-      id: selectedAgreement.id,
-      notes: notes || undefined,
     });
   };
 
@@ -632,7 +584,6 @@ export default function AgreementsPage() {
 
   const pendingCount = pendingAgreements.length;
   const signedCount = myAgreements.filter((agreement: Agreement) => agreement.status === 'signed').length;
-  const rejectedCount = myAgreements.filter((agreement: Agreement) => agreement.status === 'rejected').length;
 
   return (
     <div className="container mx-auto py-6 px-4 sm:py-10 sm:px-6">
@@ -651,7 +602,7 @@ export default function AgreementsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-secondary/50 p-4 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer">
               <div className="text-sm font-medium text-muted-foreground mb-1 flex items-center">
                 <Clock className="mr-2 h-4 w-4" />
@@ -665,13 +616,6 @@ export default function AgreementsPage() {
                 Signed Agreements
               </div>
               <div className="text-2xl font-bold text-green-800">{signedCount}</div>
-            </div>
-            <div className="bg-red-50 p-4 rounded-lg hover:bg-red-100 transition-colors cursor-pointer">
-              <div className="text-sm font-medium text-red-700 mb-1 flex items-center">
-                <XCircle className="mr-2 h-4 w-4" />
-                Rejected Agreements
-              </div>
-              <div className="text-2xl font-bold text-red-800">{rejectedCount}</div>
             </div>
           </div>
         </CardContent>
@@ -695,63 +639,91 @@ export default function AgreementsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {pendingAgreements.map((agreement: Agreement) => (
-                    <Card key={agreement.id}>
-                      <CardHeader className="pb-4">
-                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2">
-                          <div>
-                            <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                    <Card key={agreement.id} className="overflow-hidden">
+                      <CardHeader className="pb-3">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg flex flex-wrap items-center gap-2 mb-2">
                               {agreement.distribution.asset.name}
                               {getAgreementRole(agreement)}
                             </CardTitle>
-                            <CardDescription>
+                            <CardDescription className="mb-3">
                               {agreement.distribution.asset.type} • RM{' '}
                               {agreement.distribution.asset.value.toFixed(2)}
                             </CardDescription>
+                            {/* Asset Owner Information */}
+                            {agreement.distribution.asset.user && (
+                              <div className="mt-3">
+                                <p className="text-sm font-medium text-gray-700">Owner</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {agreement.distribution.asset.user.fullName}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                          <div className="self-start sm:self-auto">
+                          <div className="flex-shrink-0">
                             {getStatusBadge(agreement.status, agreement.transactionHash)}
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="pb-2">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <CardContent className="pb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                           <div>
-                            <p className="text-sm font-medium">Distribution Type</p>
+                            <p className="text-sm font-medium text-gray-700">Distribution Type</p>
                             <p className="text-sm text-muted-foreground">
                               {agreement.distribution.type.charAt(0).toUpperCase() + agreement.distribution.type.slice(1)}{' '}
                               {getDistributionDetails(agreement.distribution) && `(${getDistributionDetails(agreement.distribution)})`}
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm font-medium">Created</p>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm font-medium text-gray-700">Created</p>
+                            <p className="text-sm text-muted-foreground flex items-center">
+                              <Calendar className="mr-1 h-3 w-3" />
                               {format(new Date(agreement.createdAt), 'MMM d, yyyy')}
                             </p>
                           </div>
                         </div>
+                        
+                        {/* Document Links */}
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+                          {agreement.distribution.asset.pdfFile && (
+                            <a
+                              href={`/api/download/${encodeURIComponent(agreement.distribution.asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-md transition-colors"
+                            >
+                              <Download className="h-3 w-3" />
+                              Asset Document
+                            </a>
+                          )}
+                          <a
+                            href={`/api/agreement-pdf/${agreement.distributionId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-md transition-colors"
+                          >
+                            <FileText className="h-3 w-3" />
+                            Agreement PDF
+                          </a>
+                        </div>
                       </CardContent>
-                      <CardFooter className="flex flex-col sm:flex-row sm:justify-end gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() => {
-                            setSelectedAgreement(agreement);
-                            setIsRejectDialogOpen(true);
-                          }}
-                        >
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() => {
-                            setSelectedAgreement(agreement);
-                            setIsSignDialogOpen(true);
-                          }}
-                        >
-                          Sign
-                        </Button>
+                      <CardFooter className="bg-gray-50 border-t py-3">
+                        <div className="flex justify-between items-center w-full">
+                          <p className="text-xs text-gray-500">
+                            Waiting for your signature
+                          </p>
+                          <Button
+                            size="sm"
+                            className="ml-4"
+                            onClick={() => {
+                              setSelectedAgreement(agreement);
+                              setIsSignDialogOpen(true);
+                            }}
+                          >
+                            Sign Agreement
+                          </Button>
+                        </div>
                       </CardFooter>
                     </Card>
                   ))}
@@ -856,61 +828,112 @@ export default function AgreementsPage() {
               {filteredMyAgreements.length > 0 ? (
                 <div className="space-y-4">
                   {filteredMyAgreements.map((agreement: Agreement) => (
-                    <Card key={agreement.id} className="hover:bg-muted/50 transition-colors">
-                      <CardHeader className="pb-2">
-                        <div className="flex flex-col sm:flex-row justify-between items-start gap-2">
-                          <div>
-                            <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                    <Card key={agreement.id} className="hover:bg-muted/50 transition-colors overflow-hidden">
+                      <CardHeader className="pb-3">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg flex flex-wrap items-center gap-2 mb-2">
                               {agreement.distribution.asset.name}
                               {getAgreementRole(agreement)}
                             </CardTitle>
-                            <CardDescription>
+                            <CardDescription className="mb-3">
                               {agreement.distribution.asset.type} • RM{' '}
                               {agreement.distribution.asset.value.toFixed(2)}
                             </CardDescription>
+                            {/* Asset Owner Information */}
+                            {agreement.distribution.asset.user && (
+                              <div className="mt-3">
+                                <p className="text-sm font-medium text-gray-700">Owner</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {agreement.distribution.asset.user.fullName}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                          <div className="self-start sm:self-auto">
+                          <div className="flex-shrink-0">
                             {getStatusBadge(agreement.status, agreement.transactionHash)}
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="pb-2">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <CardContent className="pb-3">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
                           <div>
-                            <p className="text-sm font-medium">Distribution Type</p>
+                            <p className="text-sm font-medium text-gray-700">Distribution Type</p>
                             <p className="text-sm text-muted-foreground">
                               {agreement.distribution.type.charAt(0).toUpperCase() + agreement.distribution.type.slice(1)}{' '}
                               {getDistributionDetails(agreement.distribution) && `(${getDistributionDetails(agreement.distribution)})`}
                             </p>
                           </div>
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-2 sm:mt-0">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Created</p>
+                            <p className="text-sm text-muted-foreground flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {format(new Date(agreement.createdAt), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                          {agreement.signedAt && (
                             <div>
-                              <p className="text-sm font-medium">Created</p>
+                              <p className="text-sm font-medium text-gray-700">Signed</p>
                               <p className="text-sm text-muted-foreground flex items-center">
                                 <Calendar className="h-3 w-3 mr-1" />
-                                {format(new Date(agreement.createdAt), 'MMM d, yyyy')}
+                                {format(new Date(agreement.signedAt), 'MMM d, yyyy')}
                               </p>
                             </div>
-                            {agreement.signedAt && (
-                              <div className="mt-2 sm:mt-0">
-                                <p className="text-sm font-medium">Signed</p>
-                                <p className="text-sm text-muted-foreground flex items-center">
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  {format(new Date(agreement.signedAt), 'MMM d, yyyy')}
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                          )}
+                        </div>
+                        
+                        {/* Document Links */}
+                        <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+                          {agreement.distribution.asset.pdfFile && (
+                            <a
+                              href={`/api/download/${encodeURIComponent(agreement.distribution.asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-md transition-colors"
+                            >
+                              <Download className="h-3 w-3" />
+                              Asset Document
+                            </a>
+                          )}
+                          <a
+                            href={`/api/agreement-pdf/${agreement.distributionId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-md transition-colors"
+                          >
+                            <FileText className="h-3 w-3" />
+                            Agreement PDF
+                          </a>
                         </div>
                       </CardContent>
-                      <CardFooter className="flex justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetails(agreement)}
-                        >
-                          View Details
-                        </Button>
+                      <CardFooter className="bg-gray-50 border-t py-3">
+                        <div className="flex justify-between items-center w-full">
+                          <p className="text-xs text-gray-500">
+                            {agreement.status === 'pending' ? 'Awaiting signature' : 
+                             agreement.status === 'signed' ? 'Agreement completed' : 
+                             `Status: ${agreement.status}`}
+                          </p>
+                          <div className="flex gap-2">
+                            {agreement.status === 'pending' && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedAgreement(agreement);
+                                  setIsSignDialogOpen(true);
+                                }}
+                              >
+                                Sign Agreement
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewDetails(agreement)}
+                            >
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
                       </CardFooter>
                     </Card>
                   ))}
@@ -963,6 +986,18 @@ export default function AgreementsPage() {
               )}
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Asset Owner Information */}
+          {selectedAgreement?.distribution.asset.user && (
+            <div className="mb-4">
+              <div className="text-sm">
+                <span className="font-medium text-gray-700">Owner: </span>
+                <span className="text-muted-foreground">
+                  {selectedAgreement.distribution.asset.user.fullName}
+                </span>
+              </div>
+            </div>
+          )}
           <div className="space-y-4">
             {!isVerificationStep ? (
               <>
@@ -1065,151 +1100,282 @@ export default function AgreementsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
-      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent className="sm:max-w-md max-w-[95vw]">
+      {/* Agreement Details Dialog */}
+      <Dialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl overflow-y-auto max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Reject Agreement</DialogTitle>
+            <DialogTitle>Agreement Details</DialogTitle>
             <DialogDescription>
-              You are about to reject the agreement for{' '}
-              <span className="font-medium">{selectedAgreement?.distribution.asset.name}</span>.
-              Please provide a reason for rejection.
+              Detailed information about this agreement
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="reject-notes">Reason for Rejection <span className="text-red-500">*</span></Label>
-              <Textarea
-                id="reject-notes"
-                placeholder="Explain why you are rejecting this agreement"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                required
-              />
-              {notes.length === 0 && (
-                <p className="text-sm text-red-500 mt-1">
-                  A reason is required when rejecting an agreement
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-0">
-            <Button 
-              variant="outline" 
-              className="mt-2 sm:mt-0 w-full sm:w-auto"
-              onClick={() => setIsRejectDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              className="w-full sm:w-auto"
-              onClick={handleReject}
-              disabled={rejectMutation.isPending || notes.length === 0}
-            >
-              {rejectMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Rejecting...
-                </>
-              ) : (
-                'Reject Agreement'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Agreement Details Dialog */}
-      <AlertDialog open={isInfoDialogOpen} onOpenChange={setIsInfoDialogOpen}>
-        <AlertDialogContent className="max-w-[95vw] sm:max-w-2xl overflow-y-auto max-h-[90vh]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Agreement Details</AlertDialogTitle>
-            <AlertDialogDescription>
-              Detailed information about this agreement
-            </AlertDialogDescription>
-          </AlertDialogHeader>
           
           {selectedAgreement && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium">Asset Information</h3>
-                  <div className="bg-muted p-3 rounded-md mt-1">
-                    <p className="text-sm"><span className="font-medium">Name:</span> {selectedAgreement.distribution.asset.name}</p>
-                    <p className="text-sm"><span className="font-medium">Type:</span> {selectedAgreement.distribution.asset.type}</p>
-                    <p className="text-sm"><span className="font-medium">Value:</span> RM {selectedAgreement.distribution.asset.value.toFixed(2)}</p>
+            <div className="space-y-6">
+              {/* Header Section with Asset Name and Status */}
+              <div className="bg-muted/50 rounded-lg p-4 border">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">
+                          {selectedAgreement.distribution.asset.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Agreement ID: {selectedAgreement.id.slice(0, 8)}...
+                        </p>
+                      </div>
+                    </div>
+                    {getAgreementRole(selectedAgreement)}
                   </div>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium">Distribution Information</h3>
-                  <div className="bg-muted p-3 rounded-md mt-1">
-                    <p className="text-sm"><span className="font-medium">Type:</span> {selectedAgreement.distribution.type.charAt(0).toUpperCase() + selectedAgreement.distribution.type.slice(1)}</p>
-                    <p className="text-sm"><span className="font-medium">Status:</span> {selectedAgreement.distribution.status}</p>
-                    {selectedAgreement.distribution.notes && (
-                      <p className="text-sm"><span className="font-medium">Notes:</span> {selectedAgreement.distribution.notes}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <h3 className="text-sm font-medium">Agreement Status</h3>
-                <div className="bg-muted p-3 rounded-md mt-1 flex flex-col sm:flex-row justify-between gap-2">
-                  <div>
-                    <p className="text-sm"><span className="font-medium">Current Status:</span> {selectedAgreement.status}</p>
-                    <p className="text-sm"><span className="font-medium">Created:</span> {format(new Date(selectedAgreement.createdAt), 'MMM d, yyyy h:mm a')}</p>
-                    {selectedAgreement.signedAt && (
-                      <p className="text-sm"><span className="font-medium">Signed:</span> {format(new Date(selectedAgreement.signedAt), 'MMM d, yyyy h:mm a')}</p>
-                    )}
-                  </div>
-                  <div className="self-start">
+                  <div className="flex flex-col items-start sm:items-end gap-2">
                     {getStatusBadge(selectedAgreement.status, selectedAgreement.transactionHash)}
+                    <p className="text-xs text-muted-foreground">
+                      Last updated: {format(new Date(selectedAgreement.updatedAt), 'MMM d, h:mm a')}
+                    </p>
                   </div>
                 </div>
               </div>
-              
-              {selectedAgreement.notes && (
-                <div>
-                  <h3 className="text-sm font-medium">Notes</h3>
-                  <div className="bg-muted p-3 rounded-md mt-1">
-                    <p className="text-sm">{selectedAgreement.notes}</p>
+
+              {/* Document Links Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Documents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-3">
+                    {selectedAgreement.distribution.asset.pdfFile && (
+                      <a
+                        href={`/api/download/${encodeURIComponent(selectedAgreement.distribution.asset.pdfFile.replace('https://storage.googleapis.com/', ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-md text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
+                      >
+                        <Download className="h-4 w-4" />
+                        Asset Document
+                      </a>
+                    )}
+                    <a
+                      href={`/api/agreement-pdf/${selectedAgreement.distributionId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-md text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Agreement PDF
+                    </a>
                   </div>
-                </div>
+                </CardContent>
+              </Card>
+
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Asset Information Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      Asset Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Name</span>
+                      <span className="text-sm font-semibold">
+                        {selectedAgreement.distribution.asset.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Type</span>
+                      <Badge variant="outline">
+                        {selectedAgreement.distribution.asset.type}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Value</span>
+                      <span className="font-semibold">
+                        RM {selectedAgreement.distribution.asset.value.toLocaleString('en-MY', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    {selectedAgreement.distribution.asset.user && (
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-sm font-medium">Owner</span>
+                        <span className="text-sm font-semibold">
+                          {selectedAgreement.distribution.asset.user.fullName}
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Distribution Information Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Distribution Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Type</span>
+                      <Badge variant="secondary">
+                        {selectedAgreement.distribution.type.charAt(0).toUpperCase() + selectedAgreement.distribution.type.slice(1)}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Status</span>
+                      <span className="text-sm font-semibold capitalize">
+                        {selectedAgreement.distribution.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    {selectedAgreement.distribution.notes && (
+                      <div className="py-2">
+                        <span className="text-sm font-medium block mb-2">Notes</span>
+                        <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                          {selectedAgreement.distribution.notes}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Timeline Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Agreement Timeline
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="w-2 h-2 bg-primary rounded-full mt-2"></div>
+                        <div className="w-px h-6 bg-border"></div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                          <p className="text-sm font-medium">Agreement Created</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(selectedAgreement.createdAt), 'EEEE, MMMM d, yyyy')}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(selectedAgreement.createdAt), 'h:mm a')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {selectedAgreement.signedAt && (
+                      <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                          {selectedAgreement.transactionHash && (
+                            <div className="w-px h-6 bg-border"></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                            <p className="text-sm font-medium">Agreement Signed</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(selectedAgreement.signedAt), 'EEEE, MMMM d, yyyy')}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(new Date(selectedAgreement.signedAt), 'h:mm a')}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedAgreement.transactionHash && (
+                      <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full mt-2"></div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <p className="text-sm font-medium">Blockchain Record</p>
+                            <a
+                              href={`https://sepolia.scrollscan.com/tx/${selectedAgreement.transactionHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              View on Explorer
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 font-mono">
+                            {selectedAgreement.transactionHash.slice(0, 20)}...
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Additional Notes Section */}
+              {selectedAgreement.notes && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Additional Notes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-muted p-3 rounded-md">
+                      <p className="text-sm leading-relaxed">
+                        {selectedAgreement.notes}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
               
+              {/* Action Buttons */}
               {selectedAgreement.status === 'pending' && (
-                <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+                <div className="flex justify-end pt-4 border-t">
                   <Button
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={() => {
-                      setIsInfoDialogOpen(false);
-                      setIsRejectDialogOpen(true);
-                    }}
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    className="w-full sm:w-auto"
                     onClick={() => {
                       setIsInfoDialogOpen(false);
                       setIsSignDialogOpen(true);
                     }}
                   >
-                    Sign
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Sign Agreement
                   </Button>
                 </div>
               )}
             </div>
           )}
           
-          <AlertDialogFooter>
-            <AlertDialogCancel className="w-full sm:w-auto">Close</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={() => setIsInfoDialogOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

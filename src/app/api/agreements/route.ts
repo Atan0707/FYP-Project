@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 // GET all agreements for the current user
 export async function GET() {
@@ -29,7 +30,11 @@ export async function GET() {
           include: {
             distribution: {
               include: {
-                asset: true,
+                asset: {
+                  include: {
+                    user: true, // Include asset owner information
+                  },
+                },
               },
             },
             signatures: true,
@@ -41,11 +46,54 @@ export async function GET() {
       },
     });
 
+    // Get family data separately to decrypt names
+    const familyData = await prisma.family.findMany({
+      where: {
+        id: {
+          in: familyIds,
+        },
+      },
+      select: {
+        id: true,
+        fullName: true,
+      },
+    });
+
+    // Create a map of family ID to decrypted name
+    const familyNameMap: Record<string, string> = {};
+    familyData.forEach(family => {
+      try {
+        familyNameMap[family.id] = decrypt(family.fullName);
+      } catch (error) {
+        console.error('Error decrypting family fullName:', error);
+        // Use as-is if decryption fails (for backward compatibility)
+        familyNameMap[family.id] = family.fullName;
+      }
+    });
+
     // Format response to match old structure for backward compatibility
     const formattedAgreements = signatures.map(signature => {
       // Get the agreement and distribution from the signature
       const { agreement } = signature;
       const { distribution } = agreement;
+      
+      // Get decrypted family name
+      const decryptedFamilyName = familyNameMap[signature.familyId] || '';
+      
+      // Decrypt asset owner information
+      let assetOwner = distribution.asset.user;
+      try {
+        assetOwner = {
+          ...assetOwner,
+          fullName: decrypt(assetOwner.fullName),
+          email: decrypt(assetOwner.email),
+          ic: decrypt(assetOwner.ic),
+          phone: decrypt(assetOwner.phone),
+        };
+      } catch (error) {
+        console.error('Error decrypting asset owner data:', error);
+        // Use original data if decryption fails
+      }
       
       // Create a formatted agreement with the old structure
       return {
@@ -57,9 +105,14 @@ export async function GET() {
         distributionId: distribution.id,
         createdAt: signature.createdAt,
         updatedAt: signature.updatedAt,
+        familyName: decryptedFamilyName, // Add decrypted family name
         distribution: {
           ...distribution,
-          agreements: agreement.signatures.map(sig => ({
+          asset: {
+            ...distribution.asset,
+            user: assetOwner, // Include decrypted owner information
+          },
+          agreements: agreement.signatures.map((sig) => ({
             id: sig.id,
             familyId: sig.familyId,
             status: sig.status,

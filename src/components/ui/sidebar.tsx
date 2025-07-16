@@ -31,6 +31,7 @@ interface Links {
   href: string
   icon: React.JSX.Element | React.ReactNode
   onClick?: () => void
+  badge?: number | string | undefined // Optional notification badge - undefined means no badge
 }
 
 interface SidebarContextProps {
@@ -214,7 +215,7 @@ export const SidebarLink = ({
     <Link
       href={link.href}
       className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2",
+        "flex items-center justify-start gap-2 group/sidebar py-2 relative",
         className
       )}
       onClick={(e) => {
@@ -225,7 +226,14 @@ export const SidebarLink = ({
       }}
       {...props}
     >
-      {link.icon}
+      <div className="relative">
+        {link.icon}
+        {link.badge !== undefined && link.badge !== null && Number(link.badge) > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center min-w-[16px] text-[10px] font-medium">
+            {Number(link.badge) > 99 ? '99+' : link.badge}
+          </span>
+        )}
+      </div>
       <motion.span
         animate={{
           display: animate ? (open ? "inline-block" : "none") : "inline-block",

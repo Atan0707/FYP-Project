@@ -1,7 +1,7 @@
 import { AssetActionProps } from './types';
 
 /**
- * Fetches all pending assets from the API
+ * Fetches all assets from the API (pending, approved, rejected)
  */
 export const fetchPendingAssets = async () => {
   const response = await fetch('/api/admin/pending-assets');

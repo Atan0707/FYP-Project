@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 // GET pending agreements for the current user
 export async function GET() {
@@ -30,7 +31,11 @@ export async function GET() {
           include: {
             distribution: {
               include: {
-                asset: true,
+                asset: {
+                  include: {
+                    user: true, // Include asset owner information
+                  },
+                },
               },
             },
             signatures: true,
@@ -48,6 +53,21 @@ export async function GET() {
       const { agreement } = signature;
       const { distribution } = agreement;
       
+      // Decrypt asset owner information
+      let assetOwner = distribution.asset.user;
+      try {
+        assetOwner = {
+          ...assetOwner,
+          fullName: decrypt(assetOwner.fullName),
+          email: decrypt(assetOwner.email),
+          ic: decrypt(assetOwner.ic),
+          phone: decrypt(assetOwner.phone),
+        };
+      } catch (error) {
+        console.error('Error decrypting asset owner data:', error);
+        // Use original data if decryption fails
+      }
+      
       // Create a formatted agreement with the old structure
       return {
         id: agreement.id,
@@ -60,6 +80,10 @@ export async function GET() {
         updatedAt: signature.updatedAt,
         distribution: {
           ...distribution,
+          asset: {
+            ...distribution.asset,
+            user: assetOwner, // Include decrypted owner information
+          },
           agreements: agreement.signatures.map(sig => ({
             id: agreement.id,
             familyId: sig.familyId,

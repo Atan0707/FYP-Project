@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { FamilySignature } from '@prisma/client';
+import { decrypt } from '@/services/encryption';
 
 // GET all agreements for admin
 export async function GET(request: Request) {
@@ -71,11 +72,20 @@ export async function GET(request: Request) {
           }
         });
         
-        // Create a map for easy lookup and transform fullName to name for UI consistency
+        // Create a map for easy lookup and decrypt fullName
         familyInfo = families.reduce((acc: Record<string, { id: string; name: string }>, family) => {
+          let decryptedName = family.fullName;
+          try {
+            decryptedName = decrypt(family.fullName);
+          } catch (error) {
+            console.error('Error decrypting family fullName:', error);
+            // Use as-is if decryption fails (for backward compatibility)
+            decryptedName = family.fullName;
+          }
+          
           acc[family.id] = {
             id: family.id,
-            name: family.fullName // Map fullName to name for UI consistency
+            name: decryptedName // Use decrypted name
           };
           return acc;
         }, {});

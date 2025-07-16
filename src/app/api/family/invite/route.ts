@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { cookies } from 'next/headers';
 import { getInverseRelationship } from '@/lib/relationships';
+import { encrypt, decrypt } from '@/services/encryption';
 import crypto from 'crypto';
 
 const prisma = new PrismaClient();
@@ -205,7 +206,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Required fields are missing' }, { status: 400 });
     }
 
-    // Get the current user's details
+    // Get the current user's details and decrypt them
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { fullName: true, ic: true, phone: true }
@@ -215,16 +216,58 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if the invited user is already registered
-    const invitedUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: email && !email.includes('@placeholder.com') ? email : undefined },
-          { ic }
-        ]
-      },
-      select: { id: true, fullName: true, email: true }
+    // Decrypt current user's data
+    let currentUserFullName = currentUser.fullName;
+
+    try {
+      currentUserFullName = decrypt(currentUser.fullName);
+    } catch (error) {
+      console.error('Error decrypting current user fullName:', error);
+    }
+
+    // Check if the invited user is already registered by decrypting stored data
+    const users = await prisma.user.findMany({
+      select: { id: true, fullName: true, email: true, ic: true }
     });
+
+    let invitedUser = null;
+    for (const user of users) {
+      try {
+        const decryptedEmail = decrypt(user.email);
+        const decryptedIC = decrypt(user.ic);
+        
+        // Check if email matches (if provided and not placeholder)
+        if (email && !email.includes('@placeholder.com') && decryptedEmail === email) {
+          invitedUser = {
+            id: user.id,
+            fullName: decrypt(user.fullName),
+            email: decryptedEmail
+          };
+          break;
+        }
+        
+        // Check if IC matches
+        if (decryptedIC === ic) {
+          invitedUser = {
+            id: user.id,
+            fullName: decrypt(user.fullName),
+            email: decryptedEmail
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting user data during search:', error);
+        // Try direct comparison for backward compatibility
+        if ((email && !email.includes('@placeholder.com') && user.email === email) || user.ic === ic) {
+          invitedUser = {
+            id: user.id,
+            fullName: user.fullName,
+            email: user.email
+          };
+          break;
+        }
+      }
+    }
 
     // Generate invitation token
     const invitationToken = generateInvitationToken();
@@ -233,7 +276,7 @@ export async function POST(request: Request) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Create the invitation
+    // Create the invitation with encrypted data
     const invitation = await prisma.familyInvitation.create({
       data: {
         relationship,
@@ -241,9 +284,9 @@ export async function POST(request: Request) {
         inviterId: userId,
         inviteeId: invitedUser?.id || null,
         inviteeEmail: invitedUser?.email || email || `${ic}@placeholder.com`,
-        inviteeIC: ic,
-        inviteeFullName: fullName,
-        inviteePhone: phone,
+        inviteeIC: encrypt(ic),
+        inviteeFullName: encrypt(fullName),
+        inviteePhone: encrypt(phone),
         expiresAt,
       }
     });
@@ -256,7 +299,7 @@ export async function POST(request: Request) {
       const emailSent = await sendInvitationEmail(
         emailToUse,
         invitedUser?.fullName || fullName,
-        currentUser.fullName,
+        currentUserFullName,
         relationship,
         invitationToken
       );
@@ -347,13 +390,79 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
-      // Create relationship from inviter to invitee
+      // Decrypt current user data
+      let currentUserFullName = currentUser.fullName;
+      let currentUserIC = currentUser.ic;
+      let currentUserPhone = currentUser.phone;
+
+      try {
+        currentUserFullName = decrypt(currentUser.fullName);
+      } catch (error) {
+        console.error('Error decrypting current user fullName:', error);
+      }
+
+      try {
+        currentUserIC = decrypt(currentUser.ic);
+      } catch (error) {
+        console.error('Error decrypting current user IC:', error);
+      }
+
+      try {
+        currentUserPhone = decrypt(currentUser.phone);
+      } catch (error) {
+        console.error('Error decrypting current user phone:', error);
+      }
+
+      // Decrypt inviter data
+      let inviterFullName = invitation.inviter.fullName;
+      let inviterIC = invitation.inviter.ic || "";
+      let inviterPhone = invitation.inviter.phone || "";
+
+      try {
+        inviterFullName = decrypt(invitation.inviter.fullName);
+      } catch (error) {
+        console.error('Error decrypting inviter fullName:', error);
+      }
+
+      try {
+        if (invitation.inviter.ic) {
+          inviterIC = decrypt(invitation.inviter.ic);
+        }
+      } catch (error) {
+        console.error('Error decrypting inviter IC:', error);
+      }
+
+      try {
+        if (invitation.inviter.phone) {
+          inviterPhone = decrypt(invitation.inviter.phone);
+        }
+      } catch (error) {
+        console.error('Error decrypting inviter phone:', error);
+      }
+
+      // Decrypt invitation data
+      let inviteeIC = invitation.inviteeIC;
+      let inviteePhone = invitation.inviteePhone;
+
+      try {
+        inviteeIC = decrypt(invitation.inviteeIC);
+      } catch (error) {
+        console.error('Error decrypting invitee IC:', error);
+      }
+
+      try {
+        inviteePhone = decrypt(invitation.inviteePhone);
+      } catch (error) {
+        console.error('Error decrypting invitee phone:', error);
+      }
+
+      // Create relationship from inviter to invitee with encrypted data
       await prisma.family.create({
         data: {
-          fullName: currentUser.fullName,
-          ic: currentUser.ic || invitation.inviteeIC,
+          fullName: encrypt(currentUserFullName),
+          ic: encrypt(currentUserIC || inviteeIC),
           relationship: invitation.relationship,
-          phone: currentUser.phone || invitation.inviteePhone,
+          phone: encrypt(currentUserPhone || inviteePhone),
           isRegistered: true,
           userId: invitation.inviterId,
           relatedUserId: userId,
@@ -361,13 +470,13 @@ export async function PUT(request: Request) {
         }
       });
 
-      // Create inverse relationship from invitee to inviter
+      // Create inverse relationship from invitee to inviter with encrypted data
       await prisma.family.create({
         data: {
-          fullName: invitation.inviter.fullName,
-          ic: invitation.inviter.ic || "",
+          fullName: encrypt(inviterFullName),
+          ic: encrypt(inviterIC),
           relationship: getInverseRelationship(invitation.relationship),
-          phone: invitation.inviter.phone || "",
+          phone: encrypt(inviterPhone),
           isRegistered: true,
           userId: userId,
           relatedUserId: invitation.inviterId,

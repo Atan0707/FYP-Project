@@ -29,15 +29,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { FaraidInfoDialog } from "@/components/ui/faraid-info-dialog";
+import { AgreementActivitiesTable } from "@/components/ui/agreement-activities-table";
 
 // Dynamically import the FaraidDistribution to avoid SSR issues
 const FaraidDistribution = dynamic(
   () => import('../distribution/FaraidDistribution'),
-  { ssr: false }
-);
-
-const FaraidExplanation = dynamic(
-  () => import('../distribution/FaraidExplanation'),
   { ssr: false }
 );
 
@@ -191,7 +188,7 @@ const getStatusBadge = (status: string, transactionHash?: string) => {
   if (transactionHash && (status === 'signed' || status === 'completed' || status === 'pending_admin')) {
     return (
       <a
-        href={`https://sepolia.scrollscan.com/tx/${transactionHash}`}
+        href={`https://sepolia.basescan.org/tx/${transactionHash}`}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-block transition-opacity hover:opacity-80"
@@ -255,9 +252,10 @@ export default function AssetDetailsPage() {
     queryKey: ['asset', params.id],
     queryFn: async () => {
       const response = await fetch(`/api/asset/${params.id}`);
+      // console.log('Asset details response:', response);
       if (!response.ok) throw new Error('Failed to fetch asset');
       const data = await response.json();
-      
+      console.log('Asset details data:', data);
       // If we have a distribution with an agreement, fetch the agreement details
       if (data.distribution?.id) {
         try {
@@ -396,12 +394,10 @@ export default function AssetDetailsPage() {
   const handleFaraidCalculated = (results: FaraidResult[]) => {
     setFaraidResults(results);
     // Add a note about the Faraid calculation
-    setNotes(`Faraid distribution calculated according to Islamic inheritance law. ${results.length} beneficiaries identified.`);
+    setNotes(`Faraid distribution calculated according to Islamic inheritance law. ${results.length} beneficiaries identified with shares: ${results.map(r => `${r.fullName} (${r.percentage}%)`).join(', ')}.`);
   };
 
-  const handleNotesChange = (newNotes: string) => {
-    setNotes(newNotes);
-  };
+
 
   const updateProgressStep = (stepIndex: number, status: 'pending' | 'completed' | 'error') => {
     setProgressSteps(steps => 
@@ -509,20 +505,46 @@ export default function AssetDetailsPage() {
       }
 
       console.log('Agreement created successfully with token ID:', tokenId);
+      console.log('Agreement created successfully with transaction hash:', createResult.transactionHash);
 
       // Update the agreement with the transaction hash if it was returned from the database
+      console.log('Updating agreement with ID:', agreementId);
+      console.log('Updating with transaction hash:', createResult.transactionHash);
+      console.log('Token ID (for blockchain operations only):', tokenId);
+      
+      const updatePayload = { 
+        transactionHash: createResult.transactionHash
+        // Note: tokenId is not stored in database, only used for blockchain operations
+      };
+      
+      console.log('Update payload:', updatePayload);
+      
       const updateResponse = await fetch(`/api/agreements/${agreementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          // Use the transaction hash from the createResult if available
-          transactionHash: createResult.transactionHash,
-          tokenId 
-        }),
+        body: JSON.stringify(updatePayload),
       });
       
+      console.log('Update response status:', updateResponse.status);
+      
       if (!updateResponse.ok) {
-        console.warn('Failed to update agreement with transaction hash and token ID');
+        const errorText = await updateResponse.text();
+        console.error('Failed to update agreement with transaction hash and token ID');
+        console.error('Error response:', errorText);
+        console.error('Response status:', updateResponse.status);
+        
+        // Try to parse the error if it's JSON
+        try {
+          const errorData = JSON.parse(errorText);
+          console.error('Parsed error data:', errorData);
+        } catch {
+          console.error('Could not parse error response as JSON');
+        }
+        
+        toast.warning('Agreement created successfully but failed to save blockchain transaction details');
+      } else {
+        const updateData = await updateResponse.json();
+        console.log('Successfully updated agreement with transaction details:', updateData);
       }
 
       // Wait a bit for the blockchain to process the transaction
@@ -1010,18 +1032,32 @@ export default function AssetDetailsPage() {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="flex-grow">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-lg font-medium">Choose Distribution Method</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Select how you want to distribute this asset among your family members
+                      </p>
+                    </div>
                     <Select
                       value={selectedType}
                       onValueChange={handleDistributionSelect}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-12">
                         <SelectValue placeholder="Select distribution type" />
                       </SelectTrigger>
                       <SelectContent>
                         {distributionTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
+                          <SelectItem key={type.value} value={type.value} className="py-3">
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">{type.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {type.value === 'faraid' && 'Islamic inheritance law'}
+                                {type.value === 'hibah' && 'Gift to one beneficiary'}
+                                {type.value === 'will' && 'Custom distribution plan'}
+                                {type.value === 'waqf' && 'Charitable donation'}
+                              </span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1031,21 +1067,28 @@ export default function AssetDetailsPage() {
                   {selectedType === 'waqf' && (
                     <div className="space-y-4">
                       <div>
+                        <h3 className="text-lg font-medium mb-2">Waqf Distribution</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Waqf is a religious donation where property is dedicated for charitable purposes. All family members will be involved in the agreement process.
+                        </p>
+                      </div>
+                      <div>
                         <label className="text-sm font-medium">Organization (Optional)</label>
                         <Input
                           value={organization}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrganization(e.target.value)}
-                          placeholder="Enter organization name"
+                          placeholder="Enter the name of the charitable organization or mosque"
                           className="mt-1"
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Additional Notes (Optional)</label>
+                        <label className="text-sm font-medium">Purpose and Notes (Optional)</label>
                         <Textarea
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Add any additional notes about the waqf"
+                          placeholder="Describe the charitable purpose and any specific conditions for this waqf"
                           className="mt-1"
+                          rows={3}
                         />
                       </div>
                     </div>
@@ -1053,14 +1096,20 @@ export default function AssetDetailsPage() {
 
                   {selectedType === 'faraid' && (
                     <div className="space-y-4">
-                      <FaraidExplanation />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-medium">Faraid Distribution Calculator</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Calculate inheritance shares according to Islamic law
+                          </p>
+                        </div>
+                        <FaraidInfoDialog />
+                      </div>
                       <FaraidDistribution 
                         assetValue={assetDetails.value}
                         familyMembers={familyMembers}
                         userGender={userGender}
                         onDistributionCalculated={handleFaraidCalculated}
-                        onNotesChange={handleNotesChange}
-                        notes={notes}
                       />
                     </div>
                   )}
@@ -1068,12 +1117,18 @@ export default function AssetDetailsPage() {
                   {selectedType === 'hibah' && (
                     <div className="space-y-4">
                       <div>
+                        <h3 className="text-lg font-medium mb-2">Hibah Distribution</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Hibah is a voluntary gift given during the lifetime of the giver. Select one beneficiary to receive the entire asset.
+                        </p>
+                      </div>
+                      <div>
                         <label className="text-sm font-medium">Select Beneficiary</label>
                         <Select
                           value={selectedBeneficiaryId}
                           onValueChange={setSelectedBeneficiaryId}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Select a family member" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1100,15 +1155,24 @@ export default function AssetDetailsPage() {
                   )}
 
                   {selectedType === 'will' && (
-                    <div>
-                      <label className="text-sm font-medium">Will Description (Required)</label>
-                      <Textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Describe the details of your will"
-                        className="mt-1"
-                        required
-                      />
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-medium mb-2">Will Distribution</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          A will allows you to specify how you want your assets distributed. All family members will be involved in the agreement process.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Will Description (Required)</label>
+                        <Textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Describe in detail how you want this asset to be distributed among your family members"
+                          className="mt-1"
+                          rows={4}
+                          required
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -1136,6 +1200,11 @@ export default function AssetDetailsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Blockchain Activities Section */}
+        {assetDetails.distribution?.agreement?.id && (
+          <AgreementActivitiesTable agreementId={assetDetails.distribution.agreement.id} />
+        )}
       </div>
 
       <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>

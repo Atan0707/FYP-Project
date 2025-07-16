@@ -96,7 +96,7 @@ interface User {
   fullName: string;
   ic: string;
   phone: string;
-  email?: string;
+  email: string;
 }
 
 // API functions
@@ -480,17 +480,12 @@ function FamilyPageContent() {
       return;
     }
 
-    // If user doesn't have email and non-registered features are disabled
-    if (!foundUser.email && !nonRegisteredFeatures) {
-      toast.error('This feature is disabled. Only users with email addresses can be added as family members.');
-      return;
-    }
-
-    // Always send an invitation for registered users
+    // For registered users, always allow them to be added (they have accounts in the system)
+    // The nonRegisteredFeatures flag only applies to unregistered users
     const invitationData = {
       fullName: foundUser.fullName,
       ic: foundUser.ic,
-      email: foundUser.email || `${foundUser.ic}@placeholder.com`, // Use placeholder if no email
+      email: foundUser.email || `${foundUser.ic}@placeholder.com`, // Use placeholder if no email for some reason
       phone: foundUser.phone,
       relationship: selectedRelationship,
     };
@@ -684,21 +679,14 @@ function FamilyPageContent() {
                         </div>
                       </div>
                       
-                      {foundUser.email && (
-                        <Alert className="bg-blue-50 border-blue-200">
-                          <AlertDescription>
-                            This user has an email address. An invitation will be sent to them to accept or reject the family connection.
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                      
-                      {!foundUser.email && !nonRegisteredFeatures && (
-                        <Alert className="bg-red-50 border-red-200">
-                          <AlertDescription>
-                            This feature is disabled. Only users with email addresses can be added as family members.
-                          </AlertDescription>
-                        </Alert>
-                      )}
+                      <Alert className="bg-blue-50 border-blue-200">
+                        <AlertDescription>
+                          {foundUser.email 
+                            ? "This user has an email address. An invitation will be sent to them to accept or reject the family connection."
+                            : "This registered user will receive an invitation to accept or reject the family connection."
+                          }
+                        </AlertDescription>
+                      </Alert>
                       
                       <div className="grid gap-2">
                         <Label htmlFor="relationship">Relationship</Label>
@@ -729,9 +717,9 @@ function FamilyPageContent() {
                         </Button>
                         <Button 
                           onClick={handleConfirmRegistered}
-                          disabled={!selectedRelationship || (!foundUser.email && !nonRegisteredFeatures)}
+                          disabled={!selectedRelationship}
                         >
-                          {foundUser.email ? 'Send Invitation' : 'Add as Family Member'}
+                          Send Invitation
                         </Button>
                       </div>
                     </div>

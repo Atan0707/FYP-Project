@@ -436,7 +436,14 @@ export function AgreementPDF({
   adminName
 }: AgreementPDFProps) {
   const agreementNumber = agreementId?.slice(-8).toUpperCase() || 'WEMSP' + new Date().getFullYear();
-  const beneficiaries = agreements.filter(a => a.familyMember);
+  // Beneficiaries are family members who will receive the asset (excludes the asset owner)
+  const beneficiaries = agreements.filter(a => 
+    a.familyMember && 
+    a.familyMember.fullName !== benefactorName &&
+    a.familyMember.ic !== benefactorIC
+  );
+  // All signers include everyone who signed (including the asset owner if they signed)
+  const allSigners = agreements.filter(a => a.familyMember);
   const isCompleted = agreements.some(a => a.status === 'completed');
   
   // Extract admin name from notes if not provided directly
@@ -518,7 +525,7 @@ export function AgreementPDF({
         {/* DAN Section */}
         <Text style={styles.dan}>DAN</Text>
         
-        {/* Third Party - Beneficiary */}
+        {/* Third Party - First Beneficiary */}
         {beneficiaries.length > 0 && (
           <View style={styles.partyBox}>
             <View style={styles.partyContent}>
@@ -606,19 +613,23 @@ export function AgreementPDF({
           </View>
 
           {/* Government */}
-          <View style={styles.partyInfo}>
+          {/* <View style={styles.partyInfo}>
             <Text style={styles.partyName}>JABATAN HARTA PUSAKA MALAYSIA</Text>
             <Text style={styles.partyDetail}>Department of Estate Management Malaysia</Text>
             <Text style={styles.partyRole}>(PIHAK KERAJAAN / GOVERNMENT AUTHORITY)</Text>
-          </View>
+          </View> */}
 
-          {/* Beneficiaries */}
-          {beneficiaries.map((agreement, index) => (
+          {/* All Family Members (Signers) */}
+          {allSigners.map((agreement) => (
             <View key={agreement.id} style={styles.partyInfo}>
               <Text style={styles.partyName}>{agreement.familyMember?.fullName.toUpperCase()}</Text>
               <Text style={styles.partyDetail}>No. K/P: {agreement.familyMember?.ic}</Text>
               <Text style={styles.partyDetail}>Hubungan: {agreement.familyMember?.relationship}</Text>
-              <Text style={styles.partyRole}>(PENERIMA HARTA / BENEFICIARY {index + 1})</Text>
+              <Text style={styles.partyRole}>
+                {agreement.familyMember?.fullName === benefactorName && agreement.familyMember?.ic === benefactorIC 
+                  ? '(PEMBERI HARTA / GRANTOR)' 
+                  : `(PENERIMA HARTA / BENEFICIARY ${beneficiaries.findIndex(b => b.id === agreement.id) + 1})`}
+              </Text>
             </View>
           ))}
         </View>
@@ -721,9 +732,13 @@ export function AgreementPDF({
           <Text style={styles.signatureTitle}>TANDATANGAN / SIGNATURES</Text>
           
           {/* Family Member Signatures */}
-          {beneficiaries.map((agreement) => (
+          {allSigners.map((agreement) => (
             <View key={agreement.id} style={styles.signatureBlock}>
-              <Text style={styles.signatureRole}>PENERIMA HARTA / BENEFICIARY</Text>
+              <Text style={styles.signatureRole}>
+                {agreement.familyMember?.fullName === benefactorName && agreement.familyMember?.ic === benefactorIC 
+                  ? 'PEMBERI HARTA / GRANTOR' 
+                  : 'PENERIMA HARTA / BENEFICIARY'}
+              </Text>
               
               {agreement.signedAt ? (
                 <View>

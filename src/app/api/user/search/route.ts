@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 export async function POST(request: Request) {
   try {
@@ -17,21 +18,79 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'IC number is required' }, { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { ic },
+    // Get all users and decrypt their ICs to find a match
+    const users = await prisma.user.findMany({
       select: {
         id: true,
         fullName: true,
         ic: true,
         phone: true,
+        email: true,
       },
     });
 
-    if (!user) {
+    let foundUser = null;
+    for (const user of users) {
+      try {
+        const decryptedIC = decrypt(user.ic);
+        if (decryptedIC === ic) {
+          foundUser = user;
+          break;
+        }
+      } catch {
+        // Try unencrypted IC for backward compatibility
+        if (user.ic === ic) {
+          foundUser = user;
+          break;
+        }
+      }
+    }
+
+    if (!foundUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    return NextResponse.json(user);
+    // Decrypt user data before returning
+    let decryptedFullName = foundUser.fullName;
+    let decryptedIC = foundUser.ic;
+    let decryptedPhone = foundUser.phone;
+    let decryptedEmail = foundUser.email;
+
+    try {
+      decryptedFullName = decrypt(foundUser.fullName);
+    } catch (error) {
+      console.error('Error decrypting fullName:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    try {
+      decryptedIC = decrypt(foundUser.ic);
+    } catch (error) {
+      console.error('Error decrypting IC:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    try {
+      decryptedPhone = decrypt(foundUser.phone);
+    } catch (error) {
+      console.error('Error decrypting phone:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    try {
+      decryptedEmail = decrypt(foundUser.email);
+    } catch (error) {
+      console.error('Error decrypting email:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    return NextResponse.json({
+      id: foundUser.id,
+      fullName: decryptedFullName,
+      ic: decryptedIC,
+      phone: decryptedPhone,
+      email: decryptedEmail,
+    });
   } catch (error) {
     console.error('Error searching user:', error);
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { getInverseRelationship } from '@/lib/relationships';
+import { encrypt, decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -33,16 +34,58 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 });
     }
 
+    // Decrypt the invitation IC for verification
+    let invitationIC = invitation.inviteeIC;
+    try {
+      invitationIC = decrypt(invitation.inviteeIC);
+    } catch (error) {
+      console.error('Error decrypting invitation IC:', error);
+      // If decryption fails, assume it's already unencrypted (for backward compatibility)
+    }
+
     // Verify that the IC matches the invitation
-    if (ic && ic !== invitation.inviteeIC) {
+    if (ic && ic !== invitationIC) {
       return NextResponse.json({ error: 'IC number does not match the invitation' }, { status: 400 });
     }
 
-    // Find the invitee user if registered
-    const inviteeUser = await prisma.user.findFirst({
-      where: { ic: invitation.inviteeIC },
+    // Find the invitee user if registered by decrypting stored IC numbers
+    const users = await prisma.user.findMany({
       select: { id: true, fullName: true, ic: true, phone: true }
     });
+
+    let inviteeUser = null;
+    for (const user of users) {
+      try {
+        const decryptedIC = decrypt(user.ic);
+        if (decryptedIC === invitationIC) {
+          inviteeUser = {
+            id: user.id,
+            fullName: decrypt(user.fullName),
+            ic: decryptedIC,
+            phone: decrypt(user.phone),
+            encryptedFullName: user.fullName,
+            encryptedIC: user.ic,
+            encryptedPhone: user.phone,
+          };
+          break;
+        }
+      } catch (error) {
+        console.error('Error decrypting user data:', error);
+        // Try direct comparison for backward compatibility
+        if (user.ic === invitationIC) {
+          inviteeUser = {
+            id: user.id,
+            fullName: user.fullName,
+            ic: user.ic,
+            phone: user.phone,
+            encryptedFullName: encrypt(user.fullName),
+            encryptedIC: encrypt(user.ic),
+            encryptedPhone: encrypt(user.phone),
+          };
+          break;
+        }
+      }
+    }
 
     // Update the invitation status
     const updatedInvitation = await prisma.familyInvitation.update({
@@ -55,13 +98,61 @@ export async function POST(request: Request) {
 
     // If accepted, create the family relationship
     if (action === 'accept') {
-      // Create relationship from inviter to invitee
+      // Decrypt inviter data for family relationship creation
+      let inviterFullName = invitation.inviter.fullName;
+      let inviterIC = invitation.inviter.ic || "";
+      let inviterPhone = invitation.inviter.phone || "";
+
+      try {
+        inviterFullName = decrypt(invitation.inviter.fullName);
+      } catch (error) {
+        console.error('Error decrypting inviter fullName:', error);
+        // Use as-is if decryption fails
+      }
+
+      try {
+        if (invitation.inviter.ic) {
+          inviterIC = decrypt(invitation.inviter.ic);
+        }
+      } catch (error) {
+        console.error('Error decrypting inviter IC:', error);
+        // Use as-is if decryption fails
+      }
+
+      try {
+        if (invitation.inviter.phone) {
+          inviterPhone = decrypt(invitation.inviter.phone);
+        }
+      } catch (error) {
+        console.error('Error decrypting inviter phone:', error);
+        // Use as-is if decryption fails
+      }
+
+      // Decrypt invitation data
+      let inviteeFullName = invitation.inviteeFullName;
+      let inviteePhone = invitation.inviteePhone;
+
+      try {
+        inviteeFullName = decrypt(invitation.inviteeFullName);
+      } catch (error) {
+        console.error('Error decrypting invitee fullName:', error);
+        // Use as-is if decryption fails
+      }
+
+      try {
+        inviteePhone = decrypt(invitation.inviteePhone);
+      } catch (error) {
+        console.error('Error decrypting invitee phone:', error);
+        // Use as-is if decryption fails
+      }
+
+      // Create relationship from inviter to invitee with encrypted data
       await prisma.family.create({
         data: {
-          fullName: invitation.inviteeFullName,
-          ic: invitation.inviteeIC,
+          fullName: encrypt(inviteeFullName),
+          ic: encrypt(invitationIC),
           relationship: invitation.relationship,
-          phone: invitation.inviteePhone,
+          phone: encrypt(inviteePhone),
           isRegistered: !!inviteeUser,
           userId: invitation.inviterId,
           relatedUserId: inviteeUser?.id || null,
@@ -69,14 +160,14 @@ export async function POST(request: Request) {
         }
       });
 
-      // If invitee is registered, create inverse relationship
+      // If invitee is registered, create inverse relationship with encrypted data
       if (inviteeUser) {
         await prisma.family.create({
           data: {
-            fullName: invitation.inviter.fullName,
-            ic: invitation.inviter.ic || "",
+            fullName: encrypt(inviterFullName),
+            ic: encrypt(inviterIC),
             relationship: getInverseRelationship(invitation.relationship),
-            phone: invitation.inviter.phone || "",
+            phone: encrypt(inviterPhone),
             isRegistered: true,
             userId: inviteeUser.id,
             relatedUserId: invitation.inviterId,

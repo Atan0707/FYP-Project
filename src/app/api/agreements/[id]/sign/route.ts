@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { FamilySignature } from '@prisma/client';
 import { sendAgreementSigningNotification } from '@/services/agreementEmailService';
+import { decrypt } from '@/services/encryption';
 
 export async function POST(
   request: Request,
@@ -49,6 +50,15 @@ export async function POST(
         { error: 'User not found' },
         { status: 404 }
       );
+    }
+
+    // Decrypt user fullName for notifications
+    let decryptedFullName = signerUser.fullName;
+    try {
+      decryptedFullName = decrypt(signerUser.fullName);
+    } catch (error) {
+      console.error('Error decrypting user fullName:', error);
+      // Use as-is if decryption fails (for backward compatibility)
     }
 
     // Find the pending signature for this agreement and user
@@ -148,11 +158,11 @@ export async function POST(
       });
     }
 
-    // Send notification emails to other family members
+    // Send notification emails to other family members using decrypted name
     try {
       await sendAgreementSigningNotification(
         agreementId,
-        signerUser.fullName,
+        decryptedFullName,
         signerRelationship
       );
       console.log('Agreement signing notification emails sent successfully');

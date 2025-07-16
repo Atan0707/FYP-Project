@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 export async function DELETE(
   request: Request,
@@ -113,15 +114,24 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Look for the family member where either:
+    // 1. The current user is the userId (main user)
+    // 2. The current user is the relatedUserId (family member viewing from their side)
     const familyMember = await prisma.family.findFirst({
       where: {
         id: id,
-        userId: userId,
+        OR: [
+          { userId: userId },
+          { relatedUserId: userId }
+        ]
       },
       select: {
         id: true,
         fullName: true,
         relationship: true,
+        inverseRelationship: true,
+        userId: true,
+        relatedUserId: true,
       },
     });
 
@@ -129,7 +139,29 @@ export async function GET(
       return NextResponse.json({ error: 'Family member not found' }, { status: 404 });
     }
 
-    return NextResponse.json(familyMember);
+    // Decrypt family member name before returning
+    let decryptedFullName = familyMember.fullName;
+    try {
+      decryptedFullName = decrypt(familyMember.fullName);
+    } catch (error) {
+      console.error('Error decrypting family member fullName:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    // Determine the correct relationship based on the perspective
+    let relationship = familyMember.relationship;
+    
+    // If the current user is the relatedUserId, use the inverse relationship if available
+    if (familyMember.relatedUserId === userId && familyMember.userId !== userId) {
+      // Use the inverse relationship if it exists, otherwise keep the original
+      relationship = familyMember.inverseRelationship || familyMember.relationship;
+    }
+
+    return NextResponse.json({
+      id: familyMember.id,
+      fullName: decryptedFullName,
+      relationship: relationship
+    });
   } catch (error) {
     console.error('Error fetching family member:', error);
     return NextResponse.json(

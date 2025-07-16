@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { PrismaClient } from '@prisma/client';
-import { AuthOptions } from 'next-auth'
+import { AuthOptions } from 'next-auth';
+import { decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -46,7 +47,23 @@ export async function getCurrentAdmin() {
       },
     });
     
-    return admin;
+    if (!admin) {
+      return null;
+    }
+
+    // Decrypt username before returning
+    let decryptedUsername = admin.username;
+    try {
+      decryptedUsername = decrypt(admin.username);
+    } catch (error) {
+      console.error('Error decrypting admin username:', error);
+      // Use as-is if decryption fails (for backward compatibility)
+    }
+
+    return {
+      ...admin,
+      username: decryptedUsername
+    };
   } catch (error) {
     console.error('Error fetching admin:', error);
     return null;

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { cookies } from 'next/headers';
+import { decrypt } from '@/services/encryption';
 
 const prisma = new PrismaClient();
 
@@ -32,10 +33,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 });
     }
 
-    // Return invitation details without sensitive information
+    // Decrypt user names before returning
+    let inviterName = invitation.inviter.fullName;
+    let inviteeFullName = invitation.inviteeFullName;
+
+    try {
+      inviterName = decrypt(invitation.inviter.fullName);
+    } catch (error) {
+      console.error('Error decrypting inviter name:', error);
+      // If decryption fails, assume it's already unencrypted (for backward compatibility)
+    }
+
+    try {
+      inviteeFullName = decrypt(invitation.inviteeFullName);
+    } catch (error) {
+      console.error('Error decrypting invitee name:', error);
+      // If decryption fails, assume it's already unencrypted (for backward compatibility)
+    }
+
+    // Return invitation details with decrypted names
     return NextResponse.json({
-      inviterName: invitation.inviter.fullName,
-      inviteeFullName: invitation.inviteeFullName,
+      inviterName,
+      inviteeFullName,
       relationship: invitation.relationship,
       status: invitation.status,
       expiresAt: invitation.expiresAt
