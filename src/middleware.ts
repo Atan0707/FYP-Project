@@ -8,6 +8,7 @@ export async function middleware(request: NextRequest) {
                      request.nextUrl.pathname.startsWith('/signup');
   const isAdminAuthPage = request.nextUrl.pathname.startsWith('/admin/login');
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin') && !isAdminAuthPage;
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api');
   
   // Public routes that don't require authentication
   const isPublicRoute = request.nextUrl.pathname.startsWith('/pages/family/direct-accept');
@@ -17,7 +18,51 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Handle admin routes
+  // Handle API routes
+  if (isApiRoute) {
+    // Admin API routes
+    if (request.nextUrl.pathname.startsWith('/api/admin')) {
+      if (!adminId) {
+        return NextResponse.json(
+          { error: 'Not authenticated' },
+          { status: 401 }
+        );
+      }
+      return NextResponse.next();
+    }
+    
+    // User API routes that require authentication
+    const protectedApiRoutes = [
+      '/api/agreement-pdf',
+      '/api/agreements',
+      '/api/asset',
+      '/api/asset-distribution',
+      '/api/family',
+      '/api/family-assets',
+      '/api/pending-asset',
+      '/api/user',
+      '/api/dashboard'
+    ];
+    
+    const isProtectedApiRoute = protectedApiRoutes.some(route => 
+      request.nextUrl.pathname.startsWith(route)
+    );
+    
+    if (isProtectedApiRoute) {
+      if (!userId && !adminId) {
+        return NextResponse.json(
+          { error: 'Not authenticated' },
+          { status: 401 }
+        );
+      }
+      return NextResponse.next();
+    }
+    
+    // Allow other API routes to pass through
+    return NextResponse.next();
+  }
+
+  // Handle admin page routes
   if (isAdminPage) {
     if (!adminId) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
@@ -29,7 +74,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/admin/pages/dashboard', request.url));
   }
 
-  // Handle user routes
+  // Handle user page routes
   if (!userId && !isAuthPage && !isAdminAuthPage) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
@@ -48,6 +93,16 @@ export const config = {
     '/family/:path*',
     '/pages/:path*',
     '/login',
-    '/signup'
+    '/signup',
+    '/api/agreement-pdf/:path*',
+    '/api/admin/:path*',
+    '/api/agreements/:path*',
+    '/api/asset/:path*',
+    '/api/asset-distribution/:path*',
+    '/api/family/:path*',
+    '/api/family-assets/:path*',
+    '/api/pending-asset/:path*',
+    '/api/user/:path*',
+    '/api/dashboard/:path*'
   ],
 }; 
