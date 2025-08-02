@@ -144,15 +144,15 @@ export default function SecurePDFTestPage() {
         <ol>
           <li>Enter a valid distribution ID from your database</li>
           <li>Enter the email address of a participant in that agreement</li>
-          <li>Click "Generate Token" to create a secure URL</li>
-          <li>Click "Test PDF Access" to verify the URL works</li>
-          <li>Use "Verify Token" to check token validity and expiration</li>
+          <li>Click &quot;Generate Token&quot; to create a secure URL</li>
+          <li>Click &quot;Test PDF Access&quot; to verify the URL works</li>
+          <li>Use &quot;Verify Token&quot; to check token validity and expiration</li>
         </ol>
         <p><strong>Note:</strong> The PDF will only be accessible if:</p>
         <ul>
           <li>The agreement has been completed (admin signed)</li>
           <li>The email address has access to that specific agreement</li>
-          <li>The token hasn't expired (72 hours)</li>
+          <li>The token hasn&apos;t expired (72 hours)</li>
         </ul>
       </div>
     </div>
