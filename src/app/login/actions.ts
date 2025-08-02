@@ -92,8 +92,10 @@ export async function login(formData: FormData) {
       cookieStore.set('userId', user.id, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 60 * 60 * 24 * 7, // 1 week
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        path: '/',
+        maxAge: 60 * 10, // 10 minutes
+        domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
       });
 
       return { success: true };
