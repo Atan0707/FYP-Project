@@ -58,9 +58,10 @@ export async function adminLogin(formData: FormData) {
     cookieStore.set('adminId', admin.id, {
       httpOnly: false, // Allow JavaScript access
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 1 week
+      domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
     });
 
     return { success: true };

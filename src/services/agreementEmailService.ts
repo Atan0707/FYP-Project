@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/services/encryption';
+import { generateSecurePDFUrl } from '@/lib/secureTokens';
 
 interface AgreementParticipant {
   email: string;
@@ -336,10 +337,13 @@ async function sendCombinedCompletionAndPDFEmail(
         ` : ''}
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.NEXTAUTH_URL}/api/agreement-pdf/${distributionId}" 
+          <a href="${generateSecurePDFUrl(distributionId, participant.email)}" 
              style="display: inline-block; background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
             📄 Download Agreement PDF
           </a>
+          <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+            <em>This secure download link will expire in 72 hours for your security.</em>
+          </p>
         </div>
         
         <div style="background-color: #d4edda; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
@@ -402,7 +406,9 @@ Agreement Summary:
 ${emailData.adminNotes ? `Administrator Notes: ${emailData.adminNotes}` : ''}
 
 Download Your Agreement PDF:
-${process.env.NEXTAUTH_URL}/api/agreement-pdf/${distributionId}
+${generateSecurePDFUrl(distributionId, participant.email)}
+
+Note: This secure download link will expire in 72 hours for your security.
 
 What This Means:
 - The asset distribution has been legally finalized
