@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { decrypt } from '@/services/encryption';
+import { normalizeEmail, trimInput } from '@/lib/utils';
 
 const prisma = new PrismaClient();
 
@@ -48,12 +49,16 @@ Islamic Inheritance System Team`
 }
 
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+  const rawEmail = formData.get('email') as string;
+  const rawPassword = formData.get('password') as string;
 
-  if (!email || !password) {
+  if (!rawEmail || !rawPassword) {
     return { error: 'All fields are required' };
   }
+
+  // Normalize inputs
+  const email = normalizeEmail(rawEmail);
+  const password = trimInput(rawPassword);
 
   try {
     // First, check if user exists in the main User table by decrypting emails
@@ -94,7 +99,7 @@ export async function login(formData: FormData) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
         path: '/',
-        maxAge: 60 * 10, // 10 minutes
+        maxAge: 60 * 30, // 30 minutes
         domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
       });
 
@@ -188,12 +193,15 @@ export async function login(formData: FormData) {
 }
 
 export async function verifyEmailLogin(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
   const verificationCode = formData.get('verificationCode') as string;
 
-  if (!email || !verificationCode) {
+  if (!rawEmail || !verificationCode) {
     return { error: 'Email and verification code are required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     const response = await fetch(process.env.NEXTAUTH_URL + '/api/verify-email', {
@@ -221,11 +229,14 @@ export async function verifyEmailLogin(formData: FormData) {
 }
 
 export async function resendVerificationCodeLogin(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
 
-  if (!email) {
+  if (!rawEmail) {
     return { error: 'Email is required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     // Find the temporary user by decrypting emails
@@ -290,11 +301,14 @@ export async function resendVerificationCodeLogin(formData: FormData) {
 
 // New function to initiate password reset
 export async function initiatePasswordReset(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
 
-  if (!email) {
+  if (!rawEmail) {
     return { error: 'Email is required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     // Call the reset-password API endpoint to initiate the reset
@@ -327,12 +341,15 @@ export async function initiatePasswordReset(formData: FormData) {
 
 // New function to verify reset code
 export async function verifyResetCode(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
   const token = formData.get('token') as string;
 
-  if (!email || !token) {
+  if (!rawEmail || !token) {
     return { error: 'Email and verification code are required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     // Call the reset-password API endpoint to verify the code
@@ -366,13 +383,16 @@ export async function verifyResetCode(formData: FormData) {
 
 // New function to complete password reset
 export async function completePasswordReset(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
   const token = formData.get('token') as string;
   const newPassword = formData.get('newPassword') as string;
 
-  if (!email || !token || !newPassword) {
+  if (!rawEmail || !token || !newPassword) {
     return { error: 'All fields are required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     // Call the reset-password API endpoint to complete the reset

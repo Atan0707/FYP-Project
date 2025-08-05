@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { getInverseRelationship } from '@/lib/relationships';
 import { encrypt, decrypt } from '@/services/encryption';
 import crypto from 'crypto';
+import { normalizeEmail } from '@/lib/utils';
 
 const prisma = new PrismaClient();
 
@@ -185,11 +186,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { fullName, ic, email, phone, relationship } = body;
+    const { fullName, ic, email: rawEmail, phone, relationship } = body;
 
     if (!fullName || !ic || !relationship || !phone) {
       return NextResponse.json({ error: 'Required fields are missing' }, { status: 400 });
     }
+
+    // Normalize email if provided
+    const email = rawEmail ? normalizeEmail(rawEmail) : null;
 
     // Get the current user's details and decrypt them
     const currentUser = await prisma.user.findUnique({

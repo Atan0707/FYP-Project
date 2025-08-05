@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { decrypt } from '@/services/encryption';
+import { normalizeEmail } from '@/lib/utils';
 
 const prisma = new PrismaClient();
 
@@ -14,7 +15,10 @@ function generateVerificationCode(): string {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, token, newPassword, action } = body;
+    const { email: rawEmail, token, newPassword, action } = body;
+
+    // Normalize email for consistent comparison
+    const email = rawEmail ? normalizeEmail(rawEmail) : null;
 
     // If only email is provided, initiate the password reset
     if (email && !token && !newPassword && action === 'initiate') {

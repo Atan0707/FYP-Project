@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { decrypt, encrypt } from '@/services/encryption';
 import bcrypt from 'bcryptjs';
+import { normalizeEmail, toTitleCase, trimInput } from '@/lib/utils';
 
 // Get all users
 export async function GET() {
@@ -96,15 +97,21 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, password, fullName, ic, phone, address } = body;
+    const { email: rawEmail, password, fullName: rawFullName, ic: rawIC, phone: rawPhone, address } = body;
 
     // Validate required fields
-    if (!email || !password || !fullName || !ic || !phone) {
+    if (!rawEmail || !password || !rawFullName || !rawIC || !rawPhone) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
+    // Normalize and format inputs
+    const email = normalizeEmail(rawEmail);
+    const fullName = toTitleCase(rawFullName);
+    const ic = trimInput(rawIC);
+    const phone = trimInput(rawPhone);
 
     // Check if user with email or IC already exists (need to decrypt stored data)
     const existingUsers = await prisma.user.findMany({
@@ -198,7 +205,13 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, email, fullName, ic, phone, address, photo } = body;
+    const { id, email: rawEmail, fullName: rawFullName, ic: rawIC, phone: rawPhone, address, photo } = body;
+
+    // Normalize and format inputs if provided
+    const email = rawEmail ? normalizeEmail(rawEmail) : rawEmail;
+    const fullName = rawFullName ? toTitleCase(rawFullName) : rawFullName;
+    const ic = rawIC ? trimInput(rawIC) : rawIC;
+    const phone = rawPhone ? trimInput(rawPhone) : rawPhone;
 
     if (!id) {
       return NextResponse.json(

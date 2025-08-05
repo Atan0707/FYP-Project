@@ -2,17 +2,21 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { getInverseRelationship } from '@/lib/relationships';
 import { encrypt, decrypt } from '@/services/encryption';
+import { normalizeEmail } from '@/lib/utils';
 
 const prisma = new PrismaClient();
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, verificationCode } = body;
+    const { email: rawEmail, verificationCode } = body;
 
-    if (!email || !verificationCode) {
+    if (!rawEmail || !verificationCode) {
       return NextResponse.json({ error: 'Email and verification code are required' }, { status: 400 });
     }
+
+    // Normalize email for consistent comparison
+    const email = normalizeEmail(rawEmail);
 
     // Find the temporary user by decrypting emails and matching verification code
     const tempUsers = await prisma.temporaryUser.findMany({

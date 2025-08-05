@@ -3,6 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { encrypt, decrypt } from '@/services/encryption';
+import { normalizeEmail, toTitleCase, trimInput } from '@/lib/utils';
 
 const prisma = new PrismaClient();
 
@@ -128,15 +129,21 @@ Please do not reply to this email.
 }
 
 export async function signUp(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
   const password = formData.get('password') as string;
-  const fullName = formData.get('fullName') as string;
-  const ic = formData.get('ic') as string;
-  const phone = formData.get('phone') as string;
+  const rawFullName = formData.get('fullName') as string;
+  const rawIC = formData.get('ic') as string;
+  const rawPhone = formData.get('phone') as string;
 
-  if (!email || !password || !fullName || !ic || !phone) {
+  if (!rawEmail || !password || !rawFullName || !rawIC || !rawPhone) {
     return { error: 'All fields are required' };
   }
+
+  // Normalize and format inputs
+  const email = normalizeEmail(rawEmail);
+  const fullName = toTitleCase(rawFullName);
+  const ic = trimInput(rawIC);
+  const phone = trimInput(rawPhone);
 
   try {
     // Encrypt sensitive data
@@ -236,12 +243,15 @@ export async function signUp(formData: FormData) {
 }
 
 export async function verifyEmail(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
   const verificationCode = formData.get('verificationCode') as string;
 
-  if (!email || !verificationCode) {
+  if (!rawEmail || !verificationCode) {
     return { error: 'Email and verification code are required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     const response = await fetch(process.env.NEXTAUTH_URL + '/api/verify-email', {
@@ -269,11 +279,14 @@ export async function verifyEmail(formData: FormData) {
 }
 
 export async function resendVerificationCode(formData: FormData) {
-  const email = formData.get('email') as string;
+  const rawEmail = formData.get('email') as string;
 
-  if (!email) {
+  if (!rawEmail) {
     return { error: 'Email is required' };
   }
+
+  // Normalize email input
+  const email = normalizeEmail(rawEmail);
 
   try {
     // Find the temporary user by decrypting emails
