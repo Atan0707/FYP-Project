@@ -1,14 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { useState, Suspense, useMemo } from 'react';
+// Removed unused table components - now using cards for better mobile experience
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -20,7 +13,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { PlusCircle, Pencil, Trash2, Search, Clock } from 'lucide-react';
+import { 
+  PlusCircle, 
+  Pencil, 
+  Trash2, 
+  Search, 
+  Clock, 
+  Users, 
+  UserCheck, 
+  UserX,
+  Mail,
+  Phone,
+  Calendar,
+  Filter,
+  MoreHorizontal,
+  // Download - removed as not currently used
+} from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,9 +38,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { getAvailableRelationships, getDisplayRelationshipName } from '@/lib/relationships';
 import { useSearchParams } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { format } from 'date-fns';
 
 // Get available relationships
 const relationships = getAvailableRelationships();
@@ -273,6 +292,10 @@ function FamilyPageContent() {
   const [editingRelationship, setEditingRelationship] = useState<Family | null>(null);
   const [newRelationship, setNewRelationship] = useState<string>('');
   
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   
@@ -285,8 +308,51 @@ function FamilyPageContent() {
     queryFn: fetchFamilies,
   });
 
-  const families = data?.families || [];
-  const pendingInvitations = data?.pendingInvitations || [];
+  // Memoize the raw data to prevent unnecessary re-renders
+  const families = useMemo(() => data?.families || [], [data?.families]);
+  const pendingInvitations = useMemo(() => data?.pendingInvitations || [], [data?.pendingInvitations]);
+
+  // Filter and search functionality
+  const filteredFamilies = useMemo(() => {
+    let filtered = [...families];
+    
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(family => 
+        family.fullName.toLowerCase().includes(term) ||
+        family.ic.toLowerCase().includes(term) ||
+        family.phone.toLowerCase().includes(term) ||
+        getDisplayRelationshipName(family.relationship).toLowerCase().includes(term)
+      );
+    }
+    
+    // Status filter
+    if (filterStatus) {
+      filtered = filtered.filter(family => {
+        if (filterStatus === 'registered') return family.isRegistered;
+        if (filterStatus === 'unregistered') return !family.isRegistered;
+        return true;
+      });
+    }
+    
+    return filtered;
+  }, [families, searchTerm, filterStatus]);
+
+  // Stats calculation
+  const stats = useMemo(() => {
+    const totalFamily = families.length;
+    const registeredCount = families.filter(f => f.isRegistered).length;
+    const unregisteredCount = families.filter(f => !f.isRegistered).length;
+    const pendingCount = pendingInvitations.length;
+    
+    return {
+      total: totalFamily,
+      registered: registeredCount,
+      unregistered: unregisteredCount,
+      pending: pendingCount
+    };
+  }, [families, pendingInvitations]);
 
   // Mutations
   const createMutation = useMutation({
@@ -576,71 +642,213 @@ function FamilyPageContent() {
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 lg:p-6">
+        <Card>
+          <CardHeader className="p-3 sm:p-6">
+            <div className="h-6 sm:h-8 w-32 sm:w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="h-16 sm:h-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (error) {
-    return <div>Error: {(error as Error).message}</div>;
+    return (
+      <div className="flex flex-col gap-3 sm:gap-4 p-3 sm:p-4 lg:p-6">
+        <Card className="border-red-300 dark:border-red-700">
+          <CardHeader className="p-3 sm:p-6">
+            <CardTitle className="text-red-500 text-base sm:text-lg">Error Loading Family Data</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-sm sm:text-base">There was an error loading your family data. Please try again later.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Family Members</h1>
-        <div className="flex gap-2">
-          {/* <Button 
-            variant="outline" 
-            onClick={() => updateRelationshipsMutation.mutate()}
-            disabled={updateRelationshipsMutation.isPending}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${updateRelationshipsMutation.isPending ? 'animate-spin' : ''}`} />
-            Update Relationships
-          </Button> */}
-          <Dialog open={isOpen} onOpenChange={(open) => {
-            setIsOpen(open);
-            if (!open) {
-              setShowForm(false);
-              setFoundUser(null);
-              setSearchIC('');
-              setShowConfirmation(false);
-              setSelectedRelationship('');
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button onClick={() => {
+    <div className="flex flex-col gap-4 sm:gap-6 p-3 sm:p-4 lg:p-6">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+            Family Members
+          </h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Manage your family members and their relationships
+          </p>
+        </div>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setShowForm(false);
+            setFoundUser(null);
+            setSearchIC('');
+            setShowConfirmation(false);
+            setSelectedRelationship('');
+          }
+        }}>
+          <DialogTrigger asChild>
+            <Button 
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => {
                 setEditingFamily(null);
                 setFoundUser(null);
                 setSearchIC('');
                 setShowForm(false);
                 setShowConfirmation(false);
                 setSelectedRelationship('');
-              }}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Family Member
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingFamily ? 'Edit' : 'Add'} Family Member</DialogTitle>
-              </DialogHeader>
-              {editingFamily && editingFamily.isRegistered ? (
-                <div className="p-4 text-center">
-                  <div className="mb-4 text-amber-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium mb-2">Cannot Edit Registered Family Member</h3>
-                  <p className="text-muted-foreground mb-4">
-                    This family member has a registered account. Their information is synchronized with their profile and cannot be edited here.
-                  </p>
-                  <Button variant="outline" onClick={() => setIsOpen(false)}>
-                    Close
-                  </Button>
+              }}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Family Member
+            </Button>
+          </DialogTrigger>
+        </Dialog>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-4">
+            <CardTitle className="text-sm font-medium">Total Family</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">
+              Family members connected
+            </p>
+          </CardContent>
+        </Card>
+        
+        {/* Temporarily commented out - not needed for now */}
+        {/* <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-4">
+            <CardTitle className="text-sm font-medium">Registered</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">{stats.registered}</div>
+            <p className="text-xs text-muted-foreground">
+              Members with accounts
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-4">
+            <CardTitle className="text-sm font-medium">Unregistered</CardTitle>
+            <UserX className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-xl sm:text-2xl font-bold text-orange-600">{stats.unregistered}</div>
+            <p className="text-xs text-muted-foreground">
+              Members without accounts
+            </p>
+          </CardContent>
+        </Card> */}
+        
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-4">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 pt-0">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{stats.pending}</div>
+            <p className="text-xs text-muted-foreground">
+              Invitations sent
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content with Tabs */}
+      <Tabs defaultValue="confirmed" className="w-full">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <TabsList className="grid w-full sm:w-auto grid-cols-2 h-auto">
+            <TabsTrigger value="confirmed" className="text-xs sm:text-sm py-2">
+              Confirmed ({stats.total})
+            </TabsTrigger>
+            <TabsTrigger value="pending" className="text-xs sm:text-sm py-2">
+              Pending ({stats.pending})
+            </TabsTrigger>
+          </TabsList>
+          
+          {/* Search and Filter for Confirmed tab */}
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search family members..."
+                className="pl-8 w-full sm:w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filter
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setFilterStatus(null)}>
+                  All Members
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilterStatus('registered')}>
+                  Registered Only
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setFilterStatus('unregistered')}>
+                  Unregistered Only
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Dialog Content */}
+        <Dialog open={isOpen} onOpenChange={(open) => {
+          setIsOpen(open);
+          if (!open) {
+            setShowForm(false);
+            setFoundUser(null);
+            setSearchIC('');
+            setShowConfirmation(false);
+            setSelectedRelationship('');
+          }
+        }}>
+          <DialogContent className="sm:max-w-md max-w-[95vw]">
+            <DialogHeader>
+              <DialogTitle>{editingFamily ? 'Edit' : 'Add'} Family Member</DialogTitle>
+                        </DialogHeader>
+            {editingFamily && editingFamily.isRegistered ? (
+              <div className="p-4 text-center">
+                <div className="mb-4 text-amber-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
                 </div>
-              ) : (
+                <h3 className="text-lg font-medium mb-2">Cannot Edit Registered Family Member</h3>
+                <p className="text-muted-foreground mb-4">
+                  This family member has a registered account. Their information is synchronized with their profile and cannot be edited here.
+                </p>
+                <Button variant="outline" onClick={() => setIsOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            ) : (
                 <>
                   {!editingFamily && !showForm && !showConfirmation && (
                     <div className="flex flex-col gap-2 mb-4">
@@ -795,119 +1003,184 @@ function FamilyPageContent() {
                       </Button>
                     </form>
                   )}
-                </>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Tab Content */}
+        <TabsContent value="confirmed">
+          <Card>
+            <CardHeader className="p-3 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">Confirmed Family Members</CardTitle>
+              <CardDescription className="text-sm">
+                {filteredFamilies.length} of {families.length} family members
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              {filteredFamilies.length > 0 ? (
+                <div className="space-y-4">
+                  {filteredFamilies.map((family: Family) => (
+                    <Card key={family.id} className="hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+                              <h3 className="font-semibold text-lg">{family.fullName}</h3>
+                              <Badge variant={family.isRegistered ? "default" : "secondary"} className="w-fit">
+                                {family.isRegistered ? 'Registered' : 'Unregistered'}
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 00-2-2v2m0 2v2" />
+                                </svg>
+                                <span className="font-mono">{family.ic}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Phone className="h-4 w-4" />
+                                <span>{family.phone}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground sm:col-span-2">
+                                <Users className="h-4 w-4" />
+                                <span>{getDisplayRelationshipName(family.relationship)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    if (family.isRegistered) {
+                                      setEditingRelationship(family);
+                                      setNewRelationship(family.relationship);
+                                      setIsRelationshipDialogOpen(true);
+                                    } else {
+                                      setEditingFamily(family);
+                                      setIsOpen(true);
+                                    }
+                                  }}
+                                >
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  {family.isRegistered ? "Update Relationship" : "Edit Member"}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => deleteMutation.mutate(family.id)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Remove
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">No family members found</h3>
+                  <p className="text-muted-foreground mt-2 max-w-md">
+                    {searchTerm || filterStatus
+                      ? "No family members match your current filters. Try adjusting your search criteria."
+                      : "You haven't added any family members yet. Click the 'Add Family Member' button to get started."}
+                  </p>
+                </div>
               )}
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {pendingInvitations.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Pending Invitations</h2>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>IC Number</TableHead>
-                  <TableHead>Relationship</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sent On</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingInvitations.map((invitation) => (
-                  <TableRow key={invitation.id}>
-                    <TableCell>{invitation.inviteeFullName}</TableCell>
-                    <TableCell>{invitation.inviteeIC}</TableCell>
-                    <TableCell>{invitation.relationship}</TableCell>
-                    <TableCell>{invitation.inviteePhone}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                        <Clock className="h-3 w-3 mr-1" /> Pending
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{new Date(invitation.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => cancelInvitationMutation.mutate(invitation.id)}
-                      >
-                        Cancel
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
-
-      <h2 className="text-xl font-semibold mb-4">Confirmed Family Members</h2>
-      <div className="border rounded-lg">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Full Name</TableHead>
-              <TableHead>IC Number</TableHead>
-              <TableHead>Relationship</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {families.map((family: Family) => (
-              <TableRow key={family.id}>
-                <TableCell>{family.fullName}</TableCell>
-                <TableCell>{family.ic}</TableCell>
-                <TableCell>{getDisplayRelationshipName(family.relationship)}</TableCell>
-                <TableCell>{family.phone}</TableCell>
-                <TableCell>
-                  <Badge variant={family.isRegistered ? "success" : "secondary"}>
-                    {family.isRegistered ? 'Registered' : 'Not Registered'}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right space-x-2">
-                  {/* Single Edit Button - Handles both relationship and full edits */}
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      if (family.isRegistered) {
-                        // For registered users, open relationship update dialog
-                        setEditingRelationship(family);
-                        setNewRelationship(family.relationship);
-                        setIsRelationshipDialogOpen(true);
-                      } else {
-                        // For non-registered users, open full edit dialog
-                        setEditingFamily(family);
-                        setIsOpen(true);
-                      }
-                    }}
-                    title={family.isRegistered ? "Update relationship" : "Edit family member"}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => deleteMutation.mutate(family.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+        <TabsContent value="pending">
+          <Card>
+            <CardHeader className="p-3 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">Pending Invitations</CardTitle>
+              <CardDescription className="text-sm">
+                {pendingInvitations.length} invitation{pendingInvitations.length !== 1 ? 's' : ''} awaiting response
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              {pendingInvitations.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingInvitations.map((invitation) => (
+                    <Card key={invitation.id} className="hover:shadow-md transition-shadow border border-yellow-200 bg-yellow-50/50 dark:border-yellow-700 dark:bg-yellow-950/20">
+                      <CardContent className="p-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+                              <h3 className="font-semibold text-lg">{invitation.inviteeFullName}</h3>
+                              <Badge variant="outline" className="bg-yellow-100 text-yellow-700 border-yellow-200 w-fit">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Pending
+                              </Badge>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V4a2 2 0 00-2-2v2m0 2v2" />
+                                </svg>
+                                <span className="font-mono">{invitation.inviteeIC}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Phone className="h-4 w-4" />
+                                <span>{invitation.inviteePhone}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Users className="h-4 w-4" />
+                                <span>{getDisplayRelationshipName(invitation.relationship)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Calendar className="h-4 w-4" />
+                                <span>Sent {format(new Date(invitation.createdAt), 'MMM d, yyyy')}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => cancelInvitationMutation.mutate(invitation.id)}
+                              disabled={cancelInvitationMutation.isPending}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">No pending invitations</h3>
+                  <p className="text-muted-foreground mt-2 max-w-md">
+                    You don&apos;t have any pending invitations. All invited family members have responded or you haven&apos;t sent any invitations yet.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Relationship Update Dialog */}
       <Dialog open={isRelationshipDialogOpen} onOpenChange={(open) => {
