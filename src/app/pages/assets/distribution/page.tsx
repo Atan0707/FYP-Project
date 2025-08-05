@@ -43,6 +43,7 @@ import {
   CheckCircle,
   Clock
 } from 'lucide-react';
+import { getDisplayRelationshipName } from '@/lib/relationships';
 
 interface Beneficiary {
   familyId: string;
@@ -550,7 +551,7 @@ export default function AssetDistributionPage() {
                             <SelectContent>
                               {familyMembers && Array.isArray(familyMembers) ? familyMembers.map((member: FamilyMember) => (
                                 <SelectItem key={member.id} value={member.id}>
-                                  {member.fullName} ({member.relationship})
+                                  {member.fullName} ({getDisplayRelationshipName(member.relationship)})
                                 </SelectItem>
                               )) : (
                                 <SelectItem disabled value="">No family members found</SelectItem>

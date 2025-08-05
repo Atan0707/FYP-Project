@@ -16,6 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from "@/components/ui/separator";
 import { contractService } from '@/services/contractService';
 import { FaraidResult } from '@/lib/faraid';
+import { getDisplayRelationshipName } from '@/lib/relationships';
 import dynamic from 'next/dynamic';
 import {
   Tooltip,
@@ -986,7 +987,7 @@ export default function AssetDetailsPage() {
                                           
                                           return isCurrentUser
                                             ? "(you)" 
-                                            : `(${agreement.familyMember.relationship})`;
+                                            : `(${getDisplayRelationshipName(agreement.familyMember.relationship)})`;
                                         })()}
                                       </span>
                                     </>
@@ -1134,7 +1135,7 @@ export default function AssetDetailsPage() {
                           <SelectContent>
                             {familyMembers && Array.isArray(familyMembers) ? familyMembers.map((member) => (
                               <SelectItem key={member.id} value={member.id}>
-                                {member.fullName} ({member.relationship})
+                                {member.fullName} ({getDisplayRelationshipName(member.relationship)})
                               </SelectItem>
                             )) : (
                               <SelectItem disabled value="">No family members found</SelectItem>

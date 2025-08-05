@@ -1,35 +1,37 @@
 // Define relationship mappings for Malaysian Faraid system
+// Only includes relationships that are valid for Islamic inheritance law
 const relationshipMappings: { [key: string]: string } = {
+    // Children relationships
     'son': 'parent',
     'daughter': 'parent',
+    
+    // Parent relationships
     'father': 'child',
     'mother': 'child',
-    // 'parent': 'child',
-    // 'child': 'parent',
+    
+    // Spouse relationships
     'husband': 'wife',
     'wife': 'husband',
+    
+    // Sibling relationships (same father and mother)
     'brother': 'sibling',
     'sister': 'sibling',
-    'sibling': 'sibling',
-    'maternal_brother': 'maternal sibling',
-    'maternal_sister': 'maternal sibling',
-    'maternal_sibling': 'maternal sibling',
-    'paternal brother': 'paternal sibling',
-    'paternal sister': 'paternal sibling',
-    'paternal sibling': 'paternal_sibling',
+    
+    // Maternal siblings (same mother only)
+    'maternal_brother': 'maternal_sibling',
+    'maternal_sister': 'maternal_sibling',
+    
+    // Paternal siblings (same father only)
+    'paternal_brother': 'paternal_sibling',
+    'paternal_sister': 'paternal_sibling',
+    
+    // Grandparent relationships
     'grandfather': 'grandchild',
     'grandmother': 'grandchild',
-    'grandparent': 'grandchild',
+    
+    // Grandchildren relationships
     'grandson': 'grandparent',
     'granddaughter': 'grandparent',
-    'grandchild': 'grandparent',
-    'uncle': 'niece/nephew',
-    'aunt': 'niece/nephew',
-    'niece': 'uncle/aunt',
-    'nephew': 'uncle/aunt',
-    'cousin': 'cousin',
-    'friend': 'friend',
-    'spouse': 'spouse',
   };
   
   // Get all available relationships for the select input
@@ -70,28 +72,13 @@ const relationshipMappings: { [key: string]: string } = {
   export function getFaraidCategory(relationship: string): string {
     const lowerRelationship = relationship.toLowerCase().trim();
     
-    // Direct mapping for most relationships
+    // Direct mapping for all valid Faraid relationships
     if (isValidFaraidRelationship(lowerRelationship)) {
       return lowerRelationship;
     }
     
-    // Special cases or aliases
-    switch(lowerRelationship) {
-      case 'spouse':
-        return 'spouse'; // Will need to determine husband/wife based on gender
-      case 'child':
-        return 'child'; // Will need to determine son/daughter based on gender
-      case 'parent':
-        return 'parent'; // Will need to determine father/mother based on gender
-      case 'sibling':
-        return 'sibling'; // Will need to determine brother/sister based on gender
-      case 'grandparent':
-        return 'grandparent'; // Will need to determine grandfather/grandmother based on gender
-      case 'grandchild':
-        return 'grandchild'; // Will need to determine grandson/granddaughter based on gender
-      default:
-        return 'other'; // Not directly relevant for Faraid
-    }
+    // Invalid relationships are not relevant for Faraid calculations
+    return 'other';
   }
   
   // Get user-friendly relationship names for display
@@ -105,10 +92,10 @@ const relationshipMappings: { [key: string]: string } = {
       'wife': 'Wife',
       'brother': 'Brother (Same Father & Mother)',
       'sister': 'Sister (Same Father & Mother)',
-      'maternal brother': 'Maternal Brother (Same Mother)',
-      'maternal sister': 'Maternal Sister (Same Mother)',
-      'paternal brother': 'Paternal Brother (Same Father)',
-      'paternal sister': 'Paternal Sister (Same Father)',
+      'maternal_brother': 'Maternal Brother (Same Mother)',
+      'maternal_sister': 'Maternal Sister (Same Mother)',
+      'paternal_brother': 'Paternal Brother (Same Father)',
+      'paternal_sister': 'Paternal Sister (Same Father)',
       'grandfather': 'Grandfather',
       'grandmother': 'Grandmother',
       'grandson': 'Grandson',

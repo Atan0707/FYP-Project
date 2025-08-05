@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { getDisplayRelationshipName } from '@/lib/relationships'
 
 interface UserDetails {
   user: {
@@ -243,7 +244,7 @@ export default function UserDetailsPage() {
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">{member.fullName}</TableCell>
                         <TableCell>{member.ic}</TableCell>
-                        <TableCell>{member.relationship}</TableCell>
+                        <TableCell>{getDisplayRelationshipName(member.relationship)}</TableCell>
                         <TableCell>{member.phone}</TableCell>
                         <TableCell>
                           {member.isRegistered ? (

@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { FiUsers, FiDollarSign, FiHome, FiCalendar, FiActivity, FiPlusCircle } from 'react-icons/fi';
 import Link from 'next/link';
+import { getDisplayRelationshipName } from '@/lib/relationships';
 // import { OnboardingDialog } from '@/components/OnboardingDialog';
 
 // Types
@@ -211,8 +212,8 @@ export default function DashboardPage() {
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">{member.fullName}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {member.relationship}
+                          <Badge variant="outline">
+                            {getDisplayRelationshipName(member.relationship)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">

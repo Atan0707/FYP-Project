@@ -33,6 +33,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import React from 'react';
+import { getDisplayRelationshipName } from '@/lib/relationships';
 
 interface Asset {
   id: string;
@@ -919,7 +920,7 @@ export default function AssetsPage() {
                                {familyAssetGroup.familyMember.fullName}
                              </div>
                              <div className="text-sm text-muted-foreground">
-                               {familyAssetGroup.familyMember.relationship}
+                                                               {getDisplayRelationshipName(familyAssetGroup.familyMember.relationship)}
                              </div>
                            </div>
                          </div>

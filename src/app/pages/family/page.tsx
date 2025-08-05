@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAvailableRelationships } from '@/lib/relationships';
+import { getAvailableRelationships, getDisplayRelationshipName } from '@/lib/relationships';
 import { useSearchParams } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -700,7 +700,7 @@ function FamilyPageContent() {
                           <SelectContent>
                             {relationships.map((relationship) => (
                               <SelectItem key={relationship} value={relationship}>
-                                {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                                {getDisplayRelationshipName(relationship)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -757,7 +757,7 @@ function FamilyPageContent() {
                             <SelectContent>
                               {relationships.map((relationship) => (
                                 <SelectItem key={relationship} value={relationship}>
-                                  {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                                  {getDisplayRelationshipName(relationship)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -866,7 +866,7 @@ function FamilyPageContent() {
               <TableRow key={family.id}>
                 <TableCell>{family.fullName}</TableCell>
                 <TableCell>{family.ic}</TableCell>
-                <TableCell>{family.relationship}</TableCell>
+                <TableCell>{getDisplayRelationshipName(family.relationship)}</TableCell>
                 <TableCell>{family.phone}</TableCell>
                 <TableCell>
                   <Badge variant={family.isRegistered ? "success" : "secondary"}>
@@ -934,7 +934,7 @@ function FamilyPageContent() {
                 </div>
                 <div>
                   <Label>Current Relationship</Label>
-                  <div className="font-medium capitalize">{editingRelationship.relationship}</div>
+                  <div className="font-medium">{getDisplayRelationshipName(editingRelationship.relationship)}</div>
                 </div>
                 {editingRelationship.isRegistered && (
                   <div className="pt-2">
@@ -961,7 +961,7 @@ function FamilyPageContent() {
                   <SelectContent>
                     {relationships.map((relationship) => (
                       <SelectItem key={relationship} value={relationship}>
-                        {relationship.charAt(0).toUpperCase() + relationship.slice(1)}
+                        {getDisplayRelationshipName(relationship)}
                       </SelectItem>
                     ))}
                   </SelectContent>
