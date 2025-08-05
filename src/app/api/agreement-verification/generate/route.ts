@@ -38,6 +38,111 @@ function generateVerificationCode(): string {
 // Function to send verification email
 async function sendVerificationEmail(email: string, code: string, fullName: string, assetName: string) {
   try {
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #d1ecf1; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+          <h2 style="color: #0c5460; margin: 0 0 10px 0;">🔐 Agreement Signing Verification</h2>
+          <p style="color: #0c5460; margin: 0;">Please verify your identity to proceed with signing the agreement.</p>
+        </div>
+        
+        <div style="background-color: #ffffff; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px;">
+          <h3 style="color: #495057; margin-top: 0;">Hello ${fullName},</h3>
+          
+          <p style="color: #6c757d; margin-bottom: 20px;">
+            You are about to sign an agreement for the asset: <strong>${assetName}</strong>. 
+            To ensure security and authenticity, please verify your identity using the verification code below.
+          </p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+            <h4 style="color: #495057; margin: 0 0 15px 0;">Your Verification Code</h4>
+            <div style="background-color: #007bff; color: white; padding: 15px 25px; border-radius: 6px; font-size: 24px; font-weight: bold; letter-spacing: 3px; display: inline-block;">
+              ${code}
+            </div>
+            <p style="color: #6c757d; margin: 15px 0 0 0; font-size: 14px;">
+              This code will expire in 10 minutes
+            </p>
+          </div>
+          
+          <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+            <h4 style="color: #856404; margin: 0 0 10px 0;">⚠️ Action Required</h4>
+            <p style="color: #856404; margin: 0; font-size: 14px;">
+              <strong>Enter this verification code</strong> on the agreement signing page to proceed with your digital signature.
+            </p>
+          </div>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <h4 style="color: #495057; margin-bottom: 10px;">🕒 Next Steps</h4>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 6px;">
+              <ol style="color: #6c757d; margin: 0; padding-left: 20px; font-size: 14px;">
+                <li>Return to the agreement signing page</li>
+                <li>Enter the verification code above</li>
+                <li>Click "Verify & Sign" to complete your signature</li>
+                <li>Your signature will be recorded on the blockchain</li>
+              </ol>
+            </div>
+          </div>
+          
+          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #17a2b8;">
+            <h4 style="color: #495057; margin: 0 0 10px 0;">💡 Important Security Notice</h4>
+            <p style="color: #6c757d; margin: 0; font-size: 14px;">
+              If you did not request this action, please ignore this email and contact support immediately. 
+              The verification code will expire automatically in 10 minutes.
+            </p>
+          </div>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+            <h4 style="color: #495057; margin-bottom: 10px;">🔒 Security & Privacy</h4>
+            <p style="color: #6c757d; margin-bottom: 10px;">
+              Your signature will be securely recorded on the blockchain, ensuring the agreement's authenticity and immutability.
+            </p>
+            <p style="color: #6c757d; margin: 0;">
+              All personal information is encrypted and protected according to our privacy policy.
+            </p>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+          <p style="color: #6c757d; font-size: 14px; margin: 0;">
+            This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+          </p>
+          <p style="color: #6c757d; font-size: 12px; margin: 10px 0 0 0;">
+            Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const textContent = `
+Agreement Signing Verification - ${assetName}
+
+Hello ${fullName},
+
+You are about to sign an agreement for the asset: ${assetName}. To ensure security and authenticity, please verify your identity using the verification code below.
+
+Your Verification Code: ${code}
+
+This code will expire in 10 minutes.
+
+Action Required:
+Enter this verification code on the agreement signing page to proceed with your digital signature.
+
+Next Steps:
+1. Return to the agreement signing page
+2. Enter the verification code above
+3. Click "Verify & Sign" to complete your signature
+4. Your signature will be recorded on the blockchain
+
+Important Security Notice:
+If you did not request this action, please ignore this email and contact support immediately. The verification code will expire automatically in 10 minutes.
+
+Security & Privacy:
+Your signature will be securely recorded on the blockchain, ensuring the agreement's authenticity and immutability.
+All personal information is encrypted and protected according to our privacy policy.
+
+This is an automated notification from the Will Estate Management Service Provider (WEMSP).
+Please do not reply to this email.
+    `;
+
     const response = await fetch(process.env.NEXTAUTH_URL + '/api/send-email', {
       method: 'POST',
       headers: {
@@ -46,18 +151,8 @@ async function sendVerificationEmail(email: string, code: string, fullName: stri
       body: JSON.stringify({
         to: email,
         subject: 'Agreement Signing Verification - Islamic Inheritance System',
-        text: `Dear ${fullName},
-
-You are about to sign an agreement for the asset: ${assetName}
-
-Your verification code is: ${code}
-
-This code will expire in 10 minutes. Please enter this code to proceed with signing the agreement.
-
-If you did not request this action, please ignore this email and contact support immediately.
-
-Best regards,
-Islamic Inheritance System Team`
+        text: textContent,
+        html: htmlContent,
       }),
     });
 
