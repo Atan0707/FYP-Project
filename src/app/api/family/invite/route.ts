@@ -70,18 +70,6 @@ async function sendInvitationEmail(
             </a>
           </div>
           
-          <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
-            <h4 style="color: #495057; margin: 0 0 10px 0;">🔗 Alternative Access</h4>
-            <p style="color: #6c757d; margin: 0 0 10px 0; font-size: 14px;">
-              You can also respond to this invitation by visiting our website:
-            </p>
-            <p style="margin: 0;">
-              <a href="${inviteLink}" style="color: #007bff; text-decoration: none; font-weight: bold;">
-                ${inviteLink}
-              </a>
-            </p>
-          </div>
-          
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
             <h4 style="color: #495057; margin-bottom: 10px;">What happens next?</h4>
             <ol style="color: #6c757d; margin: 0; padding-left: 20px;">
@@ -140,9 +128,6 @@ Invitation Details:
 To accept this invitation, click the link below:
 ${directAcceptLink}
 
-Alternative Access:
-You can also respond to this invitation by visiting our website:
-${inviteLink}
 
 What happens next?
 1. Click the "Accept Invitation" button above

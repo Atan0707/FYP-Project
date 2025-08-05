@@ -11,7 +11,8 @@ export async function middleware(request: NextRequest) {
   const isApiRoute = request.nextUrl.pathname.startsWith('/api');
   
   // Public routes that don't require authentication
-  const isPublicRoute = request.nextUrl.pathname.startsWith('/pages/family/direct-accept');
+  const isPublicRoute = request.nextUrl.pathname.startsWith('/pages/family/direct-accept') ||
+                        request.nextUrl.pathname.startsWith('/accept-invitation');
 
   // If it's a public route, allow access without authentication
   if (isPublicRoute) {
@@ -28,6 +29,21 @@ export async function middleware(request: NextRequest) {
           { status: 401 }
         );
       }
+      return NextResponse.next();
+    }
+    
+    // Public API routes that don't require authentication
+    const publicApiRoutes = [
+      '/api/family/invite/direct-action',
+      '/api/family/invite/details'
+    ];
+    
+    const isPublicApiRoute = publicApiRoutes.some(route => 
+      request.nextUrl.pathname.startsWith(route)
+    );
+    
+    // Allow public API routes without authentication
+    if (isPublicApiRoute) {
       return NextResponse.next();
     }
     
