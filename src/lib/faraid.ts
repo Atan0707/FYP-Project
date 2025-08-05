@@ -239,7 +239,8 @@ export function calculateFaraidFromFamilyMembers(
       addShare(categorized.father, remainder, 'Father: Receives remainder as Asabah');
     }
     // Sons and daughters share remainder using 2:1 ratio
-    else if (categorized.sons.length > 0 || categorized.daughters.length > 0) {
+    // Only apply Asabah when there are sons present (daughters get Asabah only with sons)
+    else if (categorized.sons.length > 0) {
       const totalUnits = (categorized.sons.length * 2) + categorized.daughters.length;
       if (totalUnits > 0) {
         const unitValue = remainder / totalUnits;
@@ -251,6 +252,28 @@ export function calculateFaraidFromFamilyMembers(
         categorized.daughters.forEach(daughter => {
           addShare(daughter, unitValue, 'Daughter: 1 portion compared to son (Asabah)');
         });
+      }
+    }
+    // Handle "Radd" - return remainder to existing heirs proportionally
+    else if (results.length > 0 && remainder > 0) {
+      // Calculate proportional distribution of remainder based on existing shares
+      const currentTotalShares = results.reduce((sum, result) => sum + (result.percentage / 100), 0);
+      
+      if (currentTotalShares > 0) {
+        // Update each result with their proportional share of the remainder
+        results.forEach(result => {
+          const currentShare = result.percentage / 100;
+          const proportionalRemainder = (currentShare / currentTotalShares) * remainder;
+          const newShare = currentShare + proportionalRemainder;
+          
+          // Update the result
+          result.share = newShare * assetValue;
+          result.percentage = newShare * 100;
+          result.explanation += ` + remainder distributed proportionally (Radd)`;
+        });
+        
+        // Update totalShares to reflect the distribution
+        totalShares = 1;
       }
     }
   }
