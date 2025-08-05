@@ -5,6 +5,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft, Menu, X } from "lucide-react"
 import Link, { LinkProps } from "next/link"
+import { usePathname } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -211,11 +212,28 @@ export const SidebarLink = ({
   props?: LinkProps
 }) => {
   const { open, animate } = useSidebar()
+  const pathname = usePathname()
+
+  // Check if the current route is active
+  const isActive = React.useMemo(() => {
+    if (!pathname || link.href === '#') return false
+    
+    // Exact match
+    if (pathname === link.href) return true
+    
+    // Check if current path starts with the link href (for nested routes)
+    if (pathname.startsWith(link.href) && link.href !== '/') return true
+    
+    return false
+  }, [pathname, link.href])
+
   return (
     <Link
       href={link.href}
       className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2 relative",
+        "flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-lg relative transition-all duration-200",
+        "hover:bg-neutral-200 dark:hover:bg-neutral-700",
+        isActive && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-l-2 border-l-blue-500",
         className
       )}
       onClick={(e) => {
@@ -227,7 +245,12 @@ export const SidebarLink = ({
       {...props}
     >
       <div className="relative">
-        {link.icon}
+        <div className={cn(
+          "transition-colors duration-200",
+          isActive && "text-blue-600 dark:text-blue-400"
+        )}>
+          {link.icon}
+        </div>
         {link.badge !== undefined && link.badge !== null && Number(link.badge) > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center min-w-[16px] text-[10px] font-medium">
             {Number(link.badge) > 99 ? '99+' : link.badge}
@@ -239,7 +262,12 @@ export const SidebarLink = ({
           display: animate ? (open ? "inline-block" : "none") : "inline-block",
           opacity: animate ? (open ? 1 : 0) : 1,
         }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+        className={cn(
+          "text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0 font-medium",
+          isActive 
+            ? "text-blue-700 dark:text-blue-300" 
+            : "text-neutral-700 dark:text-neutral-200"
+        )}
       >
         {link.label}
       </motion.span>

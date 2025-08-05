@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { ChevronsUpDown, Plus } from "lucide-react"
+import Image from "next/image"
 
 import {
   DropdownMenu,
@@ -24,7 +25,7 @@ export function TeamSwitcher({
 }: {
   teams: {
     name: string
-    logo: React.ElementType
+    logo: React.ElementType | string
     plan: string
   }[]
 }) {
@@ -34,13 +35,22 @@ export function TeamSwitcher({
   // If there's only one team, render just the button without dropdown
   if (teams.length === 1) {
     const team = teams[0]
-    const TeamLogo = team.logo
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size="lg">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-              <TeamLogo className="size-4" />
+          <SidebarMenuButton size="lg" className="hover:bg-sidebar-accent/50 transition-colors">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-white shadow-sm border">
+              {typeof team.logo === 'string' ? (
+                <Image 
+                  src={team.logo} 
+                  alt={`${team.name} logo`}
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
+              ) : (
+                <team.logo className="size-4" />
+              )}
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-semibold">
@@ -61,10 +71,20 @@ export function TeamSwitcher({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors"
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <activeTeam.logo className="size-4" />
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-white shadow-sm border">
+                {typeof activeTeam.logo === 'string' ? (
+                  <Image 
+                    src={activeTeam.logo} 
+                    alt={`${activeTeam.name} logo`}
+                    width={20}
+                    height={20}
+                    className="object-contain"
+                  />
+                ) : (
+                  <activeTeam.logo className="size-4" />
+                )}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">
@@ -90,8 +110,18 @@ export function TeamSwitcher({
                 onClick={() => setActiveTeam(team)}
                 className="gap-2 p-2"
               >
-                <div className="flex size-6 items-center justify-center rounded-sm border">
-                  <team.logo className="size-4 shrink-0" />
+                <div className="flex size-6 items-center justify-center rounded-sm border bg-white">
+                  {typeof team.logo === 'string' ? (
+                    <Image 
+                      src={team.logo} 
+                      alt={`${team.name} logo`}
+                      width={16}
+                      height={16}
+                      className="object-contain"
+                    />
+                  ) : (
+                    <team.logo className="size-4 shrink-0" />
+                  )}
                 </div>
                 {team.name}
                 <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>

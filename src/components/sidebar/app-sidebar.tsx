@@ -2,13 +2,9 @@
 
 import * as React from "react"
 import {
-  // AudioWaveform,
   BookOpen,
   Bot,
-  // Command,
   Frame,
-  GalleryVerticalEnd,
-  // GalleryVerticalEnd,
   Map,
   PieChart,
   Settings2,
@@ -59,7 +55,7 @@ const data = {
   teams: [
     {
       name: "WEMSP",
-      logo: GalleryVerticalEnd,
+      logo: "/logo1.png",
       plan: "Enterprise",
     },
   ],
@@ -68,7 +64,6 @@ const data = {
       title: "Dashboard",
       url: "/pages/dashboard",
       icon: SquareTerminal,
-      isActive: true,
     },
     {
       title: "Family",
