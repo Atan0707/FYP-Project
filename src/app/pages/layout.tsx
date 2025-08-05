@@ -175,11 +175,19 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false); // Start with false to avoid hydration mismatch
+  const [isClient, setIsClient] = useState(false);
   const { data: pendingCount = 0, isLoading, error } = usePendingAgreements();
+
+  // Set client flag to prevent hydration issues
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Close mobile sidebar when screen size changes to desktop
   useEffect(() => {
+    if (!isClient) return; // Only run on client side
+
     const handleResize = () => {
       if (window.innerWidth >= 768) { // md breakpoint
         setOpen(true); // Keep open on desktop
@@ -193,7 +201,7 @@ export default function AdminLayout({
     
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [isClient]);
 
   // Only show badge if count is actually greater than 0 and not loading
   const shouldShowBadge = !isLoading && !error && pendingCount > 0;

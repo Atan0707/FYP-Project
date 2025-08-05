@@ -167,15 +167,51 @@ export async function PUT(request: Request) {
     }
 
     // Update all family records where this user is referenced
+    // Update by IC (for family members added before user registration)
     await prisma.family.updateMany({
       where: {
         ic: updatedUser.ic,
         userId: { not: userId }, // Only update records created by other users
-        isRegistered: true,
       },
       data: {
         fullName: encryptedFullName,
         phone: encryptedPhone,
+      },
+    });
+
+    // Update by relatedUserId (for registered family members)
+    await prisma.family.updateMany({
+      where: {
+        relatedUserId: userId,
+        userId: { not: userId }, // Only update records created by other users
+      },
+      data: {
+        fullName: encryptedFullName,
+        phone: encryptedPhone,
+      },
+    });
+
+    // Update all family invitations where this user is referenced as invitee
+    await prisma.familyInvitation.updateMany({
+      where: {
+        inviteeIC: updatedUser.ic,
+        inviterId: { not: userId }, // Only update invitations sent by other users
+      },
+      data: {
+        inviteeFullName: encryptedFullName,
+        inviteePhone: encryptedPhone,
+      },
+    });
+
+    // Also update family invitations by inviteeId
+    await prisma.familyInvitation.updateMany({
+      where: {
+        inviteeId: userId,
+        inviterId: { not: userId }, // Only update invitations sent by other users
+      },
+      data: {
+        inviteeFullName: encryptedFullName,
+        inviteePhone: encryptedPhone,
       },
     });
 
