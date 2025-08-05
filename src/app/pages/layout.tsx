@@ -178,6 +178,23 @@ export default function AdminLayout({
   const [open, setOpen] = useState(true);
   const { data: pendingCount = 0, isLoading, error } = usePendingAgreements();
 
+  // Close mobile sidebar when screen size changes to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) { // md breakpoint
+        setOpen(true); // Keep open on desktop
+      } else {
+        setOpen(false); // Close on mobile by default
+      }
+    };
+
+    // Set initial state
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Only show badge if count is actually greater than 0 and not loading
   const shouldShowBadge = !isLoading && !error && pendingCount > 0;
 
@@ -257,12 +274,12 @@ export default function AdminLayout({
       </div>
 
       {/* Mobile Header and Sidebar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-b shadow-sm">
         <div className="flex items-center justify-between p-4">
           <Logo />
           <button
             onClick={() => setOpen(!open)}
-            className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors duration-200"
           >
             <svg
               className="h-6 w-6"
@@ -306,35 +323,48 @@ export default function AdminLayout({
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-              className="md:hidden fixed inset-y-0 left-0 w-64 bg-background border-r z-50 overflow-y-auto"
+              className="md:hidden fixed inset-y-0 left-0 w-72 bg-background border-r shadow-2xl z-50 overflow-y-auto"
             >
               <div className="p-4 flex flex-col h-full">
                 <Logo />
-                <nav className="mt-8 flex flex-col gap-2 flex-1">
-                  {links.map((link, idx) => (
-                    <Link
-                      key={idx}
-                      href={link.href}
-                      onClick={(e) => {
-                        if (link.onClick) {
-                          e.preventDefault();
-                          link.onClick();
-                        }
-                        setOpen(false);
-                      }}
-                      className="flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 relative"
-                    >
-                      <div className="relative">
-                        {link.icon}
-                        {link.badge !== undefined && link.badge !== null && Number(link.badge) > 0 && (
-                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center min-w-[16px] text-[10px] font-medium">
-                            {Number(link.badge) > 99 ? '99+' : link.badge}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-sm font-medium">{link.label}</span>
-                    </Link>
-                  ))}
+                <nav className="mt-8 flex flex-col gap-3 flex-1">
+                  {links.map((link, idx) => {
+                    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+                    const isActive = pathname === link.href || (pathname.startsWith(link.href) && link.href !== '/');
+                    
+                    return (
+                      <Link
+                        key={idx}
+                        href={link.href}
+                        onClick={(e) => {
+                          if (link.onClick) {
+                            e.preventDefault();
+                            link.onClick();
+                          }
+                          setOpen(false);
+                        }}
+                        className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 relative ${
+                          isActive 
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm border-l-4 border-l-blue-500' 
+                            : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200'
+                        }`}
+                      >
+                        <div className={`relative transition-colors duration-200 ${
+                          isActive ? 'text-blue-600 dark:text-blue-400' : ''
+                        }`}>
+                          {link.icon}
+                          {link.badge !== undefined && link.badge !== null && Number(link.badge) > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] text-[10px] font-bold shadow-lg">
+                              {Number(link.badge) > 99 ? '99+' : link.badge}
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-sm font-medium ${
+                          isActive ? 'font-semibold' : ''
+                        }`}>{link.label}</span>
+                      </Link>
+                    );
+                  })}
                 </nav>
                 <ErrorBoundary FallbackComponent={() => <UserProfileFallback open={true} />}>
                   <UserProfile open={true} />

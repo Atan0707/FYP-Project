@@ -15,7 +15,13 @@ const Logo = () => {
       href="/admin/pages/dashboard"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
+      <div className="h-8 w-8 rounded-lg overflow-hidden flex-shrink-0 bg-white shadow-sm border">
+        <img 
+          src="/logo1.png" 
+          alt="WEMSP Admin Logo"
+          className="h-full w-full object-contain"
+        />
+      </div>
       <motion.span
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -33,7 +39,13 @@ const LogoIcon = () => {
       href="/admin/pages/dashboard"
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
     >
-      <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
+      <div className="h-8 w-8 rounded-lg overflow-hidden flex-shrink-0 bg-white shadow-sm border">
+        <img 
+          src="/logo1.png" 
+          alt="WEMSP Admin Logo"
+          className="h-full w-full object-contain"
+        />
+      </div>
     </Link>
   );
 };
@@ -43,7 +55,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // Default to open for admin
   const [isRootAdmin, setIsRootAdmin] = useState(false);
 
   useEffect(() => {
@@ -61,6 +73,23 @@ export default function AdminLayout({
     };
 
     checkIfRootAdmin();
+  }, []);
+
+  // Handle responsive sidebar behavior
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) { // md breakpoint
+        setOpen(true); // Keep open on desktop for admin
+      } else {
+        setOpen(false); // Close on mobile by default
+      }
+    };
+
+    // Set initial state
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const links = [
@@ -149,12 +178,12 @@ export default function AdminLayout({
       </div>
 
       {/* Mobile Header and Sidebar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-b shadow-sm">
         <div className="flex items-center justify-between p-4">
           <Logo />
           <button
             onClick={() => setOpen(!open)}
-            className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors duration-200"
           >
             <svg
               className="h-6 w-6"
@@ -198,28 +227,43 @@ export default function AdminLayout({
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-              className="md:hidden fixed inset-y-0 left-0 w-64 bg-background border-r z-50 overflow-y-auto"
+              className="md:hidden fixed inset-y-0 left-0 w-72 bg-background border-r shadow-2xl z-50 overflow-y-auto"
             >
               <div className="p-4">
                 <Logo />
-                <nav className="mt-8 flex flex-col gap-2">
-                  {links.map((link, idx) => (
-                    <Link
-                      key={idx}
-                      href={link.href}
-                      onClick={(e) => {
-                        if (link.onClick) {
-                          e.preventDefault();
-                          link.onClick();
-                        }
-                        setOpen(false);
-                      }}
-                      className="flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                    >
-                      {link.icon}
-                      <span className="text-sm font-medium">{link.label}</span>
-                    </Link>
-                  ))}
+                <nav className="mt-8 flex flex-col gap-3">
+                  {links.map((link, idx) => {
+                    const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+                    const isActive = pathname === link.href || (pathname.startsWith(link.href) && link.href !== '/');
+                    
+                    return (
+                      <Link
+                        key={idx}
+                        href={link.href}
+                        onClick={(e) => {
+                          if (link.onClick) {
+                            e.preventDefault();
+                            link.onClick();
+                          }
+                          setOpen(false);
+                        }}
+                        className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                          isActive 
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm border-l-4 border-l-blue-500' 
+                            : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200'
+                        }`}
+                      >
+                        <div className={`transition-colors duration-200 ${
+                          isActive ? 'text-blue-600 dark:text-blue-400' : ''
+                        }`}>
+                          {link.icon}
+                        </div>
+                        <span className={`text-sm font-medium ${
+                          isActive ? 'font-semibold' : ''
+                        }`}>{link.label}</span>
+                      </Link>
+                    );
+                  })}
                 </nav>
               </div>
             </motion.div>
