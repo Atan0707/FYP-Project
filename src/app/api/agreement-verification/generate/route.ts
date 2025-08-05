@@ -72,14 +72,10 @@ Islamic Inheritance System Team`
 
 export async function POST(request: Request) {
   try {
-    const { agreementId, signerIC } = await request.json();
+    const { agreementId } = await request.json();
 
     if (!agreementId) {
       return NextResponse.json({ error: 'Agreement ID is required' }, { status: 400 });
-    }
-
-    if (!signerIC) {
-      return NextResponse.json({ error: 'IC number is required' }, { status: 400 });
     }
 
     // // Validate IC format
@@ -135,10 +131,8 @@ export async function POST(request: Request) {
       // Use as-is if decryption fails (for backward compatibility)
     }
 
-    // Validate that the provided IC matches the user's IC
-    if (decryptedIC !== signerIC) {
-      return NextResponse.json({ error: 'IC number does not match your registered IC number.' }, { status: 400 });
-    }
+    // Use the authenticated user's IC for signing
+    const signerIC = decryptedIC;
 
     // Verify the agreement exists and user has access to it
     // First check if the agreement exists
@@ -234,6 +228,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true, 
       message: 'Verification code sent to your email. Please check your email and enter the code.',
+      signerIC: signerIC // Return the user's IC for frontend use
     });
   } catch (error) {
     console.error('Error generating verification code:', error);

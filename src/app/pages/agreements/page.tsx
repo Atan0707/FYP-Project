@@ -119,11 +119,11 @@ export default function AgreementsPage() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'value' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [signerIC, setSignerIC] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [isVerificationStep, setIsVerificationStep] = useState(false);
   const [isVerificationCodeSent, setIsVerificationCodeSent] = useState(false);
   const [verificationTimer, setVerificationTimer] = useState(0);
+  const [signerIC, setSignerIC] = useState('');
 
   useEffect(() => {
     console.log("Selected Agreement", selectedAgreement);
@@ -153,11 +153,11 @@ export default function AgreementsPage() {
 
   // Mutations
   const generateVerificationMutation = useMutation({
-    mutationFn: async ({ agreementId, signerIC }: { agreementId: string; signerIC: string }) => {
+    mutationFn: async ({ agreementId }: { agreementId: string }) => {
       const response = await fetch('/api/agreement-verification/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agreementId, signerIC }),
+        body: JSON.stringify({ agreementId }),
       });
       if (!response.ok) {
         const error = await response.json();
@@ -165,10 +165,11 @@ export default function AgreementsPage() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setIsVerificationCodeSent(true);
       setVerificationTimer(600); // 10 minutes countdown
       setIsVerificationStep(true); // Move this here - only show verification step on success
+      setSignerIC(data.signerIC); // Store the IC for later use
       toast.success('Verification code sent to your email');
     },
     onError: (error) => {
@@ -204,7 +205,6 @@ export default function AgreementsPage() {
       if (selectedAgreement) {
         signMutation.mutate({
           agreementId: selectedAgreement.id,
-          signerIC,
         });
       }
     },
@@ -219,12 +219,11 @@ export default function AgreementsPage() {
   });
 
   const signMutation = useMutation({
-    mutationFn: async ({ agreementId, signerIC }: { agreementId: string; signerIC: string }) => {
+    mutationFn: async ({ agreementId }: { agreementId: string }) => {
       if (!contractService) {
         throw new Error('Contract service not initialized');
       }
       console.log('Signing agreement with ID:', agreementId);
-      console.log('Signer IC:', signerIC);
 
       // First get the tokenId from the agreementId
       const tokenResult = await contractService.getTokenIdFromAgreementId(agreementId);
@@ -233,7 +232,7 @@ export default function AgreementsPage() {
         throw new Error(tokenResult.error || 'Failed to get token ID');
       }
 
-      // Then sign the agreement with the tokenId
+      // Then sign the agreement with the tokenId using the stored IC
       const result = await contractService.signAgreement(tokenResult.tokenId, signerIC);
       if (!result.success) {
         throw new Error(result.error || 'Failed to sign agreement');
@@ -274,30 +273,29 @@ export default function AgreementsPage() {
       setSignerIC('');
       setIsVerificationStep(false);
       setVerificationCode('');
+      setIsVerificationCodeSent(false);
+      setVerificationTimer(0);
     },
     onError: (error) => {
       const message = 'Failed to sign agreement: ' + (error as Error).message;
       toast.error(message);
       addNotification(message, 'error');
-      // Reset verification step if there's an error
+      // Reset all states on error
       setIsVerificationStep(false);
       setVerificationCode('');
+      setSignerIC('');
+      setIsVerificationCodeSent(false);
+      setVerificationTimer(0);
     },
   });
 
   const handleSign = () => {
     if (!selectedAgreement) return;
-    
-    if (!signerIC) {
-      toast.error('Please enter your IC number');
-      return;
-    }
 
     // First step: Generate verification code
     if (!isVerificationStep) {
       generateVerificationMutation.mutate({
         agreementId: selectedAgreement.id,
-        signerIC,
       });
       return;
     }
@@ -318,7 +316,6 @@ export default function AgreementsPage() {
     if (!selectedAgreement) return;
     generateVerificationMutation.mutate({
       agreementId: selectedAgreement.id,
-      signerIC,
     });
   };
 
@@ -1000,24 +997,11 @@ export default function AgreementsPage() {
           )}
           <div className="space-y-4">
             {!isVerificationStep ? (
-              <>
-                <div>
-                  <Label htmlFor="signerIC">IC Number <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="signerIC"
-                    value={signerIC}
-                    onChange={(e) => setSignerIC(e.target.value)}
-                    placeholder="Enter your IC number"
-                    required
-                  />
-                  {signerIC.length === 0 && (
-                    <p className="text-sm text-red-500 mt-1">
-                      IC number is required to sign the agreement
-                    </p>
-                  )}
-                </div>
-
-              </>
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">
+                  Click the button below to send a verification code to your registered email address.
+                </p>
+              </div>
             ) : (
               <div>
                 <Label htmlFor="verificationCode">Verification Code <span className="text-red-500">*</span></Label>
@@ -1063,6 +1047,11 @@ export default function AgreementsPage() {
               className="mt-2 sm:mt-0 w-full sm:w-auto"
               onClick={() => {
                 setIsSignDialogOpen(false);
+                setSignerIC(''); // Clear the stored IC
+                setVerificationCode(''); // Clear the verification code
+                setIsVerificationStep(false); // Reset verification step
+                setIsVerificationCodeSent(false); // Reset code sent flag
+                setVerificationTimer(0); // Reset timer
               }}
             >
               Cancel
@@ -1071,7 +1060,7 @@ export default function AgreementsPage() {
               className="w-full sm:w-auto"
               onClick={handleSign}
               disabled={
-                (!isVerificationStep && (!signerIC || signMutation.isPending || generateVerificationMutation.isPending)) ||
+                (!isVerificationStep && (signMutation.isPending || generateVerificationMutation.isPending)) ||
                 (isVerificationStep && (!verificationCode || verifyCodeMutation.isPending || signMutation.isPending))
               }
             >
