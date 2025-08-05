@@ -419,6 +419,12 @@ interface AgreementPDFProps {
   adminSignedAt?: string;
   adminNotes?: string;
   adminName?: string;
+  beneficiaries?: Array<{
+    familyId: string;
+    percentage: number;
+  }>;
+  organization?: string;
+  distributionNotes?: string;
 }
 
 export function AgreementPDF({ 
@@ -433,18 +439,122 @@ export function AgreementPDF({
   agreementId,
   adminSignedAt,
   adminNotes,
-  adminName
+  adminName,
+  beneficiaries,
+  organization,
+  distributionNotes
 }: AgreementPDFProps) {
   const agreementNumber = agreementId?.slice(-8).toUpperCase() || 'WEMSP' + new Date().getFullYear();
-  // Beneficiaries are family members who will receive the asset (excludes the asset owner)
-  const beneficiaries = agreements.filter(a => 
-    a.familyMember && 
-    a.familyMember.fullName !== benefactorName &&
-    a.familyMember.ic !== benefactorIC
-  );
+  
   // All signers include everyone who signed (including the asset owner if they signed)
   const allSigners = agreements.filter(a => a.familyMember);
   const isCompleted = agreements.some(a => a.status === 'completed');
+  
+  // Define proper types for beneficiaries
+  type BeneficiaryInfo = {
+    name: string;
+    type: 'Organization' | 'Family Member';
+    relationship?: string;
+    ic?: string;
+    percentage?: number;
+  };
+  
+  // Get beneficiaries and witnesses based on distribution type
+  const getBeneficiariesAndWitnesses = (): {
+    beneficiaryList: BeneficiaryInfo[];
+    witnesses: AgreementDetails[];
+  } => {
+    const type = distributionType.toLowerCase();
+    
+    switch (type) {
+      case 'waqf':
+        // For Waqf, organization is the beneficiary, all family members are witnesses
+        return {
+          beneficiaryList: organization ? [{ name: organization, type: 'Organization' as const }] : [],
+          witnesses: allSigners.filter(a => a.familyMember)
+        };
+      
+      case 'faraid':
+        // For Faraid, beneficiaries are calculated based on Islamic inheritance law
+        // All family members who are not the asset owner are beneficiaries
+        const faraidBeneficiaries = allSigners.filter(a => 
+          a.familyMember && 
+          a.familyMember.fullName !== benefactorName &&
+          a.familyMember.ic !== benefactorIC
+        );
+        return {
+          beneficiaryList: faraidBeneficiaries.map(a => ({
+            name: a.familyMember!.fullName,
+            relationship: a.familyMember!.relationship,
+            ic: a.familyMember!.ic,
+            type: 'Family Member' as const
+          })),
+          witnesses: []
+        };
+      
+      case 'hibah':
+        // For Hibah, only one beneficiary, others are witnesses
+        if (beneficiaries && beneficiaries.length > 0) {
+          const hibahBeneficiary = allSigners.find(a => 
+            a.familyMember && beneficiaries.some(b => b.familyId === a.familyMember!.id)
+          );
+          const hibahWitnesses = allSigners.filter(a => 
+            a.familyMember && 
+            !beneficiaries.some(b => b.familyId === a.familyMember!.id)
+          );
+          return {
+            beneficiaryList: hibahBeneficiary ? [{
+              name: hibahBeneficiary.familyMember!.fullName,
+              relationship: hibahBeneficiary.familyMember!.relationship,
+              ic: hibahBeneficiary.familyMember!.ic,
+              type: 'Family Member' as const
+            }] : [],
+            witnesses: hibahWitnesses
+          };
+        }
+        return { beneficiaryList: [], witnesses: allSigners.filter(a => a.familyMember) };
+      
+      case 'will':
+        // For Wills, beneficiaries are specified in the will
+        const willBeneficiaries = allSigners.filter(a => 
+          a.familyMember && 
+          beneficiaries?.some(b => b.familyId === a.familyMember!.id)
+        );
+        const willWitnesses = allSigners.filter(a => 
+          a.familyMember && 
+          !beneficiaries?.some(b => b.familyId === a.familyMember!.id)
+        );
+        return {
+          beneficiaryList: willBeneficiaries.map(a => ({
+            name: a.familyMember!.fullName,
+            relationship: a.familyMember!.relationship,
+            ic: a.familyMember!.ic,
+            percentage: beneficiaries?.find(b => b.familyId === a.familyMember!.id)?.percentage,
+            type: 'Family Member' as const
+          })),
+          witnesses: willWitnesses
+        };
+      
+      default:
+        // Default behavior - treat as beneficiaries
+        const defaultBeneficiaries = allSigners.filter(a => 
+          a.familyMember && 
+          a.familyMember.fullName !== benefactorName &&
+          a.familyMember.ic !== benefactorIC
+        );
+        return {
+          beneficiaryList: defaultBeneficiaries.map(a => ({
+            name: a.familyMember!.fullName,
+            relationship: a.familyMember!.relationship,
+            ic: a.familyMember!.ic,
+            type: 'Family Member' as const
+          })),
+          witnesses: []
+        };
+    }
+  };
+  
+  const { beneficiaryList, witnesses } = getBeneficiariesAndWitnesses();
   
   // Extract admin name from notes if not provided directly
   let displayAdminName = adminName || 'Admin';
@@ -525,18 +635,22 @@ export function AgreementPDF({
         {/* DAN Section */}
         <Text style={styles.dan}>DAN</Text>
         
-        {/* Third Party - First Beneficiary */}
-        {beneficiaries.length > 0 && (
+        {/* Third Party - First Beneficiary or Organization */}
+        {beneficiaryList.length > 0 && (
           <View style={styles.partyBox}>
             <View style={styles.partyContent}>
               <Text style={styles.partyName}>
-                {beneficiaries[0].familyMember?.fullName.toUpperCase()}
+                {beneficiaryList[0].name.toUpperCase()}
               </Text>
-              <Text style={styles.partyIC}>
-                ({beneficiaries[0].familyMember?.ic})
-              </Text>
+              {beneficiaryList[0].type === 'Family Member' && beneficiaryList[0].ic && (
+                <Text style={styles.partyIC}>
+                  ({beneficiaryList[0].ic})
+                </Text>
+              )}
               <Text style={styles.partyDescription}>
-                (Nama PENERIMA dan No. Kad Pengenalan)
+                {beneficiaryList[0].type === 'Organization' 
+                  ? '(Nama ORGANISASI WAKAF)'
+                  : '(Nama PENERIMA dan No. Kad Pengenalan)'}
               </Text>
             </View>
           </View>
@@ -620,18 +734,34 @@ export function AgreementPDF({
           </View> */}
 
           {/* All Family Members (Signers) */}
-          {allSigners.map((agreement) => (
-            <View key={agreement.id} style={styles.partyInfo}>
-              <Text style={styles.partyName}>{agreement.familyMember?.fullName.toUpperCase()}</Text>
-              <Text style={styles.partyDetail}>No. K/P: {agreement.familyMember?.ic}</Text>
-              <Text style={styles.partyDetail}>Hubungan: {agreement.familyMember?.relationship}</Text>
-              <Text style={styles.partyRole}>
-                {agreement.familyMember?.fullName === benefactorName && agreement.familyMember?.ic === benefactorIC 
-                  ? '(PEMBERI HARTA / GRANTOR)' 
-                  : `(PENERIMA HARTA / BENEFICIARY ${beneficiaries.findIndex(b => b.id === agreement.id) + 1})`}
-              </Text>
-            </View>
-          ))}
+          {allSigners.map((agreement) => {
+            const isGrantor = agreement.familyMember?.fullName === benefactorName && agreement.familyMember?.ic === benefactorIC;
+            const isBeneficiary = beneficiaryList.some(b => b.name === agreement.familyMember?.fullName);
+            const isWitness = witnesses.some(w => w.id === agreement.id);
+            
+            let role = '';
+            if (isGrantor) {
+              role = '(PEMBERI HARTA / GRANTOR)';
+            } else if (distributionType.toLowerCase() === 'waqf') {
+              role = '(SAKSI / WITNESS)';
+            } else if (isBeneficiary) {
+              const beneficiaryIndex = beneficiaryList.findIndex(b => b.name === agreement.familyMember?.fullName);
+              role = `(PENERIMA HARTA / BENEFICIARY ${beneficiaryIndex + 1})`;
+            } else if (isWitness) {
+              role = '(SAKSI / WITNESS)';
+            } else {
+              role = '(AHLI KELUARGA / FAMILY MEMBER)';
+            }
+            
+            return (
+              <View key={agreement.id} style={styles.partyInfo}>
+                <Text style={styles.partyName}>{agreement.familyMember?.fullName.toUpperCase()}</Text>
+                <Text style={styles.partyDetail}>No. K/P: {agreement.familyMember?.ic}</Text>
+                <Text style={styles.partyDetail}>Hubungan: {agreement.familyMember?.relationship}</Text>
+                <Text style={styles.partyRole}>{role}</Text>
+              </View>
+            );
+          })}
         </View>
 
         {/* Asset Information */}
@@ -668,34 +798,130 @@ export function AgreementPDF({
           </View>
         </View>
 
-        {/* Beneficiaries Table */}
+        {/* Beneficiaries/Organization Table */}
         <View style={styles.beneficiarySection}>
-          <Text style={styles.sectionTitle}>SENARAI PENERIMA / BENEFICIARIES LIST</Text>
-          
-          {/* Table Header */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, { width: '10%' }]}>Bil.</Text>
-            <Text style={[styles.tableHeaderCell, { width: '40%' }]}>Nama</Text>
-            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>No. K/P</Text>
-            <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Hubungan</Text>
-          </View>
-          
-          {/* Table Rows */}
-          {beneficiaries.map((agreement, index) => (
-            <View key={agreement.id} style={styles.tableRow}>
-              <Text style={[styles.tableCell, { width: '10%' }]}>{index + 1}</Text>
-              <Text style={[styles.tableCell, { width: '40%' }]}>
-                {agreement.familyMember?.fullName}
-              </Text>
-              <Text style={[styles.tableCell, { width: '25%' }]}>
-                {agreement.familyMember?.ic}
-              </Text>
-              <Text style={[styles.tableCell, { width: '25%' }]}>
-                {agreement.familyMember?.relationship}
-              </Text>
-            </View>
-          ))}
+          {distributionType.toLowerCase() === 'waqf' ? (
+            <>
+              <Text style={styles.sectionTitle}>MAKLUMAT WAKAF / WAQF INFORMATION</Text>
+              {organization ? (
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Organisasi Penerima Wakaf:</Text>
+                  <Text style={styles.detailValue}>{organization}</Text>
+                </View>
+              ) : (
+                <Text style={styles.detailValue}>Harta ini telah diwakafkan / This asset has been set as waqf</Text>
+              )}
+              {witnesses.length > 0 && (
+                <>
+                  <Text style={[styles.sectionTitle, { marginTop: 20 }]}>SENARAI SAKSI / WITNESSES LIST</Text>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderCell, { width: '10%' }]}>Bil.</Text>
+                    <Text style={[styles.tableHeaderCell, { width: '40%' }]}>Nama</Text>
+                    <Text style={[styles.tableHeaderCell, { width: '25%' }]}>No. K/P</Text>
+                    <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Hubungan</Text>
+                  </View>
+                  {witnesses.map((witness, index) => (
+                    <View key={witness.id} style={styles.tableRow}>
+                      <Text style={[styles.tableCell, { width: '10%' }]}>{index + 1}</Text>
+                      <Text style={[styles.tableCell, { width: '40%' }]}>
+                        {witness.familyMember?.fullName}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '25%' }]}>
+                        {witness.familyMember?.ic}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '25%' }]}>
+                        {witness.familyMember?.relationship}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>SENARAI PENERIMA / BENEFICIARIES LIST</Text>
+              
+              {/* Table Header - Add percentage column for wills */}
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { width: '10%' }]}>Bil.</Text>
+                <Text style={[styles.tableHeaderCell, { width: distributionType.toLowerCase() === 'will' ? '30%' : '40%' }]}>Nama</Text>
+                <Text style={[styles.tableHeaderCell, { width: '25%' }]}>No. K/P</Text>
+                <Text style={[styles.tableHeaderCell, { width: distributionType.toLowerCase() === 'will' ? '20%' : '25%' }]}>Hubungan</Text>
+                {distributionType.toLowerCase() === 'will' && (
+                  <Text style={[styles.tableHeaderCell, { width: '15%' }]}>Peratusan</Text>
+                )}
+              </View>
+              
+              {/* Table Rows */}
+              {beneficiaryList.map((beneficiary, index) => (
+                <View key={index} style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { width: '10%' }]}>{index + 1}</Text>
+                  <Text style={[styles.tableCell, { width: distributionType.toLowerCase() === 'will' ? '30%' : '40%' }]}>
+                    {beneficiary.name}
+                  </Text>
+                  <Text style={[styles.tableCell, { width: '25%' }]}>
+                    {beneficiary.ic || '-'}
+                  </Text>
+                  <Text style={[styles.tableCell, { width: distributionType.toLowerCase() === 'will' ? '20%' : '25%' }]}>
+                    {beneficiary.relationship || '-'}
+                  </Text>
+                  {distributionType.toLowerCase() === 'will' && (
+                    <Text style={[styles.tableCell, { width: '15%' }]}>
+                      {beneficiary.percentage ? `${beneficiary.percentage}%` : '-'}
+                    </Text>
+                  )}
+                </View>
+              ))}
+              
+              {/* Add witnesses section for hibah and will */}
+              {(distributionType.toLowerCase() === 'hibah' || distributionType.toLowerCase() === 'will') && witnesses.length > 0 && (
+                <>
+                  <Text style={[styles.sectionTitle, { marginTop: 20 }]}>SENARAI SAKSI / WITNESSES LIST</Text>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderCell, { width: '10%' }]}>Bil.</Text>
+                    <Text style={[styles.tableHeaderCell, { width: '40%' }]}>Nama</Text>
+                    <Text style={[styles.tableHeaderCell, { width: '25%' }]}>No. K/P</Text>
+                    <Text style={[styles.tableHeaderCell, { width: '25%' }]}>Hubungan</Text>
+                  </View>
+                  {witnesses.map((witness, index) => (
+                    <View key={witness.id} style={styles.tableRow}>
+                      <Text style={[styles.tableCell, { width: '10%' }]}>{index + 1}</Text>
+                      <Text style={[styles.tableCell, { width: '40%' }]}>
+                        {witness.familyMember?.fullName}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '25%' }]}>
+                        {witness.familyMember?.ic}
+                      </Text>
+                      <Text style={[styles.tableCell, { width: '25%' }]}>
+                        {witness.familyMember?.relationship}
+                      </Text>
+                    </View>
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </View>
+
+        {/* Distribution Specific Information */}
+        {distributionType.toLowerCase() === 'will' && distributionNotes && (
+          <View style={styles.assetSection}>
+            <Text style={styles.sectionTitle}>KANDUNGAN WASIAT / WILL CONTENT</Text>
+            <Text style={styles.detailValue}>{distributionNotes}</Text>
+          </View>
+        )}
+
+        {distributionType.toLowerCase() === 'faraid' && (
+          <View style={styles.assetSection}>
+            <Text style={styles.sectionTitle}>MAKLUMAT FARAID / FARAID INFORMATION</Text>
+            <Text style={styles.detailValue}>
+              Pengagihan harta ini dibuat mengikut hukum Faraid dalam Islam yang menggariskan bahagian warisan untuk setiap ahli waris mengikut syariat Islam.
+            </Text>
+            <Text style={[styles.detailValue, { marginTop: 10 }]}>
+              This estate distribution is made according to Faraid law in Islam which outlines the inheritance portions for each heir according to Islamic law.
+            </Text>
+          </View>
+        )}
 
         {/* Terms and Conditions */}
         <View style={styles.termsSection}>
@@ -732,15 +958,29 @@ export function AgreementPDF({
           <Text style={styles.signatureTitle}>TANDATANGAN / SIGNATURES</Text>
           
           {/* Family Member Signatures */}
-          {allSigners.map((agreement) => (
-            <View key={agreement.id} style={styles.signatureBlock}>
-              <Text style={styles.signatureRole}>
-                {agreement.familyMember?.fullName === benefactorName && agreement.familyMember?.ic === benefactorIC 
-                  ? 'PEMBERI HARTA / GRANTOR' 
-                  : 'PENERIMA HARTA / BENEFICIARY'}
-              </Text>
-              
-              {agreement.signedAt ? (
+          {allSigners.map((agreement) => {
+            const isGrantor = agreement.familyMember?.fullName === benefactorName && agreement.familyMember?.ic === benefactorIC;
+            const isBeneficiary = beneficiaryList.some(b => b.name === agreement.familyMember?.fullName);
+            const isWitness = witnesses.some(w => w.id === agreement.id);
+            
+            let signatureRole = '';
+            if (isGrantor) {
+              signatureRole = 'PEMBERI HARTA / GRANTOR';
+            } else if (distributionType.toLowerCase() === 'waqf') {
+              signatureRole = 'SAKSI / WITNESS';
+            } else if (isBeneficiary) {
+              signatureRole = 'PENERIMA HARTA / BENEFICIARY';
+            } else if (isWitness) {
+              signatureRole = 'SAKSI / WITNESS';
+            } else {
+              signatureRole = 'AHLI KELUARGA / FAMILY MEMBER';
+            }
+            
+            return (
+              <View key={agreement.id} style={styles.signatureBlock}>
+                <Text style={styles.signatureRole}>{signatureRole}</Text>
+                
+                {agreement.signedAt ? (
                 <View>
                   <View style={styles.signatureRow}>
                     <Text style={styles.signatureLabel}>Nama:</Text>
@@ -780,7 +1020,8 @@ export function AgreementPDF({
                 </View>
               )}
             </View>
-          ))}
+              );
+            })}
 
           {/* Government Official Signature */}
           <View style={styles.signatureBlock}>

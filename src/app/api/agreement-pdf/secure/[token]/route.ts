@@ -154,6 +154,15 @@ async function getDistributionDataSecure(distributionId: string, userEmail: stri
         select: {
           email: true,
         }
+      },
+      relatedToUser: {
+        select: {
+          id: true,
+          fullName: true,
+          ic: true,
+          phone: true,
+          email: true,
+        }
       }
     }
   });
@@ -164,6 +173,11 @@ async function getDistributionDataSecure(distributionId: string, userEmail: stri
   const assetOwnerEmail = decrypt(distribution.asset.user.email || '');
   const familyEmails = familyMembers.map(fm => {
     try {
+      // For registered family members, check their User email
+      if (fm.isRegistered && fm.relatedToUser) {
+        return decrypt(fm.relatedToUser.email);
+      }
+      // For non-registered family members, check the family record email
       return fm.user?.email ? decrypt(fm.user.email) : '';
     } catch (error) {
       console.error('Error decrypting family member email:', error);
@@ -204,13 +218,38 @@ async function getDistributionDataSecure(distributionId: string, userEmail: stri
     let decryptedFamilyMember = undefined;
     if (familyMember) {
       try {
+        let fullName, ic, phone, email;
+        
+        // If this family member is registered, use their current User data
+        if (familyMember.isRegistered && familyMember.relatedToUser) {
+          try {
+            fullName = decrypt(familyMember.relatedToUser.fullName);
+            ic = decrypt(familyMember.relatedToUser.ic);
+            phone = decrypt(familyMember.relatedToUser.phone);
+            email = decrypt(familyMember.relatedToUser.email);
+          } catch (error) {
+            console.error('Error decrypting related user data:', error);
+            // Fallback to family record data
+            fullName = decrypt(familyMember.fullName);
+            ic = decrypt(familyMember.ic);
+            phone = decrypt(familyMember.phone);
+            email = familyMember.user?.email ? decrypt(familyMember.user.email) : undefined;
+          }
+        } else {
+          // For non-registered family members, use the family record data
+          fullName = decrypt(familyMember.fullName);
+          ic = decrypt(familyMember.ic);
+          phone = decrypt(familyMember.phone);
+          email = familyMember.user?.email ? decrypt(familyMember.user.email) : undefined;
+        }
+        
         decryptedFamilyMember = {
           id: familyMember.id,
-          fullName: decrypt(familyMember.fullName),
+          fullName,
           relationship: familyMember.relationship,
-          ic: decrypt(familyMember.ic),
-          email: familyMember.user?.email ? decrypt(familyMember.user.email) : undefined,
-          phone: familyMember.phone ? decrypt(familyMember.phone) : undefined,
+          ic,
+          email,
+          phone,
         };
       } catch (error) {
         console.error('Error decrypting family member data:', error);
@@ -318,6 +357,9 @@ export async function GET(
             adminSignedAt: distribution.agreement?.adminSignedAt ? distribution.agreement.adminSignedAt.toISOString() : undefined,
             adminNotes: adminNotes,
             adminName: adminName,
+            beneficiaries: distribution.beneficiaries as Array<{familyId: string; percentage: number}> | undefined,
+            organization: distribution.organization as string | undefined,
+            distributionNotes: distribution.notes as string | undefined,
           })
         )
       );
