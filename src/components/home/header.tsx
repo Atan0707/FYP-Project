@@ -16,12 +16,14 @@ export default function Header() {
           <h2 className="text-white text-5xl font-bold mb-8">
             Solution Provider (WEMSP)
           </h2>
-          <h2 className="text-white text-3xl font-light mb-8">
-            Testing Phase
-          </h2>
-          <button className="bg-white text-black px-6 py-3 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-2">
-            <a href="https://forms.gle/SPYPAoFPx77YSb5PA" target="_blank" rel="noopener noreferrer">Submit a Feedback</a>
-            <Arrow />
+          <p className="text-white text-xl font-light mb-8 max-w-2xl">
+            Secure your family&apos;s future with Sharia-compliant estate planning and digital asset management
+          </p>
+          <button className="bg-white text-black px-8 py-4 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-2 text-lg font-medium">
+            <a href="/login" className="flex items-center gap-2">
+              Get Started
+              <Arrow />
+            </a>
           </button>
         </div>
       </div>

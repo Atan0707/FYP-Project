@@ -125,7 +125,13 @@ async function getDistributionDataSecure(distributionId: string, userEmail: stri
           },
         });
         if (admin) {
-          adminName = admin.username;
+          // Decrypt admin username
+          try {
+            adminName = decrypt(admin.username);
+          } catch {
+            // Fallback for backward compatibility
+            adminName = admin.username;
+          }
         }
       } catch (error) {
         console.error('Error fetching admin info:', error);
