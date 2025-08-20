@@ -13,7 +13,7 @@ const TestPage = () => {
     const ciphertext = CryptoJS.AES.encrypt('test', 'secret key 123').toString();
     
     // Decrypt
-    const bytes = CryptoJS.AES.decrypt("U2FsdGVkX18nXwbmkLf46rIfqlue26AAL1ZaPqkFbKY=", 'secret key 123');
+    const bytes = CryptoJS.AES.decrypt("U2FsdGVkX19bjd7wwC4HAk/he1JFE5DYJj+H4ulqEi4==", 'atan');
     const originalText = bytes.toString(CryptoJS.enc.Utf8);
 
     // console.log(ciphertext);
